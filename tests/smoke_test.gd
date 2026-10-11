@@ -1,0 +1,107 @@
+extends SceneTree
+## ヘッドレス自動検証（実キーボード・マウスの操作確認の代わりにはならない）。
+## 実行: Godot --headless --path . --script res://tests/smoke_test.gd
+## 照準判定・取得→修理→脱出→再プレイ・一時停止/再開を、スクリプトから直接呼び出して確認する。
+
+var _failures := 0
+
+
+func _initialize() -> void:
+	_run()
+
+
+func _run() -> void:
+	change_scene_to_file("res://scenes/main.tscn")
+	await _frames(10)
+	var main := current_scene
+	var player = main.player
+	var room = main.room
+	var driver_pos: Vector3 = room.driver_node.global_position
+
+	# --- 照準：対象から視点を外して即クリック（物理フレームを挟まない）
+	player.global_position = Vector3(0.2, 0.0, 0.3)
+	await _frames(3)
+	_aim(player, driver_pos)
+	await physics_frame
+	await physics_frame
+	_check(player.get_focused() != null, "照準を合わせると表示用の判定にドライバーが入る")
+	_aim(player, driver_pos + Vector3(-1.5, 1.2, 0.0))   # 視点を外す
+	_check(player.get_focused() != null, "（再現）視点変更直後は表示用キャッシュが古い対象を返す")
+	player.try_interact()
+	_check(not main.has_driver, "視点を外した直後のクリックでは拾わない")
+
+	# --- 壁越しの遮断：右の壁の外から狙う
+	var saved: Vector3 = player.global_position
+	player.global_position = Vector3(1.25, 0.0, 0.05)
+	_aim(player, driver_pos)
+	player.try_interact()
+	_check(not main.has_driver, "壁越しには拾えない")
+	player.global_position = saved
+
+	# --- 照準を合わせてクリックすると拾える
+	_aim(player, driver_pos)
+	player.try_interact()
+	_check(main.has_driver, "照準を合わせたクリックで拾える")
+	await _frames(2)
+
+	# --- ドア修理
+	var door_pos: Vector3 = room.door_pivot.global_position + Vector3(0.35, 0.95, 0.0)
+	player.global_position = Vector3(0.0, 0.0, 0.5)
+	await _frames(3)
+	_aim(player, door_pos)
+	player.try_interact()
+	_check(main.door_open, "ドライバー所持でドアを直せる")
+
+	# --- 一時停止・再開
+	main._pause()
+	_check(paused and main.paused, "一時停止でツリーが止まる")
+	var menu_size: Vector2 = main.hud._pause_menu.size
+	_check(menu_size.x >= 640.0 and menu_size.y >= 360.0, "一時停止メニューが全画面に広がる (%s)" % menu_size)
+	main._resume()
+	_check(not paused and not main.paused, "再開でツリーが動く")
+
+	# --- 出口通過
+	await _seconds(1.4)
+	for i in 120:
+		player.velocity = Vector3.ZERO
+		player.global_position = player.global_position.move_toward(Vector3(0.0, 0.05, 2.4), 0.03)
+		await physics_frame
+		if main.cleared:
+			break
+	_check(main.cleared, "廊下に出るとクリアになる")
+
+	# --- 再プレイ
+	main._retry()
+	await _frames(10)
+	var main2 := current_scene
+	_check(main2 != main and not main2.has_driver and not main2.door_open and not main2.cleared,
+			"「もう一度」で初期状態に戻る")
+	_check(main2.room.driver_node != null, "再プレイ後にドライバーが元の位置にある")
+
+	print("SMOKE TEST: %s (%d failure(s))" % ["PASS" if _failures == 0 else "FAIL", _failures])
+	quit(1 if _failures > 0 else 0)
+
+
+func _aim(player: Node3D, point: Vector3) -> void:
+	# マウス操作と同じく、本体の yaw とカメラの pitch を変える
+	var eye: Vector3 = player.global_position + Vector3(0.0, player.EYE_HEIGHT, 0.0)
+	var d := point - eye
+	player.rotation.y = atan2(-d.x, -d.z)
+	var pitch := atan2(d.y, Vector2(d.x, d.z).length())
+	player._pitch = pitch
+	player.camera.rotation.x = pitch
+
+
+func _check(ok: bool, label: String) -> void:
+	print(("  OK   " if ok else "  FAIL ") + label)
+	if not ok:
+		_failures += 1
+
+
+func _frames(n: int) -> void:
+	for i in n:
+		await process_frame
+
+
+func _seconds(t: float) -> void:
+	await create_timer(t).timeout

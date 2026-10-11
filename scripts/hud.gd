@@ -12,6 +12,8 @@ const JP_FONTS := [
 ]
 
 var _root: Control
+var _prompt_panel: PanelContainer
+var _message_panel: PanelContainer
 var _prompt_label: Label
 var _message_label: Label
 var _inventory_label: Label
@@ -32,26 +34,42 @@ func _ready() -> void:
 	_root.theme = _make_theme()
 	add_child(_root)
 
+	# 配置（1280x720 基準、上から）：
+	#   所持品 … 左上
+	#   照準   … 画面中央
+	#   操作   … 照準の 28px 下（中央）
+	#   説明文 … 下端から 52px 上を底辺として上に伸びる（最大2〜3行）
+	#   操作案内 … 最下段（下端から 12〜40px）
 	_build_crosshair()
-	_prompt_label = _make_label(22, HORIZONTAL_ALIGNMENT_CENTER)
-	_prompt_label.name = "Prompt"
-	_place(_prompt_label, 0.0, 0.5, 1.0, 0.5, 0.0, 22.0, 0.0, 60.0)
+	_prompt_label = _make_label(20, HORIZONTAL_ALIGNMENT_CENTER)
+	_prompt_label.name = "PromptLabel"
+	_prompt_panel = _make_panel("Prompt", _prompt_label, 0.55)
+	_place(_prompt_panel, 0.5, 0.5, 0.5, 0.5, 0.0, 28.0, 0.0, 28.0)
+	_prompt_panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_prompt_panel.grow_vertical = Control.GROW_DIRECTION_END
+	_prompt_panel.visible = false
 
-	_message_label = _make_label(26, HORIZONTAL_ALIGNMENT_CENTER)
-	_message_label.name = "Message"
+	_message_label = _make_label(24, HORIZONTAL_ALIGNMENT_CENTER)
+	_message_label.name = "MessageLabel"
 	_message_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_place(_message_label, 0.1, 1.0, 0.9, 1.0, 0.0, -190.0, 0.0, -110.0)
-	_message_label.visible = false
+	_message_panel = _make_panel("Message", _message_label, 0.65)
+	_place(_message_panel, 0.08, 1.0, 0.92, 1.0, 0.0, -52.0, 0.0, -52.0)
+	_message_panel.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	_message_panel.visible = false
 
-	_inventory_label = _make_label(22, HORIZONTAL_ALIGNMENT_LEFT)
-	_inventory_label.name = "Inventory"
-	_place(_inventory_label, 0.0, 0.0, 0.5, 0.0, 24.0, 20.0, 0.0, 56.0)
+	_inventory_label = _make_label(20, HORIZONTAL_ALIGNMENT_LEFT)
+	_inventory_label.name = "InventoryLabel"
+	var inventory_panel := _make_panel("Inventory", _inventory_label, 0.55)
+	_place(inventory_panel, 0.0, 0.0, 0.0, 0.0, 20.0, 18.0, 20.0, 18.0)
 	set_inventory("")
 
-	_hint_label = _make_label(16, HORIZONTAL_ALIGNMENT_LEFT)
+	_hint_label = _make_label(17, HORIZONTAL_ALIGNMENT_LEFT)
 	_hint_label.name = "Hint"
 	_hint_label.text = "WASD：移動　マウス：見回す　左クリック：調べる　Esc：一時停止"
-	_hint_label.modulate = Color(1, 1, 1, 0.75)
+	_hint_label.add_theme_color_override("font_color", Color(1, 1, 1, 0.85))
+	_hint_label.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.8))
+	_hint_label.add_theme_constant_override("shadow_offset_x", 1)
+	_hint_label.add_theme_constant_override("shadow_offset_y", 1)
 	_place(_hint_label, 0.0, 1.0, 1.0, 1.0, 24.0, -40.0, 0.0, -12.0)
 
 	_pause_menu = _make_menu("PauseMenu", "一時停止")
@@ -69,7 +87,7 @@ func _process(delta: float) -> void:
 	if _message_time_left > 0.0:
 		_message_time_left -= delta
 		if _message_time_left <= 0.0:
-			_message_label.visible = false
+			_message_panel.visible = false
 
 
 # ---------------------------------------------------------------- 公開API
@@ -80,13 +98,14 @@ func show_message(text: String, seconds: float = -1.0) -> void:
 		# 日本語を読める時間：最低2.5秒、1文字あたり約0.12秒
 		seconds = maxf(2.5, 1.0 + text.length() * 0.12)
 	_message_label.text = text
-	_message_label.visible = true
+	_message_panel.visible = true
 	_message_time_left = seconds
 
 
 func set_prompt(text: String) -> void:
 	if _prompt_label.text != text:
 		_prompt_label.text = text
+		_prompt_panel.visible = not text.is_empty()
 
 
 func set_inventory(item_name: String) -> void:
@@ -104,7 +123,7 @@ func show_pause(is_paused: bool) -> void:
 
 func show_clear() -> void:
 	set_prompt("")
-	_message_label.visible = false
+	_message_panel.visible = false
 	_message_time_left = 0.0
 	_hint_label.visible = false
 	_clear_menu.visible = true
@@ -142,9 +161,24 @@ func _make_label(font_size: int, align: HorizontalAlignment) -> Label:
 	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	label.add_theme_font_size_override("font_size", font_size)
 	label.add_theme_color_override("font_color", Color(1, 1, 1))
-	label.add_theme_color_override("font_outline_color", Color(0, 0, 0))
-	label.add_theme_constant_override("outline_size", 6)
 	return label
+
+
+## 半透明の暗い背景つきパネルに label を入れる（強い縁取りの代わり）。
+func _make_panel(panel_name: String, label: Label, alpha: float) -> PanelContainer:
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.0, 0.0, 0.0, alpha)
+	style.set_corner_radius_all(6)
+	style.content_margin_left = 14.0
+	style.content_margin_right = 14.0
+	style.content_margin_top = 6.0
+	style.content_margin_bottom = 6.0
+	var panel := PanelContainer.new()
+	panel.name = panel_name
+	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	panel.add_theme_stylebox_override("panel", style)
+	panel.add_child(label)
+	return panel
 
 
 ## アンカーとオフセットを指定して _root に追加する。
@@ -167,13 +201,13 @@ func _make_menu(menu_name: String, title: String) -> Control:
 	overlay.color = Color(0, 0, 0, 0.6)
 	overlay.mouse_filter = Control.MOUSE_FILTER_STOP
 	_root.add_child(overlay)
-	overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
 	var center := CenterContainer.new()
 	center.name = "Center"
 	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	overlay.add_child(center)
-	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
 	var box := VBoxContainer.new()
 	box.name = "Box"

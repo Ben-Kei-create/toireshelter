@@ -22,6 +22,10 @@ const DOOR_W := 0.7
 const DOOR_H := 1.9
 const DOOR_OPEN_DEG := -90.0
 
+const WALL_COLOR := Color(0.8, 0.77, 0.68)
+const FLOOR_COLOR := Color(0.33, 0.34, 0.35)
+const PORCELAIN_COLOR := Color(0.92, 0.92, 0.92)
+
 var spawn_position := Vector3(0.0, 0.05, 0.75)
 var door_pivot: Node3D
 var door_body: StaticBody3D
@@ -66,8 +70,8 @@ func _build_environment() -> void:
 	env.background_mode = Environment.BG_COLOR
 	env.background_color = Color(0.05, 0.05, 0.06)
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	env.ambient_light_color = Color(0.85, 0.85, 0.82)
-	env.ambient_light_energy = 0.45
+	env.ambient_light_color = Color(0.9, 0.9, 0.9)
+	env.ambient_light_energy = 0.35
 	var we := WorldEnvironment.new()
 	we.name = "WorldEnvironment"
 	we.environment = env
@@ -75,11 +79,13 @@ func _build_environment() -> void:
 
 	var room_light := OmniLight3D.new()
 	room_light.name = "RoomLight"
-	room_light.position = Vector3(0.0, 2.05, 0.0)
-	room_light.light_color = Color(1.0, 0.96, 0.88)
-	room_light.light_energy = 1.3
+	# 少し入口寄りに置き、設備の手前側の面を照らして奥・下に影を落とす（影はこの1灯だけ）
+	room_light.position = Vector3(0.15, 2.05, 0.35)
+	room_light.light_color = Color(1.0, 0.98, 0.95)
+	room_light.light_energy = 0.85
 	room_light.omni_range = 4.0
-	room_light.shadow_enabled = false
+	room_light.shadow_enabled = true
+	room_light.shadow_bias = 0.03
 	add_child(room_light)
 
 	var hall_light := OmniLight3D.new()
@@ -99,8 +105,9 @@ func _build_shell() -> void:
 	shell.name = "Shell"
 	add_child(shell)
 
-	var wall_mat := _mat("wall", Color(0.9, 0.88, 0.82))
-	var floor_mat := _mat("floor", Color(0.55, 0.6, 0.64), 0.6)
+	# 壁：薄いアイボリー／床：少し暗いグレー／設備：白（PORCELAIN）で明度差をつける
+	var wall_mat := _mat("wall", WALL_COLOR)
+	var floor_mat := _mat("floor", FLOOR_COLOR, 0.6)
 	var ceil_mat := _mat("ceiling", Color(0.95, 0.95, 0.95))
 
 	var outer_w := ROOM_W + WALL_T * 2.0
@@ -160,8 +167,8 @@ func _build_bathtub() -> void:
 	var body: StaticBody3D = f[1]
 	var size := Vector3(ROOM_W, 0.55, 0.75)
 	var center := Vector3(0, size.y * 0.5, -ROOM_D * 0.5 + size.z * 0.5)
-	_mesh_box(visual, size, center, _mat("porcelain", Color(0.96, 0.96, 0.95), 0.3))
-	_mesh_box(visual, Vector3(size.x - 0.16, 0.02, size.z - 0.16), Vector3(0, size.y + 0.001, center.z), _mat("tub_inner", Color(0.78, 0.86, 0.9), 0.3))
+	_mesh_box(visual, size, center, _mat("porcelain", PORCELAIN_COLOR, 0.3))
+	_mesh_box(visual, Vector3(size.x - 0.16, 0.02, size.z - 0.16), Vector3(0, size.y + 0.001, center.z), _mat("tub_inner", Color(0.7, 0.8, 0.86), 0.3))
 	# 蛇口
 	_mesh_box(visual, Vector3(0.06, 0.06, 0.12), Vector3(0.6, 0.75, -ROOM_D * 0.5 + 0.06), _mat("metal", Color(0.75, 0.75, 0.78), 0.25, 0.8))
 	_shape_box(body, size, center)
@@ -172,7 +179,7 @@ func _build_toilet() -> void:
 	var f := _fixture("Toilet", "toilet")
 	var visual: Node3D = f[0]
 	var body: StaticBody3D = f[1]
-	var porcelain := _mat("porcelain", Color(0.96, 0.96, 0.95), 0.3)
+	var porcelain := _mat("porcelain", PORCELAIN_COLOR, 0.3)
 	var wx := -ROOM_W * 0.5
 	var tank_size := Vector3(0.2, 0.45, 0.4)
 	var tank_center := Vector3(wx + 0.1, 0.7, 0.0)
@@ -180,7 +187,7 @@ func _build_toilet() -> void:
 	var bowl_center := Vector3(wx + 0.35, 0.2, 0.0)
 	_mesh_box(visual, tank_size, tank_center, porcelain)
 	_mesh_box(visual, bowl_size, bowl_center, porcelain)
-	_mesh_box(visual, Vector3(0.46, 0.04, 0.38), Vector3(wx + 0.36, 0.42, 0.0), _mat("seat", Color(0.88, 0.88, 0.86), 0.4))
+	_mesh_box(visual, Vector3(0.46, 0.04, 0.38), Vector3(wx + 0.36, 0.42, 0.0), _mat("seat", Color(0.86, 0.86, 0.86), 0.4))
 	_mesh_box(visual, Vector3(0.06, 0.02, 0.03), Vector3(wx + 0.17, 0.88, 0.14), _mat("metal", Color(0.75, 0.75, 0.78), 0.25, 0.8))
 	_shape_box(body, tank_size, tank_center)
 	_shape_box(body, bowl_size, bowl_center)
@@ -191,7 +198,7 @@ func _build_sink_and_mirror() -> void:
 	var f := _fixture("Sink", "sink")
 	var visual: Node3D = f[0]
 	var body: StaticBody3D = f[1]
-	var porcelain := _mat("porcelain", Color(0.96, 0.96, 0.95), 0.3)
+	var porcelain := _mat("porcelain", PORCELAIN_COLOR, 0.3)
 	var metal := _mat("metal", Color(0.75, 0.75, 0.78), 0.25, 0.8)
 	var wx := ROOM_W * 0.5
 	var basin_size := Vector3(0.38, 0.15, 0.5)
@@ -221,15 +228,25 @@ func _build_driver() -> void:
 	# 洗面台の下の床。照準で狙いやすいよう、判定を見た目より少し大きくしている
 	driver_node = Node3D.new()
 	driver_node.name = "Screwdriver"
-	driver_node.position = Vector3(ROOM_W * 0.5 - 0.3, 0.02, 0.05)
+	# 実寸：柄 長さ10cm・直径3.2cm、軸 長さ11cm・直径6mm。床に寝かせ、柄の下端が床に接する
+	driver_node.position = Vector3(ROOM_W * 0.5 - 0.3, 0.0, 0.05)
 	driver_node.rotation.y = deg_to_rad(25.0)
 	add_child(driver_node)
 
 	var visual := Node3D.new()
 	visual.name = "Visual"
 	driver_node.add_child(visual)
-	_mesh_box(visual, Vector3(0.1, 0.035, 0.035), Vector3(-0.04, 0.0, 0.0), _mat("handle", Color(0.95, 0.75, 0.1), 0.5))
-	_mesh_box(visual, Vector3(0.11, 0.01, 0.01), Vector3(0.065, 0.0, 0.0), _mat("metal", Color(0.75, 0.75, 0.78), 0.25, 0.8))
+	var handle_r := 0.016
+	var axis_y := handle_r   # 柄の中心の高さ
+	# 柄は床の灰色・設備の白と区別できる赤橙。洗面台の影でも見えるよう弱く自己発光させる
+	var handle_mat := _mat("handle", Color(0.92, 0.22, 0.05), 0.5)
+	handle_mat.emission_enabled = true
+	handle_mat.emission = Color(0.92, 0.22, 0.05)
+	handle_mat.emission_energy_multiplier = 0.25
+	_mesh_cylinder_x(visual, handle_r, 0.1, Vector3(-0.05, axis_y, 0.0), handle_mat)
+	_mesh_cylinder_x(visual, handle_r + 0.001, 0.015, Vector3(-0.07, axis_y, 0.0), _mat("grip", Color(0.08, 0.08, 0.08), 0.8))
+	_mesh_cylinder_x(visual, handle_r + 0.001, 0.015, Vector3(-0.03, axis_y, 0.0), _mat("grip", Color(0.08, 0.08, 0.08), 0.8))
+	_mesh_cylinder_x(visual, 0.003, 0.11, Vector3(0.055, axis_y, 0.0), _mat("metal", Color(0.75, 0.75, 0.78), 0.25, 0.8))
 
 	var area := Area3D.new()
 	area.name = "Pickup"
@@ -317,6 +334,23 @@ func _mesh_box(parent: Node, size: Vector3, center: Vector3, material: Material)
 	mi.mesh = box
 	mi.material_override = material
 	mi.position = center
+	parent.add_child(mi)
+	return mi
+
+
+## X 軸方向に寝かせた円柱（ドライバーの柄・軸用）。
+func _mesh_cylinder_x(parent: Node, radius: float, length: float, center: Vector3, material: Material) -> MeshInstance3D:
+	var cyl := CylinderMesh.new()
+	cyl.top_radius = radius
+	cyl.bottom_radius = radius
+	cyl.height = length
+	cyl.radial_segments = 16
+	cyl.rings = 1
+	var mi := MeshInstance3D.new()
+	mi.mesh = cyl
+	mi.material_override = material
+	mi.position = center
+	mi.rotation.z = deg_to_rad(90.0)
 	parent.add_child(mi)
 	return mi
 

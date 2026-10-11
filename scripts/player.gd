@@ -65,9 +65,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			# ウィンドウ外クリック等でマウスが外れていたら、まず掴み直すだけ
 			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 			return
-		var target := get_focused()
-		if target:
-			interact_requested.emit(target)
+		try_interact()
 
 
 func _physics_process(delta: float) -> void:
@@ -88,10 +86,22 @@ func _physics_process(delta: float) -> void:
 	move_and_slide()
 
 
+## クリック時の操作。視点を変えた直後でも、今の向きでレイを撃ち直してから判定する。
+func try_interact() -> void:
+	var target := get_focused(true)
+	if target:
+		interact_requested.emit(target)
+
+
 ## 照準の先にある「調べられる対象」を返す。なければ null。
 ## 壁など調べられない物に先に当たった場合も null（壁越しに操作できない）。
-func get_focused() -> Object:
-	if not controls_enabled or not ray.is_colliding():
+## force_update=false は前回の物理フレームの結果（表示用）。操作時は true で撃ち直す。
+func get_focused(force_update: bool = false) -> Object:
+	if not controls_enabled:
+		return null
+	if force_update:
+		ray.force_raycast_update()
+	if not ray.is_colliding():
 		return null
 	var collider := ray.get_collider()
 	if collider == null or not is_instance_valid(collider):
