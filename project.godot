@@ -13,7 +13,7 @@ config_version=5
 config/name="Toiret"
 config/description="狭いユニットバスから脱出する一人称3Dプロトタイプ"
 run/main_scene="res://scenes/main.tscn"
-config/features=PackedStringArray("4.4", "GL Compatibility")
+config/features=PackedStringArray("4.7", "GL Compatibility")
 
 [display]
 
