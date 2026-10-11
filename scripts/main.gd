@@ -12,6 +12,7 @@ const MESSAGES := {
 	"bathtub": "空っぽの浴槽。乾いていて、何も入っていない。",
 	"mirror": "くもった鏡。疲れた顔の自分がぼんやり映っている。",
 	"sink": "洗面台。蛇口をひねっても特に何も起きない。……下に何か落ちている？",
+	"vent": "換気口。格子の奥は暗く、よく見えない。",
 	"driver": "ドライバーを手に入れた。",
 	"door_locked": "ドアノブが空回りする。開かない。",
 	"door_fixed": "ドライバーでドアノブのネジを締め直した。……ドアが開いた！",
@@ -102,7 +103,7 @@ func _on_interact_requested(target: Object) -> void:
 		return
 	var id := String(target.get_meta("interact_id", ""))
 	match id:
-		"toilet", "bathtub", "mirror", "sink":
+		"toilet", "bathtub", "mirror", "sink", "vent":
 			hud.show_message(MESSAGES[id])
 		"driver":
 			if has_driver:

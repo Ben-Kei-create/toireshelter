@@ -22,7 +22,13 @@ const DOOR_W := 0.7
 const DOOR_H := 1.9
 const DOOR_OPEN_DEG := -90.0
 
-const WALL_COLOR := Color(0.8, 0.77, 0.68)
+const WALL_COLOR := Color(0.82, 0.78, 0.65)   # 少し黄ばんだアイボリーの樹脂パネル
+const SEAM_COLOR := Color(0.6, 0.57, 0.47)
+const CAULK_COLOR := Color(0.55, 0.55, 0.53)   # ゴム目地
+const PANEL_TARGET_W := 0.6   # パネル幅の目安。壁の長さを割り切れる枚数に丸める
+const DETAIL_GAP := 0.002     # 壁面から浮かせる量（面の重なりによるちらつき防止）
+const VENT_SIZE := 0.24
+const VENT_RANGE := 2.4       # 換気口だけ床から見上げて届くよう、操作距離を個別に伸ばす
 const FLOOR_COLOR := Color(0.33, 0.34, 0.35)
 const PORCELAIN_COLOR := Color(0.92, 0.92, 0.92)
 
@@ -38,10 +44,12 @@ var _mat_cache := {}
 func _ready() -> void:
 	_build_environment()
 	_build_shell()
+	_build_wall_details()
 	_build_corridor()
 	_build_bathtub()
 	_build_toilet()
 	_build_sink_and_mirror()
+	_build_vent()
 	_build_driver()
 	_build_door()
 	_build_exit()
@@ -139,6 +147,55 @@ func _build_shell() -> void:
 	_mesh_box(frame, Vector3(DOOR_W + 0.08, 0.04, WALL_T + 0.02), Vector3(0, DOOR_H + 0.02, front_z), frame_mat)
 
 
+func _build_wall_details() -> void:
+	# 樹脂パネルの縦の継ぎ目と、隅・床際のゴム目地。見た目だけ（当たり判定なし）
+	var details := Node3D.new()
+	details.name = "WallDetails"
+	add_child(details)
+	var seam_mat := _mat("seam", SEAM_COLOR, 0.9)
+	var caulk_mat := _mat("caulk", CAULK_COLOR, 0.95)
+	var half_w := ROOM_W * 0.5
+	var half_d := ROOM_D * 0.5
+	var seam_w := 0.006
+	var seam_t := 0.004
+	var door_clear := DOOR_W * 0.5 + 0.06   # ドア開口の近くには継ぎ目を置かない
+
+	# 縦の継ぎ目：壁の長さを PANEL_TARGET_W 前後の等幅パネルに分ける
+	for pos in _seam_positions(ROOM_D):   # 左右の壁（z 方向）
+		_mesh_box(details, Vector3(seam_t, ROOM_H, seam_w), Vector3(-half_w + DETAIL_GAP + seam_t * 0.5, ROOM_H * 0.5, pos), seam_mat)
+		_mesh_box(details, Vector3(seam_t, ROOM_H, seam_w), Vector3(half_w - DETAIL_GAP - seam_t * 0.5, ROOM_H * 0.5, pos), seam_mat)
+	for pos in _seam_positions(ROOM_W):   # 奥・手前の壁（x 方向）
+		_mesh_box(details, Vector3(seam_w, ROOM_H, seam_t), Vector3(pos, ROOM_H * 0.5, -half_d + DETAIL_GAP + seam_t * 0.5), seam_mat)
+		if absf(pos) > door_clear:
+			_mesh_box(details, Vector3(seam_w, ROOM_H, seam_t), Vector3(pos, ROOM_H * 0.5, half_d - DETAIL_GAP - seam_t * 0.5), seam_mat)
+
+	# 部屋の四隅の縦目地（隅に収まる細い角材）
+	var c := 0.012
+	for sx in [-1.0, 1.0]:
+		for sz in [-1.0, 1.0]:
+			_mesh_box(details, Vector3(c, ROOM_H, c), Vector3(sx * (half_w - c * 0.5), ROOM_H * 0.5, sz * (half_d - c * 0.5)), caulk_mat)
+
+	# 床と壁の境目の目地（下端は床に少し沈めて隙間を出さない）
+	var h := 0.014
+	var t := 0.008
+	var y := h * 0.5 - 0.002
+	_mesh_box(details, Vector3(t, h, ROOM_D), Vector3(-half_w + t * 0.5, y, 0.0), caulk_mat)
+	_mesh_box(details, Vector3(t, h, ROOM_D), Vector3(half_w - t * 0.5, y, 0.0), caulk_mat)
+	_mesh_box(details, Vector3(ROOM_W, h, t), Vector3(0.0, y, -half_d + t * 0.5), caulk_mat)
+	var side := half_w - DOOR_W * 0.5   # 手前の壁はドア開口を避けて左右に分ける
+	_mesh_box(details, Vector3(side, h, t), Vector3(-half_w + side * 0.5, y, half_d - t * 0.5), caulk_mat)
+	_mesh_box(details, Vector3(side, h, t), Vector3(half_w - side * 0.5, y, half_d - t * 0.5), caulk_mat)
+
+
+## 長さ length の壁を PANEL_TARGET_W 前後の等幅パネルに分けたときの継ぎ目の位置（中心 0 基準）。
+func _seam_positions(length: float) -> Array:
+	var count := maxi(1, roundi(length / PANEL_TARGET_W))
+	var result := []
+	for i in range(1, count):
+		result.append(-length * 0.5 + length * i / count)
+	return result
+
+
 func _build_corridor() -> void:
 	# ドアの外の廊下（脱出先）。z: 1.3〜3.3, x: -1.0〜1.0
 	var hall := Node3D.new()
@@ -222,6 +279,49 @@ func _build_sink_and_mirror() -> void:
 	_mesh_box(m_visual, Vector3(0.015, 0.54, 0.44), Vector3(wx - 0.005, 1.4, 0.1), _mat("frame_dark", Color(0.3, 0.3, 0.32)))
 	_mesh_box(m_visual, mirror_size, mirror_center, _mat("mirror", Color(0.72, 0.78, 0.82), 0.08, 0.6))
 	_shape_box(m_body, mirror_size, mirror_center)
+
+
+func _build_vent() -> void:
+	# 天井の奥・左の隅（浴槽の上）の小さな換気口。
+	#   Vent/Visual/Frame … オフホワイトの枠（天井に固定）
+	#   Vent/Visual/Cover … 暗い内部＋格子の蓋。原点を奥側の辺に置き、将来ここを軸に開けられる
+	#   Vent/Collision    … 調べる対象（interact_range で操作距離を個別に設定）
+	var f := _fixture("Vent", "vent")
+	var visual: Node3D = f[0]
+	var body: StaticBody3D = f[1]
+	body.set_meta("interact_range", VENT_RANGE)
+	var s := VENT_SIZE
+	var center := Vector3(-ROOM_W * 0.5 + 0.06 + s * 0.5, ROOM_H, -ROOM_D * 0.5 + 0.06 + s * 0.5)
+	visual.position = center
+	body.position = center
+
+	var frame := Node3D.new()
+	frame.name = "Frame"
+	visual.add_child(frame)
+	var frame_mat := _mat("vent_frame", Color(0.9, 0.89, 0.85), 0.7)
+	var fw := 0.02    # 枠の幅
+	var fh := 0.012   # 枠の厚み（天井から下に出る分）
+	var fy := -fh * 0.5
+	_mesh_box(frame, Vector3(s, fh, fw), Vector3(0, fy, -s * 0.5 + fw * 0.5), frame_mat)
+	_mesh_box(frame, Vector3(s, fh, fw), Vector3(0, fy, s * 0.5 - fw * 0.5), frame_mat)
+	_mesh_box(frame, Vector3(fw, fh, s - fw * 2.0), Vector3(-s * 0.5 + fw * 0.5, fy, 0), frame_mat)
+	_mesh_box(frame, Vector3(fw, fh, s - fw * 2.0), Vector3(s * 0.5 - fw * 0.5, fy, 0), frame_mat)
+
+	var cover := Node3D.new()
+	cover.name = "Cover"
+	cover.position = Vector3(0, 0, -s * 0.5 + fw)   # 蝶番にする奥側の辺
+	visual.add_child(cover)
+	var inner := s - fw * 2.0
+	# 奥の暗がり（天井面から 3mm 下げ、天井とのちらつきを避ける）
+	_mesh_box(cover, Vector3(inner, 0.002, inner), Vector3(0, -0.004, inner * 0.5), _mat("vent_dark", Color(0.12, 0.12, 0.13), 1.0))
+	# 格子（枠より少し奥）
+	var grille_mat := _mat("vent_grille", Color(0.6, 0.6, 0.58), 0.6)
+	var slats := 7
+	for i in slats:
+		var x := -inner * 0.5 + inner * (i + 0.5) / slats
+		_mesh_box(cover, Vector3(0.006, 0.006, inner), Vector3(x, -0.009, inner * 0.5), grille_mat)
+
+	_shape_box(body, Vector3(s, 0.03, s), Vector3(0, -0.015, 0))
 
 
 func _build_driver() -> void:

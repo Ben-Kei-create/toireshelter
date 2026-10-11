@@ -7,7 +7,8 @@ signal interact_requested(target: Object)
 const SPEED := 1.8
 const MOUSE_SENSITIVITY := 0.0022
 const GRAVITY := 9.8
-const INTERACT_RANGE := 1.8
+const INTERACT_RANGE := 1.8       # 通常の対象を調べられる距離
+const INTERACT_RANGE_MAX := 2.4   # レイの長さ。対象ごとの interact_range メタの上限
 const EYE_HEIGHT := 1.5
 const BODY_RADIUS := 0.25
 const BODY_HEIGHT := 1.6
@@ -42,7 +43,7 @@ func _ready() -> void:
 
 	ray = RayCast3D.new()
 	ray.name = "InteractRay"
-	ray.target_position = Vector3(0.0, 0.0, -INTERACT_RANGE)
+	ray.target_position = Vector3(0.0, 0.0, -INTERACT_RANGE_MAX)
 	ray.collision_mask = 1 | 2   # world + interact
 	ray.collide_with_bodies = true
 	ray.collide_with_areas = true
@@ -109,6 +110,10 @@ func get_focused(force_update: bool = false) -> Object:
 	var hit := collider as Node
 	if hit == null or hit.is_queued_for_deletion():
 		return null
-	if hit.has_meta("interact_id"):
-		return hit
-	return null
+	if not hit.has_meta("interact_id"):
+		return null
+	# 距離の上限は対象ごと（天井の換気口など）。指定がなければ INTERACT_RANGE
+	var max_range: float = hit.get_meta("interact_range", INTERACT_RANGE)
+	if ray.global_position.distance_to(ray.get_collision_point()) > max_range:
+		return null
+	return hit

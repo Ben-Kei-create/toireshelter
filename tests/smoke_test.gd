@@ -38,6 +38,35 @@ func _run() -> void:
 	_check(not main.has_driver, "壁越しには拾えない")
 	player.global_position = saved
 
+	# --- 換気口：初期位置（床）から見上げて調べられる。通常の距離 1.8m より遠い
+	var vent_body: Node3D = room.get_node("Vent/Collision")
+	var vent_pos: Vector3 = vent_body.global_position + Vector3(0.0, -0.02, 0.0)
+	player.global_position = room.spawn_position
+	_aim(player, vent_pos)
+	var vent_dist: float = player.camera.global_position.distance_to(vent_pos)
+	player.try_interact()
+	_check(main.hud._message_label.text == main.MESSAGES["vent"] and vent_dist > player.INTERACT_RANGE,
+			"初期位置から換気口を調べられる（距離 %.2fm）" % vent_dist)
+
+	# --- 換気口：天井の上からは天井に遮られる
+	main.hud._message_label.text = ""
+	player.global_position = vent_body.global_position + Vector3(0.0, 0.0, 0.0)   # 目の高さが天井より上
+	_aim(player, vent_pos)
+	player.try_interact()
+	_check(main.hud._message_label.text == "", "天井越しには換気口を調べられない")
+
+	# --- ほかの対象の操作距離は伸びていない：レイが便器に当たる点が 1.8m より遠い位置から
+	player.global_position = Vector3(0.65, 0.0, 1.0)
+	_aim(player, Vector3(-0.6, 0.85, 0.0))   # タンク上部
+	player.ray.force_raycast_update()
+	var toilet_hit: Node = player.ray.get_collider()
+	var hit_dist: float = player.ray.global_position.distance_to(player.ray.get_collision_point())
+	player.try_interact()
+	_check(toilet_hit == room.get_node("Toilet/Collision") and hit_dist > player.INTERACT_RANGE
+			and main.hud._message_label.text == "",
+			"便器は当たり点が 1.8m より遠いと調べられない（当たり点まで %.2fm）" % hit_dist)
+	player.global_position = saved
+
 	# --- 照準を合わせてクリックすると拾える
 	_aim(player, driver_pos)
 	player.try_interact()
