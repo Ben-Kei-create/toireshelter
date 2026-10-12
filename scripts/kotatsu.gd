@@ -5,7 +5,7 @@ extends Node3D
 ##   座る  … 立ったままこたつや座布団を狙って E（「こたつに座る」）。近いほうの座布団に座る（SEATS）
 ##   入る  … 座った状態で、こたつを狙って左クリック（「こたつに入る」）。布団の中（暗く、ヒーターの赤い光）に入って見回せる
 ##   出る  … 中から E で座った姿勢へ。座った姿勢から E で立つ
-## 座布団は北（窓側）と西（左の壁のカセットの台側）の2か所。東（クレーンゲームと宝石の台座の間）と南（寝床）は体が入らないので置かない。
+## 座布団は北（窓側）・西（左の壁のカセットの台側）・東（宝石の台座の側。クレーンゲームを押入れに移したので空いた）の3か所。南（寝床）は体が入らないので置かない。
 ## 座っている間は体の当たり判定を切る（player.gd の固定姿勢）。中に入ると小さな体（高さ0.4m）で這って動け、布団の外へ出ると立つ（main.gd）。
 ## 中にいる間は本体の当たり判定を切る（set_solid）。こたつ布団の内側が見えるよう、布団は両面描く。
 ## 判定：こたつ本体（体を止める箱、調べる対象 kotatsu）と、座布団の調べる判定（kotatsu）。
@@ -23,6 +23,7 @@ const OUT_DISTANCE := 0.58   # 中心からこれより遠く（x か z）へ出
 const SEATS := [
 	{"name": "north", "feet": Vector3(2.6, 0.0, 0.05), "yaw": PI, "exits": [Vector3(2.6, 0.0, -0.5), Vector3(2.9, 0.0, -0.45), Vector3(2.3, 0.0, -0.5)], "inside": Vector3(2.6, 0.0, 0.55)},
 	{"name": "west", "feet": Vector3(1.8, 0.0, 0.78), "yaw": -PI * 0.5, "exits": [Vector3(1.8, 0.0, 0.78), Vector3(1.8, 0.0, 0.55), Vector3(1.8, 0.0, 1.0)], "inside": Vector3(2.25, 0.0, 0.78)},
+	{"name": "east", "feet": Vector3(3.4, 0.0, 0.62), "yaw": PI * 0.5, "exits": [Vector3(3.5, 0.0, 0.5), Vector3(3.45, 0.0, 0.3), Vector3(3.5, 0.0, 0.62)], "inside": Vector3(2.95, 0.0, 0.7)},
 ]
 
 
@@ -78,8 +79,23 @@ func _ready() -> void:
 	var orange := MeshKit.mat("mikan", Color(0.95, 0.5, 0.1), 0.6)
 	for p in [Vector2(0.05, 0.08), Vector2(0.12, 0.12), Vector2(0.09, 0.05), Vector2(0.08, 0.14)]:
 		MeshKit.sphere(self, 0.034, Vector3(p.x, TOP + 0.075, p.y), orange)
+	# 鉢の中の携帯電話：みかんの間に差し込まれていて、画面が少し斜めに覗く。調べられる（phone_mobile）
+	var phone := Node3D.new()
+	phone.name = "MobilePhone"
+	phone.position = Vector3(0.1, TOP + 0.075, 0.1)
+	phone.rotation = Vector3(deg_to_rad(-28.0), deg_to_rad(25.0), deg_to_rad(8.0))
+	add_child(phone)
+	MeshKit.box(phone, Vector3(0.07, 0.145, 0.008), Vector3(0, 0.03, 0), MeshKit.mat("mobile_body", Color(0.12, 0.12, 0.14), 0.3, 0.4), "Body")
+	var screen := StandardMaterial3D.new()
+	screen.albedo_color = Color(0.05, 0.08, 0.14)
+	screen.emission_enabled = true
+	screen.emission = Color(0.2, 0.35, 0.6)
+	screen.emission_energy_multiplier = 0.5
+	MeshKit.box(phone, Vector3(0.062, 0.128, 0.002), Vector3(0, 0.03, 0.0045), screen, "Screen")
+	var parea := MeshKit.interact_area(phone, "PhoneArea", "phone_mobile")
+	MeshKit.shape_box(parea, Vector3(0.1, 0.18, 0.06), Vector3(0, 0.03, 0))
 	# 座布団（床に平らに置く。調べる判定つき）
-	var cush_cols := [Color(0.35, 0.5, 0.6), Color(0.7, 0.35, 0.35)]
+	var cush_cols := [Color(0.35, 0.5, 0.6), Color(0.7, 0.35, 0.35), Color(0.4, 0.55, 0.4)]
 	for i in SEATS.size():
 		var s: Dictionary = SEATS[i]
 		var local: Vector3 = (s.feet as Vector3) - CENTER

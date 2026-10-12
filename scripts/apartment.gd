@@ -2,10 +2,10 @@ extends Node3D
 ## 浴室のドアの外の玄関ホールと、自分の部屋（TASK-10）。座標は部屋と同じ（この節点は原点に置く）。
 ##
 ##   Hall    … x -0.9〜0.9, z 1.3〜2.4、天井 2.2。浴室のドアの外。右の壁（x 0.9〜1.0）の出入口 z 1.5〜2.2 から自室へ
-##   OwnRoom … x 1.0〜4.0, z -1.2〜2.4（約3.0×3.6m）、天井 2.4。左の壁の手前側は浴室の右の壁を共有する。
+##   OwnRoom … x 1.0〜5.5, z -1.2〜2.4（約4.5×3.6m）、天井 2.4。左の壁の手前側は浴室の右の壁を共有する。
 ##             奥の壁（z -1.3〜-1.2、外壁）に掃き出し窓（x 1.8〜3.2）。窓の外がベランダ（exterior.gd）
 ## 狭い一人暮らしの部屋に、美術館・カードショップ・大型玩具店ほどの収集物を詰める（壁際と上方に密集、中央は通路）：
-##   右の壁一面の本棚／左の壁のカード展示ケース（下に机と椅子）／奥の壁と手前の壁のフィギュア棚／
+##   右の壁の半分の本棚（長さ1.7m・高さ1.18m）／左の壁のカード展示ケース（下に机と椅子）／奥の壁と手前の壁のフィギュア棚／
 ##   大きな多面体の宝石（台座つき）／大小の額装絵画／小さな寝床
 ## 本とカードは MultiMesh で軽く作る。当たり判定は大きな家具ごとの単純な箱だけ。展示品の取得や個別操作はなし。
 
@@ -16,6 +16,9 @@ const KotatsuScript := preload("res://scripts/kotatsu.gd")
 const AirconScript := preload("res://scripts/aircon.gd")
 const FanScript := preload("res://scripts/fan.gd")
 const UfoCatcherScript := preload("res://scripts/ufo_catcher.gd")
+const ClosetScript := preload("res://scripts/closet.gd")
+const KitchenScript := preload("res://scripts/kitchen.gd")
+const OdditiesScript := preload("res://scripts/oddities.gd")
 
 # 素材（docs/assets.md の ASSETS-30）
 const TEX_GRANITE := preload("res://assets/textures/surfaces/surface_01.png")
@@ -28,13 +31,13 @@ const TEX_CURTAIN := preload("res://assets/textures/surfaces/surface_12.png")
 const TEX_PAINTING_A := preload("res://assets/textures/surfaces/surface_13.png")
 const TEX_PAINTING_B := preload("res://assets/textures/surfaces/surface_14.png")
 const TEX_CARD_BACK := preload("res://assets/textures/surfaces/surface_15.png")
-const BOOK_COUNT := 15
+const BOOK_COUNT := 12   # 本棚に表紙を見せる本（3冊ずつ×4段）。残りの3冊（13〜15）は本棚の上に平積み
 const CARD_FRONT_COUNT := 8       # card_front_01〜08（ASSETS-24）
 const ART_DIR := "res://assets/textures/collection/"
 const BOOK_H := 0.26              # 表紙を見せて置く本の高さ（m）
 const BOOK_T := 0.028             # 厚み
 
-const ROOM := AABB(Vector3(1.0, 0.0, -1.2), Vector3(3.0, 2.4, 3.6))
+const ROOM := AABB(Vector3(1.0, 0.0, -1.2), Vector3(4.5, 2.4, 3.6))   # x 1.0〜5.5（奥行きを 1.5m 広げた）
 const HALL := AABB(Vector3(-0.9, 0.0, 1.3), Vector3(1.8, 2.2, 1.1))
 const DOORWAY_Z := Vector2(1.5, 2.2)
 const DOORWAY_H := 2.0
@@ -134,6 +137,9 @@ func _build_movie_posters() -> void:
 ## 突き当たりの壁のコルクボード。レシート・半券・メモなど紙もの12枚を少し傾けてピンで留める。見た目だけ。
 ## コルクボードの紙は、画鋲1本で留めた紙のように、ごくわずかに揺れる（換気の空気の動き）。見た目だけ。
 var books: Node
+var closet: Node3D
+var kitchen: Node3D
+var oddities: Node3D
 var kotatsu: Node3D
 var aircon: Node3D
 var fan: Node3D
@@ -374,10 +380,10 @@ func _build_bookshelf() -> void:
 	var x1 := ROOM.end.x
 	var depth := 0.3
 	var x0 := x1 - depth
-	var z0 := -1.1
-	var z1 := 2.3
-	var top := 2.35
-	var levels := 7
+	var z0 := -0.2     # 本棚は半分の大きさ：長さ 1.7m、高さ 1.18m、4段
+	var z1 := 1.5
+	var top := 1.18
+	var levels := 4
 	var step := top / levels
 	var root := Node3D.new()
 	root.name = "Bookshelf"
@@ -396,8 +402,8 @@ func _build_bookshelf() -> void:
 	# 表紙を見せて置く本（15冊）：段1〜5に3冊ずつ。その範囲には背表紙の本を置かない
 	var face_out := []   # [段, z の中心, 番号]
 	for k in BOOK_COUNT:
-		var lv := 1 + k / 3
-		var zc: float = [-0.62, 0.48, 1.62][k % 3] + (0.22 if lv % 2 == 0 else 0.0)
+		var lv := k / 3
+		var zc: float = [z0 + 0.3, (z0 + z1) * 0.5, z1 - 0.3][k % 3]
 		face_out.append([lv, zc, k + 1])
 	# 本は1冊（または横積み1山）ごとに、傾きを含めた実際の占有範囲（z の幅と高さ）を先に計算し、
 	# 表紙を見せる本の予約範囲・側板・棚の高さに収まるときだけ置く。入らなければ次の空きへずらす（FIX-12）
@@ -467,6 +473,8 @@ func _build_bookshelf() -> void:
 	books = BooksScript.new()
 	books.name = "Books"
 	books.shelf_step = step
+	books.shelf_z0 = z0
+	books.levels = levels
 	add_child(books)
 	var areas := Node3D.new()
 	areas.name = "BookAreas"
@@ -1095,11 +1103,18 @@ func _build_living() -> void:
 ## 本棚（x 3.7〜）との間に 0.15m。表紙の本（z 0.38〜0.58 と -0.5〜-0.3 など）は斜めから狙える、窓（x 1.8〜3.2、奥の壁）・宝石（z 0.94〜）・机からは離れていて、通路と本棚の判定をふさがない。
 ## 正面は部屋の中央側（-x）。
 func _build_ufo_catcher() -> void:
-	ufo_catcher = UfoCatcherScript.new()
-	ufo_catcher.name = "UfoCatcher"
-	ufo_catcher.position = Vector3(3.3, 0.0, 0.0)
-	ufo_catcher.rotation.y = -PI * 0.5
-	add_child(ufo_catcher)
+	# クレーンゲームは押入れの中（closet.gd）。ここでは押入れ・キッチン・変わった小物（黒電話・ギター・剥製・平積みの本）を作る
+	closet = ClosetScript.new()
+	closet.name = "Closet"
+	add_child(closet)
+	ufo_catcher = closet.ufo
+	kitchen = KitchenScript.new()
+	kitchen.name = "Kitchen"
+	add_child(kitchen)
+	oddities = OdditiesScript.new()
+	oddities.name = "Oddities"
+	oddities.books = books
+	add_child(oddities)
 
 
 ## テレビ台・テレビ・ゲーム機・ゲームのソフト（手前の壁の左側、大きな絵の下）。
@@ -1222,6 +1237,14 @@ func _tv_picture() -> ImageTexture:
 
 
 func _build_lights() -> void:
+	# 奥行きを広げた右半分（x 3.7〜5.5）にも灯りを置く
+	var l2 := OmniLight3D.new()
+	l2.name = "RoomLightEast"
+	l2.position = Vector3(4.6, 2.25, 0.5)
+	l2.light_color = Color(1.0, 0.88, 0.74)
+	l2.light_energy = 0.7
+	l2.omni_range = 4.5
+	add_child(l2)
 	var l := OmniLight3D.new()
 	l.name = "RoomLightOwn"
 	l.position = Vector3(2.5, 2.25, 0.6)

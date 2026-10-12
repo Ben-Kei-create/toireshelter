@@ -84,6 +84,13 @@ const MESSAGES := {
 	"aircon_off": "ピッ。エアコンを止めた。",
 	"fan_on": "扇風機がまわり出した。首がゆっくり振れる。",
 	"fan_off": "扇風機を止めた。",
+	"kitchen_sink": "小さな流し台。蛇口をひねっても、水は出ない。",
+	"kitchen_stove": "ガスコンロにやかんがのっている。火はついていない。",
+	"fridge": "冷蔵庫だ。牛乳は入っている。電池と石は……冷やすものではない。",
+	"guitar": "ギターだ。弦を1本はじくと、ずいぶん長く鳴った。",
+	"taxidermy": "何の動物なのか、まったく分からない剥製が、釘に刺さっている。目の数が合わない。",
+	"phone_black": "黒電話だ。受話器を上げても、どこにもつながらない。リリリン、と鳴っただけだった。",
+	"phone_mobile": "みかんの鉢に携帯が刺さっている。画面は暗い。圏外だ。",
 	"kotatsu_look": "こたつだ。座布団がある。……あったかそう。",
 	"kotatsu_inside": "こたつの中は、赤くてあたたかい。WASD で中を這える。布団の外まで進むと、抜けられる。",
 	"kotatsu_exit": "こたつの反対側へ抜けた。",
@@ -135,6 +142,8 @@ const PROMPTS := {
 	"kotatsu_enter": "左クリック：こたつに入る",
 	"front_door_open": "左クリック：玄関のドアを開ける",
 	"bath_door_open": "左クリック：トイレのドアを開ける",
+	"fusuma_right": "左クリック：襖を右へ寄せる（ふとんを見る）",
+	"fusuma_left": "左クリック：襖を左へ寄せる（つかみどりを見る）",
 	"bath_door_close": "左クリック：トイレのドアを閉める",
 	"book_read": "左クリック：本を読む",
 	"bath_light_off": "左クリック：トイレの電気を消す",
@@ -169,6 +178,8 @@ const ACTION_PROMPTS := {
 
 const TUB_TARGETS := ["bathtub", "bath_plug", "bath_faucet", "tub_note"]   # 入浴剤を使える照準先（浴槽のどこか）
 
+## 調べたときに鳴らす効果音（fixture のない対象）
+const INTERACT_SFX := {"guitar": "strum", "phone_black": "ring", "fridge": "thunk", "kitchen_stove": "click", "phone_mobile": "click", "kitchen_sink": "click"}
 const CLEAR_TITLES := {"legit": "正規ルートで脱出", "shortcut": "裏技ルートで脱出"}
 # 換気経路：入口で浴槽へ戻れる範囲（換気口の真上からの水平距離）、出口からベランダへ降りる経由点と着地候補
 const DUCT_BACK_RANGE := 0.75
@@ -485,10 +496,13 @@ func _on_interact_requested(target: Object) -> void:
 		if not key.is_empty():
 			hud.show_message(MESSAGES[key])
 		return
+	if not fixture and INTERACT_SFX.has(id):
+		SfxScript.play(INTERACT_SFX[id])
 	match id:
 		"sink", "vent", "poster", \
 		"toilet_cleaner", "plunger", "toilet_brush", "vent_sticker", "bath_bucket", "shampoo", "rinse", "razor", \
 		"face_wash", "toner", "cotton_swabs", "tub_note", "towel_scratch", "shelf_note", "tank_note", \
+		"kitchen_sink", "kitchen_stove", "fridge", "guitar", "taxidermy", "phone_black", "phone_mobile", \
 		"life_paper_02", "life_paper_07":
 			hud.show_message(MESSAGES[id])
 		"driver":

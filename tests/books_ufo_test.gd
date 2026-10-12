@@ -31,7 +31,7 @@ func _run() -> void:
 			covers += 1
 		elif id == "shelf_books":
 			levels += 1
-	check(covers == 15 and levels == 7, "表紙の本15冊と背表紙の段7つに判定がある（%d・%d）" % [covers, levels])
+	check(covers == 12 and levels == 4, "表紙の本12冊と背表紙の段4つに判定がある（%d・%d）。残り3冊（13〜15）は本棚の上" % [covers, levels])
 	check(main.PROMPTS["book_read"] == "左クリック：本を読む", "案内「左クリック：本を読む」")
 	var ok_all := true
 	for n in range(1, 16):
@@ -67,7 +67,7 @@ func _run() -> void:
 	var mask: int = player.ray.collision_mask
 	var aimed := 0
 	var wrong := []
-	for n in range(1, 16):
+	for n in range(1, 13):
 		var area: Node3D = areas.get_node("Book%02d" % n)
 		var c: Vector3 = area.get_child(0).global_position
 		# 目の位置の候補（棚から 1.1m、横に 0.5〜1.2m ずらす）のどれかで当たればよい（大きな家具の陰になる位置があるため）
@@ -84,12 +84,12 @@ func _run() -> void:
 			aimed += 1
 		else:
 			wrong.append("%02d→%s" % [n, id])
-	check(aimed == 15, "表紙の本15冊を照準で狙える（%d冊。外れ %s）" % [aimed, str(wrong)])
+	check(aimed == 12, "表紙の本12冊を照準で狙える（%d冊。外れ %s）" % [aimed, str(wrong)])
 	# 背表紙の段：本の無い所を狙うと shelf_books
-	var lv: Node3D = areas.get_node("Level3")
+	var lv: Node3D = areas.get_node("Level2")
 	var lc: Vector3 = lv.get_child(0).global_position
-	var eye2 := Vector3(lc.x - 1.1, 1.75, 2.0)
-	var q2 := PhysicsRayQueryParameters3D.create(eye2, eye2 + (Vector3(lc.x, lc.y, 2.0) - eye2).normalized() * 2.4, mask)
+	var eye2 := Vector3(lc.x - 1.1, 1.75, lc.z + 0.7)
+	var q2 := PhysicsRayQueryParameters3D.create(eye2, eye2 + (Vector3(lc.x, lc.y, lc.z) - eye2).normalized() * 2.4, mask)
 	q2.collide_with_areas = true
 	var h2: Dictionary = space.intersect_ray(q2)
 	var id2 := String(h2.collider.get_meta("interact_id", "")) if h2.has("collider") else "なし"
@@ -107,7 +107,26 @@ func _run() -> void:
 	check(msgs == ["ufo_miss", "ufo_miss", "ufo_win"], "3回目につかめる（%s）" % str(msgs))
 	check(ufo.taken == 1, "景品が1つ取り出し口に落ちた")
 	check(main.MESSAGES.has("ufo_miss") and main.MESSAGES.has("ufo_win") and main.MESSAGES.has("ufo_empty"), "結果の文章がある")
-	check(player.is_space_free(Vector3(2.7, 0.0, 0.0), 1.4), "クレーンゲームの前に立てる")
+	check(player.is_space_free(Vector3(4.7, 0.0, 0.0), 1.4), "押入れの前に立てる")
+	# 押入れ：襖が左に寄っている間はクレーンゲームが見え、右へ寄せるとふとんが見える（クレーンゲームは襖に隠れる）
+	var closet = apt.closet
+	var space2: PhysicsDirectSpaceState3D = player.get_world_3d().direct_space_state
+	var aim := func() -> String:
+		var from := Vector3(5.07, 1.5, 0.6)
+		var to := Vector3(5.07, 1.0, -0.8)
+		var q := PhysicsRayQueryParameters3D.create(from, from + (to - from).normalized() * 2.4, 1 | 2)
+		q.collide_with_areas = true
+		var h: Dictionary = space2.intersect_ray(q)
+		return String(h.collider.get_meta("interact_id", "")) if h.has("collider") else "なし"
+	check(closet.crane_visible and aim.call() == "ufo_catcher", "押入れの襖が左に寄っていて、右にクレーンゲームが見える（照準：%s）" % aim.call())
+	check(main.PROMPTS.has(closet.get_prompt("fusuma")), "襖の案内がある")
+	closet.interact("fusuma")
+	await create_timer(1.0).timeout
+	check(not closet.crane_visible and aim.call() == "fusuma", "襖を右へ寄せると、クレーンゲームは襖に隠れる（照準：%s）" % aim.call())
+	closet.interact("fusuma")
+	await create_timer(1.0).timeout
+	check(closet.crane_visible and aim.call() == "ufo_catcher", "もう一度寄せると、また見える")
+	check(apt.ufo_catcher == closet.ufo and closet.get_node("UfoCatcher").global_position.x > 4.9, "クレーンゲームは押入れの中（x %.2f）にある" % closet.get_node("UfoCatcher").global_position.x)
 	check(main.inventory.is_empty(), "景品は持ち物にならない（取得なし）")
 	print("BOOKS UFO TEST: %s (%d failure(s))" % ["PASS" if failures == 0 else "FAIL", failures])
 	quit(1 if failures else 0)

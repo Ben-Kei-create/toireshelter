@@ -9,7 +9,7 @@ extends Node
 ## 使い方：Sfx.play("click")、Sfx.play("step", 0.9, -6.0)（高さの倍率、音量 dB）。節点がなければ何もしない（テスト用）。
 
 const MIX := 22050
-const NAMES := ["click", "thunk", "creak", "cloth", "slide", "beep", "rustle", "page", "pop", "step", "chime", "buzz", "clunk", "flush"]
+const NAMES := ["click", "thunk", "creak", "cloth", "slide", "beep", "rustle", "page", "pop", "step", "chime", "buzz", "clunk", "flush", "strum", "ring"]
 const MASTER_DB := -10.0
 
 static var instance: Node
@@ -212,6 +212,29 @@ func _make_clunk() -> PackedFloat32Array:
 	for i in s.size():
 		var t := float(i) / MIX
 		s[i] = 0.7 * sin(TAU * 210.0 * t) * exp(-t * 28.0) + 0.5 * nz[i] * exp(-t * 60.0)
+	return s
+
+
+func _make_strum() -> PackedFloat32Array:
+	var s := _buf(1.6)
+	var notes := [82.4, 110.0, 146.8, 196.0, 246.9, 329.6]   # 開放弦 E A D G B E
+	for k in notes.size():
+		var f: float = notes[k]
+		var t0 := k * 0.035
+		for i in s.size():
+			var t := float(i) / MIX - t0
+			if t > 0.0:
+				s[i] += 0.12 * (sin(TAU * f * t) + 0.5 * sin(TAU * 2.0 * f * t) + 0.25 * sin(TAU * 3.0 * f * t)) * exp(-t * (2.2 + k * 0.25))
+	return s
+
+
+func _make_ring() -> PackedFloat32Array:
+	var s := _buf(1.2)
+	for i in s.size():
+		var t := float(i) / MIX
+		var gate := 1.0 if fmod(t, 0.5) < 0.33 else 0.0   # リリリン、リリリン
+		var f := 1180.0 if fmod(t * 38.0, 2.0) < 1.0 else 1480.0
+		s[i] = 0.25 * gate * sin(TAU * f * t) * (0.6 + 0.4 * sin(TAU * 30.0 * t))
 	return s
 
 
