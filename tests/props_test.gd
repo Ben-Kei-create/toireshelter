@@ -155,6 +155,25 @@ func _run() -> void:
 	main.hud._height_slider.value = 150.0
 	var cfg := ConfigFile.new()
 	check(cfg.load("user://settings.cfg") == OK and is_equal_approx(float(cfg.get_value("player", "eye_height")), 1.5), "身長は設定ファイルに保存される")
+	# 音：バス・音量・オンオフ・保存
+	var sfx_i := AudioServer.get_bus_index("SFX")
+	var amb_i := AudioServer.get_bus_index("Ambient")
+	check(sfx_i > 0 and amb_i > 0 and main.room.get_node("AmbientSound/VentHum").bus == "Ambient" and main.get_node("Sfx").get_child(0).bus == "SFX", "効果音と環境音は別のバス")
+	main.hud.audio_controls["master"].value = 50.0
+	check(absf(AudioServer.get_bus_volume_db(0) - linear_to_db(0.5)) < 0.01, "全体音量スライダーでマスターの音量が変わる")
+	main.hud.audio_controls["sfx"].value = 30.0
+	check(absf(AudioServer.get_bus_volume_db(sfx_i) - linear_to_db(0.3)) < 0.01, "効果音の音量が変わる")
+	main.hud.audio_controls["sfx_on"].button_pressed = false
+	check(AudioServer.is_bus_mute(sfx_i) and not AudioServer.is_bus_mute(amb_i), "効果音をオフにすると効果音だけ消える")
+	main.hud.audio_controls["ambient_on"].button_pressed = false
+	check(AudioServer.is_bus_mute(amb_i), "環境音もオフにできる")
+	cfg = ConfigFile.new()
+	check(cfg.load("user://settings.cfg") == OK and absf(float(cfg.get_value("audio", "master")) - 0.5) < 0.001 and cfg.get_value("audio", "sfx_on") == false, "音の設定も保存される")
+	main.hud.audio_controls["master"].value = 100.0
+	main.hud.audio_controls["sfx"].value = 100.0
+	main.hud.audio_controls["sfx_on"].button_pressed = true
+	main.hud.audio_controls["ambient_on"].button_pressed = true
+	check(not AudioServer.is_bus_mute(sfx_i) and not AudioServer.is_bus_mute(amb_i) and AudioServer.get_bus_volume_db(0) > -0.01, "戻すと元の音量")
 	main._resume()
 	check(not main.paused, "再開できる")
 	print("props_test: ", "OK" if failures == 0 else "%d FAILED" % failures)

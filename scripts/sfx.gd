@@ -8,6 +8,7 @@ extends Node
 ##       chime（クレーンゲームで取れた） buzz（外れた） clunk（アームがつかむ・景品が落ちる） flush（水を流す）
 ## 使い方：Sfx.play("click")、Sfx.play("step", 0.9, -6.0)（高さの倍率、音量 dB）。節点がなければ何もしない（テスト用）。
 
+const AudioSettings := preload("res://scripts/audio_settings.gd")
 const MIX := 22050
 const NAMES := ["click", "thunk", "creak", "cloth", "slide", "beep", "rustle", "page", "pop", "step", "chime", "buzz", "clunk", "flush", "strum", "ring"]
 const MASTER_DB := -10.0
@@ -30,6 +31,8 @@ func _ready() -> void:
 	_rng.seed = 777
 	for i in 8:
 		var p := AudioStreamPlayer.new()
+		AudioSettings.ensure_buses()
+		p.bus = "SFX"
 		p.volume_db = MASTER_DB
 		add_child(p)
 		_players.append(p)

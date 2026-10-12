@@ -5,6 +5,7 @@ signal resume_pressed
 signal quit_pressed
 signal retry_pressed
 signal eye_height_changed(value: float)
+signal audio_changed(key: String, value: Variant)
 
 const JP_FONTS := [
 	"Hiragino Sans", "Hiragino Kaku Gothic ProN", "Hiragino Kaku Gothic Pro",
@@ -40,6 +41,7 @@ var _retry_button: Button
 var _message_time_left := 0.0
 var _height_slider: HSlider
 var _height_value: Label
+var audio_controls := {}   # key → HSlider／CheckButton（設定画面の音の欄）
 
 
 func _ready() -> void:
@@ -188,6 +190,8 @@ func is_reader_open() -> bool:
 
 func show_pause(is_paused: bool) -> void:
 	_pause_menu.visible = is_paused
+	if is_paused:
+		_message_panel.visible = false   # 設定の下に文章が透けて重ならないように
 	if is_paused:
 		_resume_button.grab_focus()
 
@@ -438,6 +442,42 @@ func _build_settings(menu: Control) -> void:
 	help.name = "Controls"
 	help.text = "操作説明\n移動：W A S D（矢印キーも可）　　視点：マウス\n調べる・使う：左クリック　　座る・入る・立つ：E\nしゃがむ：C　　持ち物を使う：F　　選ぶ：1〜3・ホイール　　拡大：Q\nテレビゲーム中：W／S でラケット、E でやめる\n設定を開く・閉じる：Esc"
 	box.add_child(help)
+	box.add_theme_constant_override("separation", 8)
+	var grid := GridContainer.new()
+	grid.name = "AudioGrid"
+	grid.columns = 3
+	grid.add_theme_constant_override("h_separation", 12)
+	box.add_child(grid)
+	for def in [["master", "全体の音量", ""], ["sfx", "効果音", "sfx_on"], ["ambient", "環境音", "ambient_on"]]:
+		var name_label := _make_label(20, HORIZONTAL_ALIGNMENT_LEFT)
+		name_label.text = def[1]
+		grid.add_child(name_label)
+		var sl := HSlider.new()
+		sl.name = "Slider_" + def[0]
+		sl.min_value = 0.0
+		sl.max_value = 100.0
+		sl.step = 1.0
+		sl.value = 100.0
+		sl.custom_minimum_size = Vector2(260, 28)
+		sl.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		var key: String = def[0]
+		sl.value_changed.connect(func(v: float) -> void: audio_changed.emit(key, v / 100.0))
+		grid.add_child(sl)
+		audio_controls[key] = sl
+		if def[2] == "":
+			grid.add_child(Control.new())
+		else:
+			var cb := CheckButton.new()
+			cb.name = "Toggle_" + def[2]
+			cb.text = "オン"
+			cb.button_pressed = true
+			cb.add_theme_font_size_override("font_size", 20)
+			var tkey: String = def[2]
+			cb.toggled.connect(func(on: bool) -> void:
+				cb.text = "オン" if on else "オフ"
+				audio_changed.emit(tkey, on))
+			grid.add_child(cb)
+			audio_controls[tkey] = cb
 	var row := HBoxContainer.new()
 	row.name = "HeightRow"
 	row.add_theme_constant_override("separation", 12)
@@ -462,6 +502,17 @@ func _build_settings(menu: Control) -> void:
 		eye_height_changed.emit(v / 100.0))
 
 
+## 設定画面の音の欄を、保存されていた値に合わせる（信号は出さない）。
+func set_audio_ui(values: Dictionary) -> void:
+	for key in values:
+		var c: Control = audio_controls[key]
+		if c is HSlider:
+			(c as HSlider).set_value_no_signal(float(values[key]) * 100.0)
+		else:
+			(c as CheckButton).set_pressed_no_signal(bool(values[key]))
+			(c as CheckButton).text = "オン" if bool(values[key]) else "オフ"
+
+
 ## 設定画面のスライダーを、保存されていた値に合わせる（信号は出さない）。
 func set_eye_height_ui(meters: float) -> void:
 	_height_slider.set_value_no_signal(meters * 100.0)
@@ -472,7 +523,7 @@ func _add_button(menu: Control, text: String, callback: Callable) -> Button:
 	var box := menu.get_node("Center/Box") as VBoxContainer
 	var button := Button.new()
 	button.text = text
-	button.custom_minimum_size = Vector2(260, 56)
+	button.custom_minimum_size = Vector2(260, 48)
 	button.add_theme_font_size_override("font_size", 24)
 	button.pressed.connect(callback)
 	box.add_child(button)

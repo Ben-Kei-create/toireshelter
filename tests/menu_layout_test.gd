@@ -34,6 +34,8 @@ func _run() -> void:
 					"  %s：背景 %s がビューポート全体と一致" % [menu_name, rect])
 			var buttons := 0
 			for button in menu.find_children("*", "Button", true, false):
+				if button is CheckButton:
+					continue   # 設定の「オン／オフ」は数えない
 				buttons += 1
 				var b: Rect2 = (button as Control).get_global_rect()
 				_check(view.encloses(b) and b.size.x > 0.0 and b.size.y > 0.0,

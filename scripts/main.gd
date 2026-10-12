@@ -223,6 +223,7 @@ const TUB_BODY_HEIGHT := 0.8
 # 浴槽の縁（z=-0.45）・洗面台（x≥0.52）・便器（x≤-0.3）に体（半径0.25）が重ならない位置
 const TUB_EXITS := [Vector3(0.05, 0.0, -0.15), Vector3(0.1, 0.0, 0.1), Vector3(0.0, 0.0, 0.5)]
 
+const AudioSettingsScript := preload("res://scripts/audio_settings.gd")
 const SETTINGS_PATH := "user://settings.cfg"
 const PROMPT_EXAMINE := "左クリック：調べる"
 const PROMPT_PICKUP := "左クリック：拾う"
@@ -291,6 +292,7 @@ func _ready() -> void:
 	hud.quit_pressed.connect(_quit)
 	hud.retry_pressed.connect(_retry)
 	hud.eye_height_changed.connect(_on_eye_height_changed)
+	hud.audio_changed.connect(_on_audio_changed)
 	_load_settings()
 
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
@@ -844,6 +846,9 @@ func _load_settings() -> void:
 	var cfg := ConfigFile.new()
 	if cfg.load(SETTINGS_PATH) == OK:
 		player.set_eye_height(float(cfg.get_value("player", "eye_height", PlayerScript.EYE_HEIGHT)))
+	AudioSettingsScript.load_from(cfg)
+	hud.set_audio_ui({"master": AudioSettingsScript.master, "sfx": AudioSettingsScript.sfx, "ambient": AudioSettingsScript.ambient,
+			"sfx_on": AudioSettingsScript.sfx_on, "ambient_on": AudioSettingsScript.ambient_on})
 	player.camera.position.y = player.eye_height
 	hud.set_eye_height_ui(player.eye_height)
 
@@ -853,6 +858,14 @@ func _on_eye_height_changed(value: float) -> void:
 	var cfg := ConfigFile.new()
 	cfg.load(SETTINGS_PATH)
 	cfg.set_value("player", "eye_height", player.eye_height)
+	cfg.save(SETTINGS_PATH)
+
+
+func _on_audio_changed(key: String, value: Variant) -> void:
+	AudioSettingsScript.set_value(key, value)
+	var cfg := ConfigFile.new()
+	cfg.load(SETTINGS_PATH)
+	AudioSettingsScript.save_to(cfg)
 	cfg.save(SETTINGS_PATH)
 
 

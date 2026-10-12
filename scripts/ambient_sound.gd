@@ -10,6 +10,7 @@ const VENT_POS := Vector3(-0.72, 2.1, -1.02)
 const DRIP_POS := Vector3(0.55, 0.62, -1.13)
 const ALLEY_POS := Vector3(2.5, 1.0, -4.5)
 
+const AudioSettings := preload("res://scripts/audio_settings.gd")
 var _drip: AudioStreamPlayer3D
 var _next := 4.0
 var _rng := RandomNumberGenerator.new()
@@ -19,7 +20,9 @@ func _ready() -> void:
 	_rng.seed = 20260
 	_add_loop("VentHum", _hum(), VENT_POS, -40.0, 1.5, 4.0)   # 換気扇：ブーという単音ではなく、ごく小さな空気の流れの音
 	_add_loop("AlleyMurmur", _murmur(), ALLEY_POS, -32.0, 4.0, 14.0)
+	AudioSettings.ensure_buses()
 	_drip = AudioStreamPlayer3D.new()
+	_drip.bus = "Ambient"
 	_drip.name = "Drip"
 	_drip.stream = _drip_wave()
 	_drip.position = DRIP_POS
@@ -45,6 +48,7 @@ func _process(delta: float) -> void:
 func _add_loop(node_name: String, stream: AudioStreamWAV, pos: Vector3, db: float, unit: float, max_d: float) -> void:
 	var p := AudioStreamPlayer3D.new()
 	p.name = node_name
+	p.bus = "Ambient"
 	p.stream = stream
 	p.position = pos
 	p.volume_db = db
