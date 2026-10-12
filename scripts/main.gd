@@ -71,6 +71,8 @@ const MESSAGES := {
 	"cannot_use": "ここでは使えない。",
 	"tub_note": "小さな紙が貼ってある。『ここまで来たか。』",
 	"towel_scratch": "タオルの裏に傷がある。前からあっただろうか。",
+	"life_paper_02": "古い映画の再上映。半券を捨てずに取ってある。",
+	"life_paper_07": "石好きの会。ここなら話が合いそうだ。",
 	"shelf_note": "棚の裏に小さな紙が貼ってある。『下からなら見える。』",
 	"tank_note": "タンクの下の壁に小さな紙。『しゃがむと、いろいろ見える。』",
 	"door_fixed": "ドライバーでドアノブのネジを締め直した。……ドアが開いた！",
@@ -370,7 +372,8 @@ func _on_interact_requested(target: Object) -> void:
 	match id:
 		"sink", "vent", "poster", \
 		"toilet_cleaner", "plunger", "toilet_brush", "vent_sticker", "bath_bucket", "shampoo", "rinse", "razor", \
-		"face_wash", "toner", "cotton_swabs", "tub_note", "towel_scratch", "shelf_note", "tank_note":
+		"face_wash", "toner", "cotton_swabs", "tub_note", "towel_scratch", "shelf_note", "tank_note", \
+		"life_paper_02", "life_paper_07":
 			hud.show_message(MESSAGES[id])
 		"driver":
 			if has_driver:

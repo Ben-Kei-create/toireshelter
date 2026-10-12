@@ -71,6 +71,7 @@ func _ready() -> void:
 	_build_room_stickers()
 	_build_novelties()
 	_build_tv_corner()
+	_build_life_papers()
 	_build_hall_slippers()
 	_build_lights()
 
@@ -878,6 +879,49 @@ func _build_novelties() -> void:
 ## 玄関ホール：浴室のドアの左（-x）の床にスリッパ。コルクボードの下・動線の外。見た目だけ。
 func _build_hall_slippers() -> void:
 	MeshKit.slipper_pair(self, Vector3(-0.64, 0.0, 1.55), 8.0, Color(0.92, 0.88, 0.72), Color(0.6, 0.45, 0.32), "HallSlippers")
+
+
+## 生活小物の紙（LIFE-12）：life_paper_02（砂時計の惑星の半券）と 07（石好きの会の会員証）。
+##   02 … 玄関ホールの突き当たり、映画のポスターの下（x 0.6、高さ 0.70m）に画鋲で留めた半券
+##   07 … 机の天板の右端、標本トレーの手前（x 1.58、z -0.27）に平らに置いた会員証（標本トレーは x 1.40〜1.52）
+## どちらも「調べる」だけの飾り（取得・暗証番号・脱出条件には使わない）。照準の判定は画像の大きさの薄い箱1つ。
+## 03・05・08・10 は、シートの絵が指定の文章と合わないため置いていない（保管）。
+func _build_life_papers() -> void:
+	var root := Node3D.new()
+	root.name = "LifePapers"
+	add_child(root)
+	var pin := MeshKit.mat("pin", Color(0.85, 0.2, 0.2), 0.4)
+	# 02：壁（突き当たり、-z を向く）
+	var stub := _life_paper(root, 2, 0.16, Vector3(0.6, 0.70, HALL.end.z - 0.003), Vector3.FORWARD, 4.0, "life_paper_02")
+	MeshKit.sphere(root, 0.006, stub.position + Vector3(-0.004, 0.05, -0.005), pin)
+	# 07：机の上（+y を向く）。長辺を z 方向に
+	_life_paper(root, 7, 0.11, Vector3(ROOM.position.x + 0.14 + 0.44, 0.735 + 0.002, -0.27), Vector3.UP, 90.0 + 12.0, "life_paper_07")
+
+
+## 紙の画像（assets/textures/life/life_paper_NN.png、透過付き）を、面の法線 normal を向けて貼り、調べる判定を付ける。
+## width：画像の横幅（m。高さは比率から）。見た目の紙は影を落とさない。
+func _life_paper(parent: Node3D, n: int, width: float, pos: Vector3, normal: Vector3, roll: float, interact_id: String) -> MeshInstance3D:
+	var tex: Texture2D = load("res://assets/textures/life/life_paper_%02d.png" % n)
+	var q := QuadMesh.new()
+	q.size = Vector2(width, width * tex.get_height() / tex.get_width())
+	var m := MeshKit.texture_mat("life_paper_%02d" % n, tex, 0.9).duplicate() as StandardMaterial3D
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR
+	var mi := MeshInstance3D.new()
+	mi.name = "LifePaper%02d" % n
+	mi.mesh = q
+	mi.material_override = m
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var nn := normal.normalized()
+	var up := Vector3.UP if absf(nn.dot(Vector3.UP)) < 0.95 else Vector3.FORWARD
+	mi.basis = Basis.looking_at(-nn, up) * Basis(Vector3.BACK, deg_to_rad(roll))
+	mi.position = pos
+	parent.add_child(mi)
+	var area := MeshKit.interact_area(parent, "LifePaper%02dArea" % n, interact_id)
+	var long_side := maxf(q.size.x, q.size.y)
+	var box := MeshKit.shape_box(area, Vector3(long_side, long_side, 0.02), Vector3.ZERO)
+	area.basis = mi.basis
+	area.position = pos + nn * 0.01
+	return mi
 
 
 ## テレビ台・テレビ・ゲーム機・ゲームのソフト（手前の壁の左側、大きな絵の下）。

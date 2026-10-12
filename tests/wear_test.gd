@@ -60,5 +60,17 @@ func _run() -> void:
 	check(tv.get_node("Tv/Screen") != null and tv.get_node("Console") != null and tv.get_node("Game05") != null, "テレビ・ゲーム機・ソフト5本がある")
 	check(_count(tv, [CollisionObject3D, Area3D]) == 0, "テレビ台まわりの飾りに個別の調べる判定がない（台の当たり判定は apartment の共通ボディ）")
 	check(main.room.apartment.get_node("HallSlippers") != null and wear.get_node("BathSlippers") != null, "スリッパが玄関ホールと浴室にある")
+	var lp: Node = main.room.apartment.get_node("LifePapers")
+	var ids := []
+	for c in lp.get_children():
+		if c is Area3D:
+			ids.append(String(c.get_meta("interact_id")))
+	ids.sort()
+	check(ids == ["life_paper_02", "life_paper_07"], "生活小物の紙は 02 と 07 の2つで、調べる判定がある（%s）" % str(ids))
+	for id in ids:
+		check(main.MESSAGES.has(id), "%s の説明文がある" % id)
+	check(main.MESSAGES["life_paper_02"] == "古い映画の再上映。半券を捨てずに取ってある。", "02 の文章が指定どおり")
+	check(main.MESSAGES["life_paper_07"] == "石好きの会。ここなら話が合いそうだ。", "07 の文章が指定どおり")
+	check(_count(lp, [StaticBody3D, CharacterBody3D, RigidBody3D]) == 0, "生活小物の紙に体を止める判定がない")
 	print("WEAR TEST: %s (%d failure(s))" % ["PASS" if failures == 0 else "FAIL", failures])
 	quit(1 if failures else 0)
