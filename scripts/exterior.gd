@@ -47,6 +47,7 @@ func _ready() -> void:
 # ---------------------------------------------------------------- 換気経路
 
 func _build_duct() -> void:
+	MeshKit.auto_round = false   # 外殻は角を丸めない（合わせ目に溝が出ないように）
 	var duct := Node3D.new()
 	duct.name = "Duct"
 	add_child(duct)
@@ -111,7 +112,7 @@ func _build_duct() -> void:
 	var band := MeshKit.mat("duct_band", Color(0.4, 0.42, 0.44), 0.5, 0.3)
 	for x in [0.0, 0.8, 1.5]:
 		MeshKit.box(duct, Vector3(0.03, 0.004, 0.6), Vector3(x, DUCT_FLOOR + 0.002, -0.3), band)
-
+	MeshKit.auto_round = true
 
 func _floor(add: Callable, a: Vector2, b: Vector2, y: float, m: Material) -> void:
 	var size := Vector3(b.x - a.x, 0.2, b.y - a.y)
@@ -132,6 +133,7 @@ static func in_duct(p: Vector3) -> bool:
 # ---------------------------------------------------------------- 建物の外壁
 
 func _build_facade() -> void:
+	MeshKit.auto_round = false   # 外殻は角を丸めない（合わせ目に溝が出ないように）
 	var f := Node3D.new()
 	f.name = "Facade"
 	add_child(f)
@@ -157,7 +159,7 @@ func _build_facade() -> void:
 	for k in [-2, -1, 1, 2]:
 		var y: float = k * FLOOR_PITCH
 		_balcony_shell(f, y, x0, x1, false)
-
+	MeshKit.auto_round = true
 
 # ---------------------------------------------------------------- ベランダ
 
@@ -231,6 +233,7 @@ func _balcony_shell(parent: Node3D, y: float, x0: float, x1: float, _collide: bo
 # ---------------------------------------------------------------- 向かいのマンション（背景）
 
 func _build_opposite() -> void:
+	MeshKit.auto_round = false   # 外殻は角を丸めない（合わせ目に溝が出ないように）
 	var o := Node3D.new()
 	o.name = "OppositeBuilding"
 	add_child(o)
@@ -276,7 +279,7 @@ func _build_opposite() -> void:
 	var wire := MeshKit.mat("wire", Color(0.08, 0.08, 0.08), 0.8)
 	for w in [[Vector3(-2.0, 5.2, FACADE_Z - 0.2), Vector3(6.0, 4.6, OPPOSITE_Z + 0.1)], [Vector3(-1.0, 5.6, OPPOSITE_Z + 0.1), Vector3(7.0, 5.0, FACADE_Z - 0.2)], [Vector3(-3.0, 4.2, -2.9), Vector3(7.5, 4.4, -2.7)]]:
 		MeshKit.pipe(o, w, 0.008, wire)
-
+	MeshKit.auto_round = true
 
 func _build_lights() -> void:
 	var balcony_light := OmniLight3D.new()

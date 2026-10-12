@@ -57,6 +57,7 @@ var _water_mat: StandardMaterial3D
 var _swirl: MeshInstance3D
 
 var faucet: FaucetScript
+var shower: FaucetScript   # 壁のフックに掛けたシャワー。給水は蛇口と同じ1本分（同時でも二重に数えない）
 var _water: MeshInstance3D
 var _plug: Node3D
 var _chain: Node3D
@@ -70,6 +71,8 @@ func _ready() -> void:
 	_build_drain(visual)
 	_build_plug()
 	_build_faucet()
+	_build_shower()
+	_build_bottles()
 	_build_note()
 	_build_port()
 
@@ -91,7 +94,7 @@ func _process(delta: float) -> void:
 
 ## 給水しているか（手の蛇口とふろ自動のどちらか）。
 func is_filling() -> bool:
-	return faucet.is_on or auto_filling
+	return faucet.is_on or shower.is_on or auto_filling
 
 
 func concentration() -> float:
@@ -155,6 +158,61 @@ func start_reheat() -> String:
 	reheat_end_reason = ""
 	_reheat_left = REHEAT_TIME
 	return "ok"
+
+
+func _build_shower() -> void:
+	# 奥の壁（ローカル z = -HALF.z）の縦のスライドバーに、シャワーヘッドを下向きに掛ける。ホースは蛇口の本体から
+	var metal := MeshKit.mat("metal", Color(0.75, 0.75, 0.78), 0.25, 0.8)
+	var wz := -HALF.z
+	var bar_x := 0.2
+	MeshKit.pipe(self, [Vector3(bar_x, 1.05, wz + 0.035), Vector3(bar_x, 1.85, wz + 0.035)], 0.011, metal)
+	for y in [1.05, 1.85]:
+		MeshKit.box(self, Vector3(0.03, 0.03, 0.035), Vector3(bar_x, y, wz + 0.0175), metal)
+	shower = FaucetScript.new()
+	shower.name = "Shower"
+	shower.position = Vector3(bar_x, 1.72, wz + 0.035)
+	shower.prompt_on = "shower_on"
+	shower.prompt_off = "shower_off"
+	var hook := MeshKit.box(shower, Vector3(0.04, 0.05, 0.05), Vector3(0, 0, 0.03), metal, "Hook")
+	hook.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	# 柄と、下を向いた丸いヘッド（散水板は少し暗い）
+	var grip := MeshKit.cylinder(shower, 0.013, 0.16, Vector3(0, -0.02, 0.07), metal, "Grip")
+	grip.rotation.x = deg_to_rad(55.0)
+	var head := MeshKit.cylinder(shower, 0.04, 0.025, Vector3(0, -0.07, 0.14), metal, "Head")
+	head.rotation.x = deg_to_rad(-15.0)
+	MeshKit.cylinder(shower, 0.034, 0.003, Vector3(0, -0.083, 0.143), MeshKit.mat("shower_face", Color(0.35, 0.36, 0.38), 0.4), "Face").rotation.x = deg_to_rad(-15.0)
+	# 水は少し太めの流れ（散水の代わり）
+	shower.setup(Vector3(0, -0.09, 0.145), BOTTOM_Y, null, 0.022)
+	var area := MeshKit.interact_area(shower, "ShowerArea", "bath_shower", shower)
+	MeshKit.shape_box(area, Vector3(0.1, 0.16, 0.2), Vector3(0, -0.04, 0.1))
+	add_child(shower)
+	# シャワーの水は、蛇口の水流より白く薄く（細かい水の束に見えるように）
+	shower._stream_mat.albedo_color = Color(0.92, 0.97, 1.0, 0.32)
+	# ホース：蛇口の本体の左端から下へ垂れて、シャワーの柄の下へ
+	var hose := MeshKit.mat("hose", Color(0.8, 0.8, 0.82), 0.3, 0.6)
+	MeshKit.pipe(self, [Vector3(0.47, 0.68, wz + 0.04), Vector3(0.4, 0.6, wz + 0.07), Vector3(0.28, 0.62, wz + 0.08),
+			Vector3(0.21, 0.9, wz + 0.09), Vector3(0.2, 1.3, wz + 0.1), Vector3(0.2, 1.63, wz + 0.11)], 0.008, hose)
+
+
+func _build_bottles() -> void:
+	# 右の縁（ローカル x 0.82〜0.9）の上に、シャンプーとリンスのポンプボトル。調べられる（取得はできない）
+	var top := HALF.y
+	var specs := [["Shampoo", "shampoo", Color(0.18, 0.32, 0.36), -0.2, true], ["Rinse", "rinse", Color(0.92, 0.9, 0.86), -0.1, false]]
+	for sp in specs:
+		var b := Node3D.new()
+		b.name = sp[0]
+		b.position = Vector3(HALF.x - WALL * 0.5, top, sp[3])
+		add_child(b)
+		var body := MeshKit.mat("bottle_%s" % sp[1], sp[2], 0.35)
+		MeshKit.cylinder(b, 0.032, 0.16, Vector3(0, 0.08, 0), body, "Body", 0.03, 20)
+		MeshKit.cylinder(b, 0.0325, 0.05, Vector3(0, 0.08, 0), MeshKit.mat("bottle_band_%s" % sp[1], Color(0.95, 0.75, 0.3) if sp[4] else Color(0.55, 0.7, 0.85), 0.5), "Band", -1.0, 20)
+		MeshKit.cylinder(b, 0.012, 0.03, Vector3(0, 0.175, 0), MeshKit.mat("pump", Color(0.95, 0.95, 0.95), 0.4), "Neck")
+		MeshKit.box(b, Vector3(0.05, 0.012, 0.018), Vector3(0.012, 0.196, 0), MeshKit.mat("pump", Color(0.95, 0.95, 0.95), 0.4), "Pump")
+		if sp[4]:   # シャンプーの側面のギザギザ（目を閉じても分かる印）
+			for k in 6:
+				MeshKit.box(b, Vector3(0.004, 0.025, 0.004), Vector3(-0.031, 0.13, -0.012 + k * 0.005), body)
+		var area := MeshKit.interact_area(b, sp[0] + "Area", sp[1])
+		MeshKit.shape_box(area, Vector3(0.07, 0.21, 0.07), Vector3(0, 0.105, 0))
 
 
 func stop_remote() -> void:
@@ -225,6 +283,8 @@ func _update_water() -> void:
 		_swirl.rotation.y = _t * 4.0
 	# 水流は水面まで。水がなければ底まで
 	faucet.stream_floor_y = to_global(Vector3(0.0, water_y() if _water.visible else BOTTOM_Y, 0.0)).y
+	if shower:
+		shower.stream_floor_y = faucet.stream_floor_y
 
 
 # ---------------------------------------------------------------- 組み立て

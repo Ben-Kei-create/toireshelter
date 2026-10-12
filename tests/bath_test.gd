@@ -303,6 +303,44 @@ func _run() -> void:
 	await _seconds(0.6)
 	_check(not pb.intersects(_aabb(toilet.lid_pivot)) and not pb.intersects(_aabb(toilet.seat_pivot)), "開いた蓋・上げた便座とぶつからない")
 
+	# ================================================================ シャワー・シャンプー・リンス・髭剃り
+	player.global_position = Vector3(0.3, 0.0, -0.15)
+	await _seconds(0.9)   # 立った状態に落ち着くまで
+	var sh = tub.shower
+	tub.set_plug(true)
+	tub.level = 0.2
+	tub.advance(0.0)
+	_aim(player, sh.to_global(Vector3(0, -0.07, 0.14)))
+	var shh = player.get_focused(true)
+	_check(_id(shh) == "bath_shower" and main._prompt_for(shh) == main.PROMPTS["shower_on"], "シャワーヘッドを狙うと「シャワーを出す」")
+	player.try_interact()
+	sh._update_stream()
+	var st: MeshInstance3D = sh._stream
+	var st_bottom: float = st.global_position.y - st.global_transform.basis.get_scale().y * 0.5
+	_check(sh.is_on and st.visible and absf(st_bottom - tub.to_global(Vector3(0, tub.water_y(), 0)).y) < 0.001,
+			"シャワーの水が水面まで落ちる（下端 %.3f）" % st_bottom)
+	var sl0: float = tub.level
+	tub.advance(4.0)
+	_check(absf(tub.level - sl0 - 0.1) < 0.0001, "シャワーで給水される（4秒で +0.1）")
+	tub.faucet.set_on(true)
+	sl0 = tub.level
+	tub.advance(4.0)
+	_check(absf(tub.level - sl0 - 0.1) < 0.0001, "蛇口とシャワーを同時に出しても給水は1本分")
+	tub.faucet.set_on(false)
+	_check(main._prompt_for(player.get_focused(true)) == main.PROMPTS["shower_off"], "出ているときは「シャワーを止める」")
+	player.try_interact()
+	_check(not sh.is_on, "シャワーを止められる")
+	for b2 in [["Shampoo", "shampoo"], ["Rinse", "rinse"]]:
+		main.hud._message_label.text = ""
+		_aim(player, tub.get_node(b2[0]).global_position + Vector3(0, 0.1, 0))
+		player.try_interact()
+		_check(main.hud._message_label.text == main.MESSAGES[b2[1]], "%s を調べられる" % b2[1])
+	main.hud._message_label.text = ""
+	player.global_position = Vector3(0.45, 0.0, 0.2)
+	_aim(player, main.room.get_node("SinkShelf/Razor").global_position)
+	player.try_interact()
+	_check(main.hud._message_label.text == main.MESSAGES["razor"], "髭剃りを調べられる")
+
 	# ================================================================ 再プレイ
 	main._retry()
 	await _frames(10)
@@ -312,6 +350,7 @@ func _run() -> void:
 			and r2.bathtub._water_mat.albedo_color.is_equal_approx(r2.bathtub.WATER_COLOR), "再プレイで容器は棚、未使用、水は通常色")
 	_check(not r2.bath_remote.power and not r2.bathtub.auto_filling and not r2.bathtub.reheating and r2.toilet_panel.mode == "",
 			"再プレイでリモコンは運転OFF、パネルは停止")
+	_check(not r2.bathtub.shower.is_on, "再プレイでシャワーは止まっている")
 
 	print("BATH TEST: %s (%d failure(s))" % ["PASS" if _failures == 0 else "FAIL", _failures])
 	quit(1 if _failures > 0 else 0)

@@ -54,6 +54,7 @@ func _ready() -> void:
 	_body.collision_mask = 0
 	add_child(_body)
 	_build_hall()
+	_build_movie_posters()
 	_build_room_shell()
 	_build_window()
 	_build_bookshelf()
@@ -78,6 +79,7 @@ func _solid(size: Vector3, center: Vector3, m: Material, node_name := "") -> Mes
 # ---------------------------------------------------------------- 玄関ホール
 
 func _build_hall() -> void:
+	MeshKit.auto_round = false   # 外殻は角を丸めない（合わせ目に溝が出ないように）
 	var wall := MeshKit.mat("hall_wall", Color(0.82, 0.8, 0.76))
 	var floor_m := MeshKit.mat("hall_floor", Color(0.5, 0.36, 0.24), 0.7)
 	var ceil_m := MeshKit.mat("ceiling", Color(0.95, 0.95, 0.95))
@@ -94,11 +96,24 @@ func _build_hall() -> void:
 	_solid(Vector3(WALL_T, HALL.end.y, DOORWAY_Z.x - z0), Vector3(rx, HALL.end.y * 0.5, (z0 + DOORWAY_Z.x) * 0.5), wall)
 	_solid(Vector3(WALL_T, HALL.end.y, z1 - DOORWAY_Z.y), Vector3(rx, HALL.end.y * 0.5, (DOORWAY_Z.y + z1) * 0.5), wall)
 	_solid(Vector3(WALL_T, HALL.end.y - DOORWAY_H, DOORWAY_Z.y - DOORWAY_Z.x), Vector3(rx, (DOORWAY_H + HALL.end.y) * 0.5, (DOORWAY_Z.x + DOORWAY_Z.y) * 0.5), wall)
+	MeshKit.auto_round = true
+
+## 玄関ホールの突き当たりの壁（z=2.4、部屋側 -z を向く）に、映画のポスター8枚を4枚×2段で貼る。紙なので額はなし。
+func _build_movie_posters() -> void:
+	var root := Node3D.new()
+	root.name = "MoviePosters"
+	add_child(root)
+	var xs := [0.6, 0.2, -0.2, -0.6]   # ホールの中から見て左（+x）から 01, 02, …
+	var ys := [1.55, 1.05]
+	for i in 8:
+		var pos := Vector3(xs[i % 4], ys[i / 4], HALL.end.z - 0.003)
+		_sign(root, "movie_poster_%02d" % (i + 1), pos, 0.42, Vector3.FORWARD)
 
 
 # ---------------------------------------------------------------- 自室の外殻
 
 func _build_room_shell() -> void:
+	MeshKit.auto_round = false   # 外殻は角を丸めない（合わせ目に溝が出ないように）
 	# 自室の壁紙。模様が強くなりすぎないよう小さめ（横 0.3m）で繰り返す
 	var wall := MeshKit.tiled_mat("room_wallpaper", MeshKit.faded_texture(TEX_WALLPAPER, 0.4), 0.3, Color.WHITE, 0.9)
 	var floor_m := MeshKit.mat("room_floor", Color(0.55, 0.42, 0.3), 0.7)
@@ -129,7 +144,7 @@ func _build_room_shell() -> void:
 	_solid(Vector3(WINDOW_X.x - (x0 - WALL_T), h, WALL_T), Vector3((x0 - WALL_T + WINDOW_X.x) * 0.5, h * 0.5, bz), wall)
 	_solid(Vector3(x1 + WALL_T - WINDOW_X.y, h, WALL_T), Vector3((WINDOW_X.y + x1 + WALL_T) * 0.5, h * 0.5, bz), wall)
 	_solid(Vector3(WINDOW_X.y - WINDOW_X.x, h - WINDOW_TOP, WALL_T), Vector3((WINDOW_X.x + WINDOW_X.y) * 0.5, (WINDOW_TOP + h) * 0.5, bz), wall)
-
+	MeshKit.auto_round = true
 
 # ---------------------------------------------------------------- 掃き出し窓
 

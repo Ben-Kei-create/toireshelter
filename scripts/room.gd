@@ -188,6 +188,7 @@ func _build_environment() -> void:
 # ---------------------------------------------------------------- 部屋の外殻
 
 func _build_shell() -> void:
+	MeshKit.auto_round = false   # 外殻は角を丸めない（合わせ目に溝が出ないように）
 	var shell := Node3D.new()
 	shell.name = "Shell"
 	add_child(shell)
@@ -243,9 +244,10 @@ func _build_shell() -> void:
 	_mesh_box(frame, Vector3(0.04, DOOR_H, WALL_T + 0.02), Vector3(-DOOR_W * 0.5 - 0.02, DOOR_H * 0.5, front_z), frame_mat)
 	_mesh_box(frame, Vector3(0.04, DOOR_H, WALL_T + 0.02), Vector3(DOOR_W * 0.5 + 0.02, DOOR_H * 0.5, front_z), frame_mat)
 	_mesh_box(frame, Vector3(DOOR_W + 0.08, 0.04, WALL_T + 0.02), Vector3(0, DOOR_H + 0.02, front_z), frame_mat)
-
+	MeshKit.auto_round = true
 
 func _build_wall_details() -> void:
+	MeshKit.auto_round = false   # 外殻は角を丸めない（合わせ目に溝が出ないように）
 	# 樹脂パネルの縦の継ぎ目と、隅・床際のゴム目地。見た目だけ（当たり判定なし）
 	var details := Node3D.new()
 	details.name = "WallDetails"
@@ -294,6 +296,8 @@ func _build_wall_details() -> void:
 
 
 ## 長さ length の壁を PANEL_TARGET_W 前後の等幅パネルに分けたときの継ぎ目の位置（中心 0 基準）。
+	MeshKit.auto_round = true
+
 func _seam_positions(length: float) -> Array:
 	var count := maxi(1, roundi(length / PANEL_TARGET_W))
 	var result := []
@@ -363,6 +367,16 @@ func _build_sink_shelf(wx: float, z: float) -> void:
 		var handle_mat := _mat("brush_%s" % b[0].to_html(false), b[0], 0.4)
 		_mesh_box(brush, Vector3(0.012, 0.17, 0.008), Vector3(0, 0.085, 0), handle_mat)
 		_mesh_box(brush, Vector3(0.012, 0.025, 0.012), Vector3(-0.006, 0.16, 0), _mat("bristle", Color(0.97, 0.97, 0.97), 0.9))
+	# 髭剃り：棚の上に寝かせた T 字の剃刀（見た目＋調べる判定）
+	var razor := Node3D.new()
+	razor.name = "Razor"
+	razor.position = Vector3(wx - 0.05, top + 0.006, z + 0.15)
+	shelf.add_child(razor)
+	var razor_handle := MeshKit.cylinder(razor, 0.006, 0.11, Vector3.ZERO, _mat("razor", Color(0.25, 0.4, 0.75), 0.4), "Handle")
+	razor_handle.rotation.x = deg_to_rad(90.0)
+	MeshKit.box(razor, Vector3(0.038, 0.01, 0.012), Vector3(0, 0.002, -0.058), _mat("razor_head", Color(0.85, 0.86, 0.88), 0.3, 0.6), "Head")
+	var razor_area := MeshKit.interact_area(razor, "RazorArea", "razor")
+	MeshKit.shape_box(razor_area, Vector3(0.05, 0.03, 0.13), Vector3(0, 0.005, -0.005))
 	# 歯磨き粉：棚の上に寝かせたチューブ（キャップ側 r=0.015 → 潰した端 r=0.012 の先細り）。
 	# ラベル画像はチューブの正面（部屋側の斜め上）に約200°巻く。裏側は画像の地色に近い単色、キャップは青の単色
 	var tube := Node3D.new()

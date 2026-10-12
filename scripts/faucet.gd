@@ -10,6 +10,8 @@ const STREAM_SPEED := 2.5   # 水流の模様が流れる速さ
 
 var is_on := false
 var stream_floor_y := 0.0
+var prompt_on := "water_on"     # 案内のキー（シャワーは "shower_on" / "shower_off"）
+var prompt_off := "water_off"
 
 var _spout_tip := Vector3.ZERO   # ローカル座標
 var _lever: Node3D
@@ -81,7 +83,7 @@ func _update_stream() -> void:
 # ---------------------------------------------------------------- main.gd から呼ばれる
 
 func get_prompt(_id: String) -> String:
-	return "water_off" if is_on else "water_on"
+	return prompt_off if is_on else prompt_on
 
 
 func interact(_id: String) -> String:

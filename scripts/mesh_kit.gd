@@ -7,13 +7,87 @@ const LAYER_INTERACT := 2   # 照準だけ当たる（ぶつからない）
 const LAYER_BODY_ONLY := 16 # 体だけを止める透明な板（照準のレイは通す。layer 5）
 
 static var _mat_cache := {}
+static var _round_cache := {}
+## 箱の角を丸めるか。壁・床・換気経路などの外殻を作る間は false にする（角の合わせ目に溝が出ないように）
+static var auto_round := true
+const ROUND_MAX := 0.015          # 角の半径の上限（m）
+const ROUND_MIN := 0.002          # これより小さくなる薄い板は丸めない
+const ROUND_LONG_LIMIT := 2.0     # 長い辺がこれより長い箱（本棚の長い板など）は丸めない
 static var _water_noise: NoiseTexture2D
 
 
 static func box(parent: Node, size: Vector3, center: Vector3, material: Material, node_name := "") -> MeshInstance3D:
+	var r := minf(ROUND_MAX, minf(size.x, minf(size.y, size.z)) * 0.25)
+	if auto_round and r >= ROUND_MIN and maxf(size.x, maxf(size.y, size.z)) <= ROUND_LONG_LIMIT:
+		return _instance(parent, rounded_box_mesh(size, r), center, material, node_name)
 	var mesh := BoxMesh.new()
 	mesh.size = size
 	return _instance(parent, mesh, center, material, node_name)
+
+
+## 角を半径 r で丸めた箱（各面を格子に分け、角の部分だけ内側の箱からの球面へ押し出す）。大きさごとに使い回す。
+static func rounded_box_mesh(size: Vector3, r: float) -> ArrayMesh:
+	var key := "%.4f_%.4f_%.4f_%.4f" % [size.x, size.y, size.z, r]
+	if _round_cache.has(key):
+		return _round_cache[key]
+	var seg := 3
+	var h := size * 0.5
+	var inner := h - Vector3(r, r, r)
+	var coords := []   # 軸ごとの格子の座標
+	for ax in 3:
+		var c := []
+		for k in seg + 1:
+			c.append(-inner[ax] - r * cos(k * PI * 0.5 / seg))
+		for k in range(seg, -1, -1):
+			c.append(inner[ax] + r * cos(k * PI * 0.5 / seg))
+		coords.append(c)
+	var verts := PackedVector3Array()
+	var normals := PackedVector3Array()
+	var uvs := PackedVector2Array()
+	var indices := PackedInt32Array()
+	for ax in 3:
+		var u := (ax + 1) % 3
+		var v := (ax + 2) % 3
+		for sgn in [-1.0, 1.0]:
+			var base := verts.size()
+			var cu: Array = coords[u]
+			var cv: Array = coords[v]
+			for i in cu.size():
+				for j in cv.size():
+					var p := Vector3.ZERO
+					p[ax] = sgn * h[ax]
+					p[u] = cu[i]
+					p[v] = cv[j]
+					var q := p.clamp(-inner, inner)
+					var n := (p - q).normalized()
+					verts.append(q + n * r)
+					normals.append(n)
+					uvs.append(Vector2(float(i) / (cu.size() - 1), float(j) / (cv.size() - 1)))
+			var nv: int = cv.size()
+			for i in cu.size() - 1:
+				for j in nv - 1:
+					var a := base + i * nv + j
+					var b := a + nv
+					for tri in [[a, b, a + 1], [b, b + 1, a + 1]]:
+						# Godot の表面は時計回り：外向きの法線と外積が逆向きになるようにそろえる
+						var A := verts[tri[0]]
+						var B := verts[tri[1]]
+						var C := verts[tri[2]]
+						var nn := normals[tri[0]] + normals[tri[1]] + normals[tri[2]]
+						if (B - A).cross(C - A).dot(nn) > 0.0:
+							indices.append_array([tri[0], tri[2], tri[1]])
+						else:
+							indices.append_array(tri)
+	var arrays := []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = verts
+	arrays[Mesh.ARRAY_NORMAL] = normals
+	arrays[Mesh.ARRAY_TEX_UV] = uvs
+	arrays[Mesh.ARRAY_INDEX] = indices
+	var mesh := ArrayMesh.new()
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	_round_cache[key] = mesh
+	return mesh
 
 
 ## Y 軸方向の円柱。top_radius を変えると円すい台になる。

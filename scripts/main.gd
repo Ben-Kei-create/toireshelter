@@ -54,6 +54,9 @@ const MESSAGES := {
 	"cabinet_locked": "鏡の扉は開かない。右端に溝付きの留め具がある。",
 	"cabinet_unlocked": "留め具を外した。鏡の扉が開けられる。",
 	"bath_bucket": "風呂桶。軽いプラスチック製だ。",
+	"shampoo": "シャンプー。側面のギザギザで、目を閉じていても分かる。",
+	"rinse": "リンス。こちらはつるつるしている。",
+	"razor": "髭剃り。刃はまだ新しい。",
 	"face_wash": "洗顔料。泡立ちがいいらしい。",
 	"toner": "化粧水。ほとんど減っていない。",
 	"cotton_swabs": "綿棒。ぎっしり詰まっている。",
@@ -105,6 +108,8 @@ const PROMPTS := {
 	"cover_open": "左クリック：カバーを開ける",
 	"cover_close": "左クリック：カバーを閉める",
 	"curtain_close": "左クリック：カーテンを閉める",
+	"shower_on": "左クリック：シャワーを出す",
+	"shower_off": "左クリック：シャワーを止める",
 	"curtain_open": "左クリック：カーテンを開ける",
 }
 
@@ -364,7 +369,7 @@ func _on_interact_requested(target: Object) -> void:
 		return
 	match id:
 		"sink", "vent", "poster", \
-		"toilet_cleaner", "plunger", "toilet_brush", "vent_sticker", "bath_bucket", \
+		"toilet_cleaner", "plunger", "toilet_brush", "vent_sticker", "bath_bucket", "shampoo", "rinse", "razor", \
 		"face_wash", "toner", "cotton_swabs", "tub_note", "towel_scratch", "shelf_note", "tank_note":
 			hud.show_message(MESSAGES[id])
 		"driver":
