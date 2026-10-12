@@ -51,8 +51,9 @@ const MESSAGES := {
 	"plunger": "ラバーカップ。ブラシと妙にきれいに並んでいる。",
 	"toilet_brush": "トイレブラシ。ここでの仕事には慣れていそうだ。",
 	"vent_sticker": "『点検済。異常なし。たぶん。』……たぶん？",
-	"cabinet_locked": "鏡の扉は開かない。右側に鍵がかかっている。",
-	"bath_bucket": "風呂桶。軽くて、よく転がる。",
+	"cabinet_locked": "鏡の扉は開かない。右端に溝付きの留め具がある。",
+	"cabinet_unlocked": "留め具を外した。鏡の扉が開けられる。",
+	"bath_bucket": "風呂桶。軽いプラスチック製だ。",
 	"face_wash": "洗顔料。泡立ちがいいらしい。",
 	"toner": "化粧水。ほとんど減っていない。",
 	"cotton_swabs": "綿棒。ぎっしり詰まっている。",
@@ -462,6 +463,8 @@ func _use_prompt(target: Object) -> String:
 	if id.is_empty() or target == null or player.pose == PlayerScript.Pose.TRANSITION:
 		return ""
 	var tid := String(target.get_meta("interact_id", ""))
+	if id == "driver" and tid in ["mirror_door", "mirror_lock"] and room.mirror_cabinet.locked:
+		return "F：ドライバーで留め具を外す"
 	if (id == "driver" and tid == "door" and not door_open) \
 			or (id == "spare_roll" and tid in ["paper_holder", "paper_cover"] and not room.supplies.has_paper) \
 			or (id == "bath_powder" and not powder_used and tid in TUB_TARGETS):
@@ -478,6 +481,10 @@ func use_selected() -> void:
 		return
 	var target := player.get_focused(true)
 	var tid := String(target.get_meta("interact_id", "")) if target else ""
+	if id == "driver" and tid in ["mirror_door", "mirror_lock"] and (room.mirror_cabinet.locked or room.mirror_cabinet.unlocking):
+		if room.mirror_cabinet.unlock():
+			hud.show_message(MESSAGES["cabinet_unlocked"])
+		return
 	if id == "driver" and tid == "door" and not door_open:
 		door_open = true
 		room.open_door()

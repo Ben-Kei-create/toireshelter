@@ -41,6 +41,14 @@ func _run() -> void:
 	player.global_position = start
 	await _physics(4)
 
+	# ---------------------------------------------------------------- カーテンを閉めて開け直してから進む
+	room.shower_curtain.toggle()
+	await _seconds(0.6)
+	_check(room.shower_curtain.closed, "（準備）カーテンを閉めた")
+	room.shower_curtain.toggle()
+	await _seconds(0.6)
+	_check(not room.shower_curtain.closed, "（準備）カーテンを開け直した")
+
 	# ---------------------------------------------------------------- 換気口へ入る（浴槽から）
 	player.global_position = Vector3(0.3, 0.0, -0.2)
 	_aim(player, tub.to_global(Vector3(0.3, 0.3, 0.375)))

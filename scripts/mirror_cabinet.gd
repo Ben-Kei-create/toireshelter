@@ -12,7 +12,9 @@ extends Node3D
 ##
 ## 開口の下端は 1.28m：棚の歯ブラシ（上端 約1.26m）や蛇口とぶつからない高さ。
 ## 開閉中（0.45秒）のクリックは無視する。
-## 初期状態は施錠（扉の右端＝取っ手側に小さな鍵）。施錠中にクリックすると「開かない」と出るだけ。解錠の方法はまだない（unlock() はテスト・今後の仕掛け用）。
+## 初期状態は施錠：扉の右端（取っ手の下）に、ドライバーで回す溝付きの真鍮の留め具（Lock）。
+## 施錠中にクリックすると「開かない」と出るだけ。ドライバーを選んで留め具か扉を狙い F で解錠（main.gd）。
+## 留め具には小さな照準の判定（mirror_lock）があり、扉の判定より手前にある。
 
 const MeshKit := preload("res://scripts/mesh_kit.gd")
 
@@ -34,6 +36,7 @@ const SWING_TIME := 0.45
 
 var is_open := false
 var locked := true
+var unlocking := false   # 留め具を回している間（この間の F は無視して、メッセージを重ねない）
 var busy := false
 var door_pivot: Node3D
 
@@ -46,11 +49,18 @@ func _ready() -> void:
 	_build_body_blocker()
 
 
-func unlock() -> void:
+## 留め具を外す（ドライバーで溝を縦に回す演出）。すでに外れていれば何もしない（false）。
+func unlock() -> bool:
+	if not locked:
+		return false
 	locked = false
 	var lock := door_pivot.get_node_or_null("Lock")
 	if lock:
-		lock.rotation.x = deg_to_rad(90.0)   # つまみを縦に回した見た目
+		unlocking = true
+		var tween := create_tween()
+		tween.tween_property(lock, "rotation:x", deg_to_rad(90.0), 0.3)   # 溝が横 → 縦
+		tween.tween_callback(func() -> void: unlocking = false)
+	return true
 
 
 func toggle() -> void:
@@ -183,8 +193,13 @@ func _build_door() -> void:
 	lock.name = "Lock"
 	lock.position = Vector3(-0.006, h * 0.5 - 0.06, w - 0.02)
 	door_pivot.add_child(lock)
-	MeshKit.cylinder(lock, 0.008, 0.008, Vector3.ZERO, MeshKit.mat("brass", Color(0.78, 0.65, 0.35), 0.3, 0.8), "Plate").rotation.z = deg_to_rad(90.0)
-	MeshKit.box(lock, Vector3(0.006, 0.004, 0.014), Vector3(-0.005, 0, 0), MeshKit.mat("brass", Color(0.78, 0.65, 0.35), 0.3, 0.8), "Knob")
+	var brass := MeshKit.mat("brass", Color(0.78, 0.65, 0.35), 0.3, 0.8)
+	var plate := MeshKit.cylinder(lock, 0.011, 0.006, Vector3(-0.003, 0, 0), brass, "Plate", -1.0, 20)
+	plate.rotation.z = deg_to_rad(90.0)
+	# マイナスの溝（施錠中は横向き）
+	MeshKit.box(lock, Vector3(0.002, 0.0025, 0.017), Vector3(-0.0062, 0, 0), MeshKit.mat("lock_slot", Color(0.12, 0.1, 0.06), 0.8), "Slot")
+	var lock_area := MeshKit.interact_area(lock, "LockArea", "mirror_lock", self)
+	MeshKit.shape_box(lock_area, Vector3(0.016, 0.03, 0.03), Vector3(-0.006, 0, 0))
 	var area := MeshKit.interact_area(door_pivot, "DoorArea", "mirror_door", self)
 	MeshKit.shape_box(area, Vector3(DOOR_T + 0.012, h, w), Vector3(DOOR_T * 0.5 - 0.006, h * 0.5, w * 0.5))
 
