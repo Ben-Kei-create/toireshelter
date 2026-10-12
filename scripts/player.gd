@@ -29,6 +29,8 @@ const INTERACT_RANGE := 1.8       # 通常の対象を調べられる距離
 const INTERACT_RANGE_MAX := 2.4   # レイの長さ。対象ごとの interact_range メタの上限
 const EYE_HEIGHT := 1.5
 const CROUCH_EYE_HEIGHT := 0.6
+const EYE_HEIGHT_MIN := 1.3
+const EYE_HEIGHT_MAX := 1.7
 const BODY_RADIUS := 0.25
 const BODY_HEIGHT := 1.6
 const CROUCH_BODY_HEIGHT := 0.7
@@ -52,6 +54,7 @@ var _pitch := 0.0
 var _shape: CollisionShape3D
 var _capsule: CapsuleShape3D
 var _eye_target := EYE_HEIGHT
+var eye_height := EYE_HEIGHT          # 立っているときの目の高さ（設定で変えられる。EYE_HEIGHT_MIN〜MAX）
 var _settled_pose: Pose = Pose.WALK   # 移動演出が終わったあとの姿勢
 var _step_acc := 0.0
 
@@ -161,6 +164,13 @@ func _physics_process(delta: float) -> void:
 			Sfx.play("step", randf_range(0.85, 1.15), -9.0 if pose == Pose.WALK else -15.0)
 
 
+## 立っているときの目の高さを変える（設定の「身長」）。立っていれば、目の高さは滑らかに追従する。
+func set_eye_height(h: float) -> void:
+	eye_height = clampf(h, EYE_HEIGHT_MIN, EYE_HEIGHT_MAX)
+	if pose == Pose.WALK:
+		_eye_target = eye_height
+
+
 ## 自分の足で動ける姿勢（立つ／しゃがむ／換気経路で這う）か。
 func is_walking() -> bool:
 	return pose == Pose.WALK or pose == Pose.CROUCH or pose == Pose.DUCT or pose == Pose.KOTATSU_IN
@@ -180,7 +190,7 @@ func toggle_crouch() -> bool:
 			return false
 		_set_body_height(BODY_HEIGHT)
 		pose = Pose.WALK
-		_eye_target = EYE_HEIGHT
+		_eye_target = eye_height
 		return true
 	return false
 
@@ -192,7 +202,7 @@ func leave_crawl() -> void:
 	if is_space_free(global_position, BODY_HEIGHT):
 		_set_body_height(BODY_HEIGHT)
 		pose = Pose.WALK
-		_eye_target = EYE_HEIGHT
+		_eye_target = eye_height
 	else:
 		_set_body_height(CROUCH_BODY_HEIGHT)
 		pose = Pose.CROUCH
@@ -237,7 +247,7 @@ func leave_fixed(candidates: Array, via: Array = []) -> bool:
 	for c in candidates:
 		var feet: Vector3 = c
 		if is_space_free(feet, BODY_HEIGHT):
-			move_to(Pose.WALK, feet, rotation.y, EYE_HEIGHT, via, true, BODY_HEIGHT, BODY_RADIUS)
+			move_to(Pose.WALK, feet, rotation.y, eye_height, via, true, BODY_HEIGHT, BODY_RADIUS)
 			return true
 	return false
 

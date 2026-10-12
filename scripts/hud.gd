@@ -4,6 +4,7 @@ extends CanvasLayer
 signal resume_pressed
 signal quit_pressed
 signal retry_pressed
+signal eye_height_changed(value: float)
 
 const JP_FONTS := [
 	"Hiragino Sans", "Hiragino Kaku Gothic ProN", "Hiragino Kaku Gothic Pro",
@@ -37,6 +38,8 @@ var _clear_menu: Control
 var _resume_button: Button
 var _retry_button: Button
 var _message_time_left := 0.0
+var _height_slider: HSlider
+var _height_value: Label
 
 
 func _ready() -> void:
@@ -78,7 +81,7 @@ func _ready() -> void:
 
 	_hint_label = _make_label(17, HORIZONTAL_ALIGNMENT_LEFT)
 	_hint_label.name = "Hint"
-	_hint_label.text = "WASD：移動　クリック：調べる　F：使う　1-3・ホイール：選ぶ　Q：拡大　C：しゃがむ　E：座る・入る　Esc：停止"
+	_hint_label.text = "Esc：設定（操作説明・身長）"
 	_hint_label.add_theme_color_override("font_color", Color(1, 1, 1, 0.85))
 	_hint_label.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.8))
 	_hint_label.add_theme_constant_override("shadow_offset_x", 1)
@@ -86,7 +89,8 @@ func _ready() -> void:
 	_hint_label.add_theme_font_size_override("font_size", 15)
 	_place(_hint_label, 0.0, 0.0, 1.0, 0.0, 20.0, 12.0, -20.0, 38.0)   # 上端（所持品欄と重ならないよう、下から移した）
 
-	_pause_menu = _make_menu("PauseMenu", "一時停止")
+	_pause_menu = _make_menu("PauseMenu", "設定")
+	_build_settings(_pause_menu)
 	_resume_button = _add_button(_pause_menu, "再開", func() -> void: resume_pressed.emit())
 	_add_button(_pause_menu, "終了", func() -> void: quit_pressed.emit())
 	_pause_menu.visible = false
@@ -425,6 +429,43 @@ func _make_menu(menu_name: String, title: String) -> Control:
 	title_label.text = title
 	box.add_child(title_label)
 	return overlay
+
+
+## 設定画面の中身：操作説明と、身長（立っているときの目の高さ）のスライダー。
+func _build_settings(menu: Control) -> void:
+	var box := menu.get_node("Center/Box") as VBoxContainer
+	var help := _make_label(20, HORIZONTAL_ALIGNMENT_LEFT)
+	help.name = "Controls"
+	help.text = "操作説明\n移動：W A S D（矢印キーも可）　　視点：マウス\n調べる・使う：左クリック　　座る・入る・立つ：E\nしゃがむ：C　　持ち物を使う：F　　選ぶ：1〜3・ホイール　　拡大：Q\nテレビゲーム中：W／S でラケット、E でやめる\n設定を開く・閉じる：Esc"
+	box.add_child(help)
+	var row := HBoxContainer.new()
+	row.name = "HeightRow"
+	row.add_theme_constant_override("separation", 12)
+	box.add_child(row)
+	var label := _make_label(20, HORIZONTAL_ALIGNMENT_LEFT)
+	label.text = "身長（目の高さ）"
+	row.add_child(label)
+	_height_slider = HSlider.new()
+	_height_slider.name = "HeightSlider"
+	_height_slider.min_value = 130.0
+	_height_slider.max_value = 170.0
+	_height_slider.step = 1.0
+	_height_slider.value = 150.0
+	_height_slider.custom_minimum_size = Vector2(260, 32)
+	_height_slider.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	row.add_child(_height_slider)
+	_height_value = _make_label(20, HORIZONTAL_ALIGNMENT_LEFT)
+	_height_value.text = "150 cm"
+	row.add_child(_height_value)
+	_height_slider.value_changed.connect(func(v: float) -> void:
+		_height_value.text = "%d cm" % int(v)
+		eye_height_changed.emit(v / 100.0))
+
+
+## 設定画面のスライダーを、保存されていた値に合わせる（信号は出さない）。
+func set_eye_height_ui(meters: float) -> void:
+	_height_slider.set_value_no_signal(meters * 100.0)
+	_height_value.text = "%d cm" % int(round(meters * 100.0))
 
 
 func _add_button(menu: Control, text: String, callback: Callable) -> Button:

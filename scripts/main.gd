@@ -223,6 +223,7 @@ const TUB_BODY_HEIGHT := 0.8
 # 浴槽の縁（z=-0.45）・洗面台（x≥0.52）・便器（x≤-0.3）に体（半径0.25）が重ならない位置
 const TUB_EXITS := [Vector3(0.05, 0.0, -0.15), Vector3(0.1, 0.0, 0.1), Vector3(0.0, 0.0, 0.5)]
 
+const SETTINGS_PATH := "user://settings.cfg"
 const PROMPT_EXAMINE := "左クリック：調べる"
 const PROMPT_PICKUP := "左クリック：拾う"
 const PROMPT_REPAIR := "左クリック：ドライバーで直す"
@@ -289,6 +290,8 @@ func _ready() -> void:
 	hud.resume_pressed.connect(_resume)
 	hud.quit_pressed.connect(_quit)
 	hud.retry_pressed.connect(_retry)
+	hud.eye_height_changed.connect(_on_eye_height_changed)
+	_load_settings()
 
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	hud.show_message(MESSAGES["start"], 5.0)
@@ -834,6 +837,23 @@ func _resume() -> void:
 	hud.show_pause(false)
 	get_tree().paused = false
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+
+
+## 設定（身長）。user://settings.cfg に保存して、次の起動でも使う。
+func _load_settings() -> void:
+	var cfg := ConfigFile.new()
+	if cfg.load(SETTINGS_PATH) == OK:
+		player.set_eye_height(float(cfg.get_value("player", "eye_height", PlayerScript.EYE_HEIGHT)))
+	player.camera.position.y = player.eye_height
+	hud.set_eye_height_ui(player.eye_height)
+
+
+func _on_eye_height_changed(value: float) -> void:
+	player.set_eye_height(value)
+	var cfg := ConfigFile.new()
+	cfg.load(SETTINGS_PATH)
+	cfg.set_value("player", "eye_height", player.eye_height)
+	cfg.save(SETTINGS_PATH)
 
 
 func _quit() -> void:

@@ -16,7 +16,7 @@ func _run() -> void:
 	change_scene_to_file("res://scenes/main.tscn")
 	await _frames(5)
 	var hud = current_scene.hud
-	var menus := {"一時停止": hud._pause_menu, "クリア": hud._clear_menu}
+	var menus := {"設定": hud._pause_menu, "クリア": hud._clear_menu}
 
 	for win_size in SIZES:
 		root.size = win_size

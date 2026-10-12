@@ -143,5 +143,19 @@ func _run() -> void:
 	check(not apt.tv_on, "リモコンでテレビの電源が切れる")
 	main._on_interact_requested(apt.small_props.get_node("TableItems/TvRemote/Area_tv_remote"))
 	check(apt.tv_on, "もう一度で入る")
+	# --- 設定（Esc）：操作説明と身長
+	main._pause()
+	var menu: Control = main.hud._pause_menu
+	check(menu.visible and main.hud._hint_label.text.begins_with("Esc：設定") and not main.hud._hint_label.text.contains("WASD"), "Esc で設定が開く（上端の案内は Esc：設定）")
+	check((menu.get_node("Center/Box/Controls") as Label).text.contains("E：") or (menu.get_node("Center/Box/Controls") as Label).text.contains("座る・入る・立つ：E"), "設定に操作説明がある")
+	main.hud._height_slider.value = 165.0
+	check(is_equal_approx(player.eye_height, 1.65) and is_equal_approx(player._eye_target, 1.65), "身長スライダーで目の高さが変わる（165cm）")
+	main.hud._height_slider.value = 100.0
+	check(is_equal_approx(player.eye_height, 1.3), "低すぎる値は下限 130cm にそろう")
+	main.hud._height_slider.value = 150.0
+	var cfg := ConfigFile.new()
+	check(cfg.load("user://settings.cfg") == OK and is_equal_approx(float(cfg.get_value("player", "eye_height")), 1.5), "身長は設定ファイルに保存される")
+	main._resume()
+	check(not main.paused, "再開できる")
 	print("props_test: ", "OK" if failures == 0 else "%d FAILED" % failures)
 	quit(1 if failures > 0 else 0)
