@@ -29,6 +29,17 @@ const PANEL_TARGET_W := 0.6   # パネル幅の目安。壁の長さを割り切
 const DETAIL_GAP := 0.002     # 壁面から浮かせる量（面の重なりによるちらつき防止）
 const VENT_SIZE := 0.24
 const VENT_RANGE := 2.4       # 換気口だけ床から見上げて届くよう、操作距離を個別に伸ばす
+
+const POSTER_TEX := preload("res://assets/textures/door_poster_plumber.png")
+const LABEL_TEX := preload("res://assets/textures/yubroman_label.png")
+const POSTER_SIZE := Vector2(0.25, 0.354)   # 768x1086px（A判比）
+const POSTER_HINGE_X := 0.32                # 蝶番からの距離（ドアノブ側を避ける）
+const POSTER_CENTER_Y := 1.40
+const POWDER_RADIUS := 0.05
+const POWDER_HEIGHT := 0.15
+const LID_RADIUS := 0.052
+const LID_HEIGHT := 0.025
+const LABEL_HEIGHT := 0.10                  # 1024x320px を円周 0.317m に巻く
 const FLOOR_COLOR := Color(0.33, 0.34, 0.35)
 const PORCELAIN_COLOR := Color(0.92, 0.92, 0.92)
 
@@ -50,6 +61,7 @@ func _ready() -> void:
 	_build_toilet()
 	_build_sink_and_mirror()
 	_build_vent()
+	_build_bath_powder()
 	_build_driver()
 	_build_door()
 	_build_exit()
@@ -324,6 +336,92 @@ func _build_vent() -> void:
 	_shape_box(body, Vector3(s, 0.03, s), Vector3(0, -0.015, 0))
 
 
+func _build_bath_powder() -> void:
+	# 便器タンクの上（上面 y=0.925、x -0.9〜-0.7、z -0.2〜0.2）に置く粉末入浴剤の容器。
+	#   BathPowder/Visual/Body  … 本体の円筒（クリーム色の蓋とは別ノード）
+	#   BathPowder/Visual/Label … ラベル専用の帯。UV を自前で巻き、文字のある中央を +x（通路側）、継ぎ目を壁側に向ける
+	#   BathPowder/Visual/Lid   … 蓋（将来開けられるよう別ノード）
+	var f := _fixture("BathPowder", "bath_powder")
+	var visual: Node3D = f[0]
+	var body: StaticBody3D = f[1]
+	var tank_top := 0.925
+	var base := Vector3(-ROOM_W * 0.5 + 0.1, tank_top, -0.08)   # タンク上面の中心線上、レバーと反対側
+	visual.position = base
+	body.position = base
+
+	var body_mesh := CylinderMesh.new()
+	body_mesh.top_radius = POWDER_RADIUS
+	body_mesh.bottom_radius = POWDER_RADIUS
+	body_mesh.height = POWDER_HEIGHT
+	body_mesh.radial_segments = 32
+	var body_mi := MeshInstance3D.new()
+	body_mi.name = "Body"
+	body_mi.mesh = body_mesh
+	body_mi.material_override = _mat("powder_body", Color(0.93, 0.72, 0.55), 0.6)
+	body_mi.position = Vector3(0, POWDER_HEIGHT * 0.5, 0)
+	visual.add_child(body_mi)
+
+	var label := MeshInstance3D.new()
+	label.name = "Label"
+	label.mesh = _label_band(POWDER_RADIUS + 0.001, LABEL_HEIGHT, 48)
+	label.material_override = _texture_mat("powder_label", LABEL_TEX, 0.6)
+	label.position = Vector3(0, POWDER_HEIGHT * 0.5, 0)
+	visual.add_child(label)
+
+	var lid_mesh := CylinderMesh.new()
+	lid_mesh.top_radius = LID_RADIUS
+	lid_mesh.bottom_radius = LID_RADIUS
+	lid_mesh.height = LID_HEIGHT
+	lid_mesh.radial_segments = 32
+	var lid := MeshInstance3D.new()
+	lid.name = "Lid"
+	lid.mesh = lid_mesh
+	lid.material_override = _mat("powder_lid", Color(0.96, 0.93, 0.82), 0.5)
+	lid.position = Vector3(0, POWDER_HEIGHT + LID_HEIGHT * 0.5, 0)
+	visual.add_child(lid)
+
+	var shape := CylinderShape3D.new()
+	shape.radius = LID_RADIUS
+	shape.height = POWDER_HEIGHT + LID_HEIGHT
+	var cs := CollisionShape3D.new()
+	cs.shape = shape
+	cs.position = Vector3(0, (POWDER_HEIGHT + LID_HEIGHT) * 0.5, 0)
+	body.add_child(cs)
+
+
+## 蓋のない円筒の帯（ラベル用）。u は円周方向 0〜1、v は上 0〜下 1。
+## u=0.5 が +x（通路側）を向き、u=0/1 の継ぎ目は -x（壁側）。
+## 通路側から見て、画像の左→右が見る人の左→右になるよう巻く。
+func _label_band(radius: float, height: float, segments: int) -> ArrayMesh:
+	var verts := PackedVector3Array()
+	var normals := PackedVector3Array()
+	var uvs := PackedVector2Array()
+	var indices := PackedInt32Array()
+	for i in segments + 1:
+		var u := float(i) / segments
+		var a := TAU * (u - 0.5)
+		var n := Vector3(cos(a), 0.0, -sin(a))
+		for row in 2:
+			verts.append(n * radius + Vector3(0.0, height * (0.5 - row), 0.0))
+			normals.append(n)
+			uvs.append(Vector2(u, row))
+	for i in segments:
+		var t0 := i * 2      # 上
+		var b0 := i * 2 + 1  # 下
+		var t1 := t0 + 2
+		var b1 := b0 + 2
+		indices.append_array([t0, t1, b0, t1, b1, b0])
+	var arrays := []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = verts
+	arrays[Mesh.ARRAY_NORMAL] = normals
+	arrays[Mesh.ARRAY_TEX_UV] = uvs
+	arrays[Mesh.ARRAY_INDEX] = indices
+	var mesh := ArrayMesh.new()
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	return mesh
+
+
 func _build_driver() -> void:
 	# 洗面台の下の床。照準で狙いやすいよう、判定を見た目より少し大きくしている
 	driver_node = Node3D.new()
@@ -383,6 +481,34 @@ func _build_door() -> void:
 	door_body.set_meta("interact_id", "door")
 	door_pivot.add_child(door_body)
 	_shape_box(door_body, panel_size, panel_center)
+
+	_build_door_poster(visual, panel_size.z * 0.5)
+
+
+func _build_door_poster(door_visual: Node3D, half_thickness: float) -> void:
+	# 部屋側の面（ローカル -z）から 2mm 浮かせて貼る。DoorPivot の子なので開閉に追従する
+	var face_z := -half_thickness - DETAIL_GAP
+	var center := Vector3(POSTER_HINGE_X, POSTER_CENTER_Y, face_z)
+	var quad := QuadMesh.new()
+	quad.size = POSTER_SIZE
+	var mi := MeshInstance3D.new()
+	mi.name = "Poster"
+	mi.mesh = quad
+	mi.material_override = _texture_mat("poster", POSTER_TEX, 0.9)
+	mi.position = center
+	mi.rotation.y = PI   # QuadMesh の表は +z。部屋側（-z）へ向ける
+	door_visual.add_child(mi)
+
+	# 調べる判定：ドアの判定の手前に重ねる薄い板（interact レイヤー＝ぶつからない）。
+	# レイは手前の広告に先に当たり、広告の外側を狙えばドアに当たる。
+	var area := Area3D.new()
+	area.name = "PosterCollision"
+	area.collision_layer = LAYER_INTERACT
+	area.collision_mask = 0
+	area.monitoring = false
+	area.set_meta("interact_id", "poster")
+	door_pivot.add_child(area)
+	_shape_box(area, Vector3(POSTER_SIZE.x, POSTER_SIZE.y, 0.006), Vector3(center.x, center.y, -half_thickness - 0.003))
 
 
 func _build_exit() -> void:
@@ -462,6 +588,18 @@ func _shape_box(body: CollisionObject3D, size: Vector3, center: Vector3) -> void
 	cs.shape = shape
 	cs.position = center
 	body.add_child(cs)
+
+
+## 画像を貼るマテリアル。照明の陰影は通常どおり受けるが、画像側に陰影は焼き込まない。
+func _texture_mat(key: String, tex: Texture2D, roughness: float) -> StandardMaterial3D:
+	if _mat_cache.has(key):
+		return _mat_cache[key]
+	var m := StandardMaterial3D.new()
+	m.albedo_texture = tex
+	m.roughness = roughness
+	m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
+	_mat_cache[key] = m
+	return m
 
 
 func _mat(key: String, color: Color, roughness: float = 0.85, metallic: float = 0.0) -> StandardMaterial3D:

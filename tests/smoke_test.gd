@@ -67,6 +67,52 @@ func _run() -> void:
 			"便器は当たり点が 1.8m より遠いと調べられない（当たり点まで %.2fm）" % hit_dist)
 	player.global_position = saved
 
+	# --- ドアの広告：広告を狙うと poster、広告の外側（下）を狙うと従来どおり door
+	var msgs: Dictionary = main.MESSAGES
+	var poster: Node3D = room.door_pivot.get_node("Visual/Poster")
+	player.global_position = Vector3(0.0, 0.0, 0.3)
+	main.hud._message_label.text = ""
+	_aim(player, poster.global_position)
+	player.try_interact()
+	_check(main.hud._message_label.text == msgs["poster"], "ドアの広告を調べられる")
+	main.hud._message_label.text = ""
+	_aim(player, room.door_pivot.global_position + Vector3(0.35, 0.6, 0.0))
+	player.try_interact()
+	_check(main.hud._message_label.text == msgs["door_locked"], "広告の外側を狙うとドアを調べられる")
+	main.hud._message_label.text = ""
+	_aim(player, room.door_pivot.global_position + Vector3(0.62, 0.95, 0.0))   # ドアノブ付近
+	player.try_interact()
+	_check(main.hud._message_label.text == msgs["door_locked"], "ドアノブ付近もドアとして反応する")
+
+	# --- 広告：閉じたドアの外（廊下）からは、ドアに遮られて広告を調べられない
+	player.global_position = Vector3(0.0, 0.0, 2.0)
+	_aim(player, poster.global_position)
+	_check(player.get_focused(true) == room.door_body, "廊下側からは広告ではなくドアに当たる")
+
+	# --- 入浴剤：タンクの上に浮かず、はみ出さずに置かれている
+	var powder: Node3D = room.get_node("BathPowder/Visual")
+	var pp: Vector3 = powder.global_position
+	var r: float = room.LID_RADIUS
+	_check(is_equal_approx(pp.y, 0.925) and pp.x - r >= -0.9 and pp.x + r <= -0.7 and pp.z - r >= -0.2 and pp.z + r <= 0.2,
+			"入浴剤の容器がタンク上面に収まっている (%s)" % pp)
+
+	# --- 入浴剤を調べられる／壁の外からは調べられない
+	var powder_mid := pp + Vector3(0.0, 0.08, 0.0)
+	player.global_position = Vector3(0.0, 0.0, 0.3)
+	main.hud._message_label.text = ""
+	_aim(player, powder_mid)
+	player.try_interact()
+	_check(main.hud._message_label.text == msgs["bath_powder"], "入浴剤の容器を調べられる")
+	player.global_position = Vector3(-1.3, 0.0, -0.08)
+	_aim(player, powder_mid)
+	var behind = player.get_focused(true)
+	_check(behind == null, "左の壁の外からは入浴剤を調べられない")
+	player.global_position = saved
+
+	# --- 画像はミップマップ付きで取り込まれている
+	_check(room.POSTER_TEX.get_image().has_mipmaps() and room.LABEL_TEX.get_image().has_mipmaps(),
+			"広告・ラベルの画像にミップマップがある")
+
 	# --- 照準を合わせてクリックすると拾える
 	_aim(player, driver_pos)
 	player.try_interact()
