@@ -4,6 +4,7 @@ extends RefCounted
 
 const LAYER_WORLD := 1      # 壁・設備（プレイヤーがぶつかる）
 const LAYER_INTERACT := 2   # 照準だけ当たる（ぶつからない）
+const LAYER_BODY_ONLY := 16 # 体だけを止める透明な板（照準のレイは通す。layer 5）
 
 static var _mat_cache := {}
 static var _water_noise: NoiseTexture2D

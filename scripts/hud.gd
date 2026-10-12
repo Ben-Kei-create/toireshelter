@@ -65,7 +65,7 @@ func _ready() -> void:
 
 	_hint_label = _make_label(17, HORIZONTAL_ALIGNMENT_LEFT)
 	_hint_label.name = "Hint"
-	_hint_label.text = "WASD：移動　マウス：見回す　左クリック：調べる　Esc：一時停止"
+	_hint_label.text = "WASD：移動　マウス：見回す　左クリック：調べる　C：しゃがむ　E：座る・入る　Esc：一時停止"
 	_hint_label.add_theme_color_override("font_color", Color(1, 1, 1, 0.85))
 	_hint_label.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.8))
 	_hint_label.add_theme_constant_override("shadow_offset_x", 1)

@@ -50,7 +50,7 @@ const POWDER_HEIGHT := 0.15
 const LID_RADIUS := 0.052
 const LID_HEIGHT := 0.025
 const LABEL_HEIGHT := 0.10                  # 1024x320px を円周 0.317m に巻く
-const FLOOR_COLOR := Color(0.33, 0.34, 0.35)
+const FLOOR_COLOR := Color(0.55, 0.54, 0.52)    # 淡いグレージュ。壁より少し暗く、彩度を低く
 const PORCELAIN_COLOR := Color(0.92, 0.92, 0.92)
 
 var spawn_position := Vector3(0.0, 0.05, 0.75)
@@ -110,8 +110,12 @@ func _build_environment() -> void:
 	env.background_mode = Environment.BG_COLOR
 	env.background_color = Color(0.05, 0.05, 0.06)
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	env.ambient_light_color = Color(0.9, 0.9, 0.9)
-	env.ambient_light_energy = 0.35
+	# 電球色（2700〜3000K 相当）で少し薄暗いユニットバス。環境光も暖色にして、影が真っ黒にならないようにする
+	env.ambient_light_color = Color(0.8, 0.77, 0.72)
+	env.ambient_light_energy = 0.4
+	# 明るい白い設備が白飛びして輪郭が消えないよう、トーンマッピングで明るい部分をなだらかに抑える
+	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
+	env.tonemap_exposure = 0.8
 	var we := WorldEnvironment.new()
 	we.name = "WorldEnvironment"
 	we.environment = env
@@ -121,8 +125,8 @@ func _build_environment() -> void:
 	room_light.name = "RoomLight"
 	# 少し入口寄りに置き、設備の手前側の面を照らして奥・下に影を落とす（影はこの1灯だけ）
 	room_light.position = Vector3(0.15, 2.05, 0.35)
-	room_light.light_color = Color(1.0, 0.98, 0.95)
-	room_light.light_energy = 0.85
+	room_light.light_color = Color(1.0, 0.89, 0.76)   # 電球色（黄色を乗せすぎない）
+	room_light.light_energy = 0.55
 	room_light.omni_range = 4.0
 	room_light.shadow_enabled = true
 	room_light.shadow_bias = 0.03
@@ -159,7 +163,14 @@ func _build_shell() -> void:
 	_static_box(shell, "Ceiling", Vector3(outer_w, WALL_T, outer_d), Vector3(0, ROOM_H + WALL_T * 0.5, 0), ceil_mat)
 	_static_box(shell, "WallBack", Vector3(outer_w, ROOM_H, WALL_T), Vector3(0, ROOM_H * 0.5, -half_d - WALL_T * 0.5), wall_mat)
 	_static_box(shell, "WallLeft", Vector3(WALL_T, ROOM_H, ROOM_D), Vector3(-half_w - WALL_T * 0.5, ROOM_H * 0.5, 0), wall_mat)
-	_static_box(shell, "WallRight", Vector3(WALL_T, ROOM_H, ROOM_D), Vector3(half_w + WALL_T * 0.5, ROOM_H * 0.5, 0), wall_mat)
+	# 右の壁は鏡裏収納の開口（MirrorCabinetScript.Y_RANGE × Z_RANGE）を空けて4枚に分ける
+	var rx := half_w + WALL_T * 0.5
+	var oy: Vector2 = MirrorCabinetScript.Y_RANGE
+	var oz: Vector2 = MirrorCabinetScript.Z_RANGE
+	_static_box(shell, "WallRightLow", Vector3(WALL_T, oy.x, ROOM_D), Vector3(rx, oy.x * 0.5, 0), wall_mat)
+	_static_box(shell, "WallRightHigh", Vector3(WALL_T, ROOM_H - oy.y, ROOM_D), Vector3(rx, (oy.y + ROOM_H) * 0.5, 0), wall_mat)
+	_static_box(shell, "WallRightBack", Vector3(WALL_T, oy.y - oy.x, oz.x + half_d), Vector3(rx, (oy.x + oy.y) * 0.5, (-half_d + oz.x) * 0.5), wall_mat)
+	_static_box(shell, "WallRightFront", Vector3(WALL_T, oy.y - oy.x, half_d - oz.y), Vector3(rx, (oy.x + oy.y) * 0.5, (oz.y + half_d) * 0.5), wall_mat)
 
 	# 前の壁（入口ドアの開口部を空ける）
 	var front_z := half_d + WALL_T * 0.5
@@ -193,9 +204,17 @@ func _build_wall_details() -> void:
 	var door_clear := DOOR_W * 0.5 + 0.06   # ドア開口の近くには継ぎ目を置かない
 
 	# 縦の継ぎ目：壁の長さを PANEL_TARGET_W 前後の等幅パネルに分ける
+	var oy: Vector2 = MirrorCabinetScript.Y_RANGE
+	var oz: Vector2 = MirrorCabinetScript.Z_RANGE
 	for pos in _seam_positions(ROOM_D):   # 左右の壁（z 方向）
 		_mesh_box(details, Vector3(seam_t, ROOM_H, seam_w), Vector3(-half_w + DETAIL_GAP + seam_t * 0.5, ROOM_H * 0.5, pos), seam_mat)
-		_mesh_box(details, Vector3(seam_t, ROOM_H, seam_w), Vector3(half_w - DETAIL_GAP - seam_t * 0.5, ROOM_H * 0.5, pos), seam_mat)
+		var rx := half_w - DETAIL_GAP - seam_t * 0.5
+		if pos > oz.x - 0.02 and pos < oz.y + 0.02:   # 鏡裏収納の開口にかかる継ぎ目は、開口の上下だけ
+			var top := MirrorCabinetScript.TRIM_W
+			_mesh_box(details, Vector3(seam_t, oy.x - top, seam_w), Vector3(rx, (oy.x - top) * 0.5, pos), seam_mat)
+			_mesh_box(details, Vector3(seam_t, ROOM_H - oy.y - top, seam_w), Vector3(rx, (oy.y + top + ROOM_H) * 0.5, pos), seam_mat)
+		else:
+			_mesh_box(details, Vector3(seam_t, ROOM_H, seam_w), Vector3(rx, ROOM_H * 0.5, pos), seam_mat)
 	for pos in _seam_positions(ROOM_W):   # 奥・手前の壁（x 方向）
 		_mesh_box(details, Vector3(seam_w, ROOM_H, seam_t), Vector3(pos, ROOM_H * 0.5, -half_d + DETAIL_GAP + seam_t * 0.5), seam_mat)
 		if absf(pos) > door_clear:

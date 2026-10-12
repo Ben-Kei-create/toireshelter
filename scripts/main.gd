@@ -28,6 +28,8 @@ const MESSAGES := {
 	"driver": "ドライバーを手に入れた。",
 	"door_locked": "ドアノブが空回りする。開かない。",
 	"door_fixed": "ドライバーでドアノブのネジを締め直した。……ドアが開いた！",
+	"no_headroom": "頭上が狭くて、ここでは立ち上がれない。",
+	"no_way_out": "出る場所がふさがっている。",
 }
 
 ## 状態で変わる操作の案内。設備スクリプトの get_prompt() がキーを返す
@@ -45,7 +47,29 @@ const PROMPTS := {
 	"tank_close": "左クリック：タンクの蓋を戻す",
 	"cabinet_open": "左クリック：鏡の扉を開ける",
 	"cabinet_close": "左クリック：鏡の扉を閉める",
+	"flush": "左クリック：水を流す",
 }
+
+## E キーで変わる姿勢の案内
+const ACTION_PROMPTS := {
+	"sit": "E：座る",
+	"stand_up": "E：立つ",
+	"tub_enter": "E：浴槽に入る",
+	"tub_exit": "E：浴槽から出る",
+}
+
+# 便器に座る位置（足元）と目の高さ、立つときに戻る通路側の候補
+const SEAT_FEET := Vector3(-0.46, 0.0, 0.0)
+const SEAT_YAW := -PI * 0.5          # +x（部屋の中央）を向く
+const SEAT_EYE := 1.12
+const SEAT_EXITS := [Vector3(0.0, 0.0, 0.0), Vector3(0.0, 0.0, 0.35), Vector3(0.05, 0.0, -0.2), Vector3(0.2, 0.0, 0.45)]
+# 浴槽の中の位置（足元は浴槽の底）と目の高さ、出るときの候補
+const TUB_FEET_LOCAL := Vector3(-0.05, 0.10, 0.0)   # 浴槽ローカル（浴槽の中心が原点）
+const TUB_YAW := -PI * 0.5           # 蛇口と栓のある +x を向く
+const TUB_EYE := 0.75                # 足元から。水面（最高 0.50m）より上
+const TUB_BODY_HEIGHT := 0.8
+# 浴槽の縁（z=-0.45）・洗面台（x≥0.52）・便器（x≤-0.3）に体（半径0.25）が重ならない位置
+const TUB_EXITS := [Vector3(0.05, 0.0, -0.15), Vector3(0.1, 0.0, 0.1), Vector3(0.0, 0.0, 0.5)]
 
 const PROMPT_EXAMINE := "左クリック：調べる"
 const PROMPT_PICKUP := "左クリック：拾う"
@@ -78,6 +102,7 @@ func _ready() -> void:
 	add_child(player)
 	player.global_position = room.spawn_position
 	player.interact_requested.connect(_on_interact_requested)
+	player.crouch_blocked.connect(func() -> void: hud.show_message(MESSAGES["no_headroom"]))
 
 	room.exit_area.body_entered.connect(_on_exit_body_entered)
 
@@ -96,10 +121,23 @@ func _process(_delta: float) -> void:
 	if paused or cleared:
 		hud.set_prompt("")
 		return
-	hud.set_prompt(_prompt_for(player.get_focused()))
+	var focused := player.get_focused()
+	var parts := []
+	var click := _prompt_for(focused)
+	if not click.is_empty():
+		parts.append(click)
+	var action := _action_for(focused)
+	if not action.is_empty():
+		parts.append(ACTION_PROMPTS[action])
+	hud.set_prompt("　／　".join(parts))
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if event.is_action_pressed("action"):
+		get_viewport().set_input_as_handled()
+		if not paused and not cleared:
+			do_action()
+		return
 	if event.is_action_pressed("pause"):
 		get_viewport().set_input_as_handled()
 		if cleared:
@@ -108,6 +146,48 @@ func _unhandled_input(event: InputEvent) -> void:
 			_resume()
 		else:
 			_pause()
+
+
+# ---------------------------------------------------------------- 姿勢（座る・浴槽）
+
+## 今 E キーでできること（ACTION_PROMPTS のキー）。なければ空。
+func _action_for(target: Object) -> String:
+	match player.pose:
+		PlayerScript.Pose.SEATED:
+			return "stand_up"
+		PlayerScript.Pose.IN_TUB:
+			return "tub_exit"
+		PlayerScript.Pose.TRANSITION:
+			return ""
+	if target == null:
+		return ""
+	var id := String(target.get_meta("interact_id", ""))
+	if id in ["toilet", "toilet_seat", "toilet_lid"] and room.toilet.can_sit():
+		return "sit"
+	if id in ["bathtub", "bath_plug"]:
+		return "tub_enter"
+	return ""
+
+
+## E キーの動作。座る／立つ／浴槽に入る／出る。
+func do_action() -> void:
+	var action := _action_for(player.get_focused(true))
+	match action:
+		"sit":
+			room.toilet.occupied = true
+			player.enter_fixed(PlayerScript.Pose.SEATED, SEAT_FEET, SEAT_YAW, SEAT_EYE)
+		"stand_up":
+			if player.leave_fixed(SEAT_EXITS):
+				room.toilet.occupied = false
+			else:
+				hud.show_message(MESSAGES["no_way_out"])
+		"tub_enter":
+			var feet: Vector3 = room.bathtub.to_global(TUB_FEET_LOCAL)
+			if player.is_space_free(feet, TUB_BODY_HEIGHT):
+				player.enter_fixed(PlayerScript.Pose.IN_TUB, feet, TUB_YAW, TUB_EYE)
+		"tub_exit":
+			if not player.leave_fixed(TUB_EXITS):
+				hud.show_message(MESSAGES["no_way_out"])
 
 
 # ---------------------------------------------------------------- 調べる
@@ -208,6 +288,8 @@ func _setup_input_map() -> void:
 	_add_key_action("move_left", [KEY_A, KEY_LEFT])
 	_add_key_action("move_right", [KEY_D, KEY_RIGHT])
 	_add_key_action("pause", [KEY_ESCAPE])
+	_add_key_action("crouch", [KEY_C])
+	_add_key_action("action", [KEY_E])
 	if not InputMap.has_action("interact"):
 		InputMap.add_action("interact")
 		var click := InputEventMouseButton.new()
