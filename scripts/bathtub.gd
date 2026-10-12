@@ -101,21 +101,21 @@ func concentration() -> float:
 func advance(delta: float) -> void:
 	_t += delta
 	var before := level
-	var rate := 0.0
-	if is_filling():
-		rate += 1.0 / FILL_TIME
-	if not plug_in:
-		rate -= 1.0 / DRAIN_TIME
-	level = clampf(level + rate * delta, 0.0, 1.0)
+	var c0 := concentration()
+	# 流入と流出を分けて数える（入浴剤の濃さの計算に使う）
+	var inflow := delta / FILL_TIME if is_filling() else 0.0
+	var outflow := delta / DRAIN_TIME if not plug_in else 0.0
+	level = clampf(level + inflow - outflow, 0.0, 1.0)
 	# ふろ自動は設定水位で止まる（手の蛇口が出ていれば、そちらはそのまま）
 	if auto_filling and level >= AUTO_LEVEL and before <= AUTO_LEVEL + 0.0001:
 		if not faucet.is_on:
 			level = maxf(before, minf(level, AUTO_LEVEL))
 		auto_filling = false
 		auto_done = true
-	# 排水では濃さを保つ（粉も水と同じ割合で流れる）。空になったら色を戻す
-	if level < before and before > 0.0:
-		powder *= level / before
+	# 流れ出た水はその時点の濃さぶんの粉を持ち出す。入ってきた水は粉を増やさない（＝薄まる）。
+	# 給水と排水を同時に行うと、流量の差で水位が変わりつつ、新しい水のぶん薄まっていく。空になったら色を戻す
+	if outflow > 0.0 and powder > 0.0:
+		powder = maxf(0.0, powder - c0 * minf(outflow, before + inflow))
 	if level <= 0.0005:
 		powder = 0.0
 		reveal = 0.0

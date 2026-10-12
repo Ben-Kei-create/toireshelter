@@ -76,6 +76,20 @@ func _run() -> void:
 	_check(is_equal_approx(tub.level, 0.8) and is_equal_approx(tub.concentration(), 0.5)
 			and tub._water_mat.albedo_color.is_equal_approx(tub.WATER_COLOR.lerp(tub.YUZU_COLOR, 0.5)), "給水すると濃さが薄まる（0.5）")
 	tub.faucet.set_on(false)
+	# 給水と排水を同時に行うと、水位は流量差で下がりつつ薄まる（Codex レビュー P2 の回帰テスト）
+	tub.faucet.set_on(true)
+	tub.set_plug(false)
+	var c_before: float = tub.concentration()
+	var l_before: float = tub.level
+	for i in 60:   # 1秒（1/60 秒ずつ）
+		tub.advance(1.0 / 60.0)
+	_check(tub.level < l_before and tub.concentration() < c_before - 0.01,
+			"同時給排水中も新しい水で薄まる（水位 %.3f→%.3f、濃さ %.3f→%.3f）" % [l_before, tub.level, c_before, tub.concentration()])
+	tub.faucet.set_on(false)
+	tub.set_plug(true)
+	tub.level = 0.8
+	tub.powder = 0.4
+	tub.advance(0.0)
 	# 排水中は色を保ち、空で戻る
 	tub.set_plug(false)
 	tub.advance(10.0)
@@ -147,9 +161,15 @@ func _run() -> void:
 	_press(main, player, remote, "remote_reheat")
 	await _seconds(0.3)
 	_check(tub.reheating and tub._swirl.visible and remote.status_text() == "追い焚き中", "追い焚き：作動表示と水面の演出（循環口の渦）")
-	var y1: float = tub._water.position.y
-	await _seconds(0.15)
-	_check(not is_equal_approx(tub._water.position.y, y1), "追い焚き中は水面がゆらぐ")
+	# ゆらぎの1周期（約0.7秒）のあいだ水面の高さを集め、幅を見る（2点だけだと同じ値に当たることがある）
+	var y_min := 10.0
+	var y_max := -10.0
+	var t_end := Time.get_ticks_msec() + 800
+	while Time.get_ticks_msec() < t_end:
+		await process_frame
+		y_min = minf(y_min, tub._water.position.y)
+		y_max = maxf(y_max, tub._water.position.y)
+	_check(y_max - y_min > 0.003, "追い焚き中は水面がゆらぐ（幅 %.4f m）" % (y_max - y_min))
 	main._pause()
 	var tl: float = tub._reheat_left
 	await _seconds(0.3)
