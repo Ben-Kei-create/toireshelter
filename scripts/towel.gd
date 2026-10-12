@@ -12,6 +12,7 @@ extends Node3D
 
 const MeshKit := preload("res://scripts/mesh_kit.gd")
 const TOWEL_TEX := preload("res://assets/textures/towel_fabric.png")
+const SCRATCH_TEX := preload("res://assets/textures/bath/bath_decal_01.png")   # 透過付き（BATH-ASSETS-40）
 
 const OUT := 0.06              # バーの壁からの出幅
 const WIDTH := 0.34
@@ -90,15 +91,25 @@ func _build_scratches() -> void:
 	var root := Node3D.new()
 	root.name = "Scratches"
 	add_child(root)
-	var mark := MeshKit.mat("scratch", Color(0.42, 0.37, 0.3), 0.9)
-	var lines := [
-		# [中心 z, 中心 y, 長さ, 角度°]
-		[-0.11, -0.22, 0.07, 62.0], [-0.095, -0.24, 0.055, 70.0], [-0.075, -0.27, 0.06, 55.0],
-		[-0.12, -0.31, 0.04, 20.0], [-0.06, -0.20, 0.035, -35.0], [-0.09, -0.34, 0.05, 80.0],
-	]
-	for l in lines:
-		var m := MeshKit.box(root, Vector3(0.0012, l[2], 0.0022), Vector3(0.0012, l[1], l[0]), mark)
-		m.rotation.x = deg_to_rad(l[3])
+	# 傷の画像（透過付き）を、壁面の 1.5mm 手前の薄い板に貼る。GL Compatibility でも描けるよう、デカールではなく QuadMesh。
+	# 細い線が縮小で消えないよう、ミップマップ付きの線形フィルタ＋半透明の合成。影は落とさない
+	var q := QuadMesh.new()
+	var h := 0.17
+	q.size = Vector2(h * SCRATCH_TEX.get_width() / SCRATCH_TEX.get_height(), h)
+	var m := StandardMaterial3D.new()
+	m.albedo_texture = SCRATCH_TEX
+	m.albedo_color = Color(0.55, 0.5, 0.45)   # 画像の線は淡いので、少し暗くして遠くからも線が残るようにする
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
+	m.roughness = 0.9
+	var mi := MeshInstance3D.new()
+	mi.name = "ScratchDecal"
+	mi.mesh = q
+	mi.material_override = m
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	mi.position = Vector3(0.0015, -0.27, -0.09)
+	mi.rotation.y = PI * 0.5   # 表（+z）を部屋側（+x）へ
+	root.add_child(mi)
 	var area := MeshKit.interact_area(self, "ScratchArea", "towel_scratch")
 	MeshKit.shape_box(area, Vector3(0.004, 0.2, 0.12), Vector3(0.002, -0.27, -0.09))
 

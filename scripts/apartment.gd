@@ -23,6 +23,8 @@ const TEX_PAINTING_A := preload("res://assets/textures/surfaces/surface_13.png")
 const TEX_PAINTING_B := preload("res://assets/textures/surfaces/surface_14.png")
 const TEX_CARD_BACK := preload("res://assets/textures/surfaces/surface_15.png")
 const BOOK_COUNT := 15
+const CARD_FRONT_COUNT := 8       # card_front_01〜08（ASSETS-24）
+const ART_DIR := "res://assets/textures/collection/"
 const BOOK_H := 0.26              # 表紙を見せて置く本の高さ（m）
 const BOOK_T := 0.028             # 厚み
 
@@ -62,6 +64,7 @@ func _ready() -> void:
 	_build_paintings()
 	_build_bed()
 	_build_specimens()
+	_build_toy_boxes()
 	_build_lights()
 
 
@@ -376,11 +379,13 @@ func _build_card_case() -> void:
 	var card_xf := []
 	var card_col := []
 	var back_xf := []
-	var sym := {"disc": [[], []], "tri": [[], []], "diamond": [[], []]}
+	var fronts := []
+	for i in CARD_FRONT_COUNT:
+		fronts.append([])
+	var front_i := _rng.randi() % CARD_FRONT_COUNT
 	var shelf := MeshKit.mat("case_shelf", Color(0.7, 0.75, 0.8, 0.5), 0.1)
 	shelf.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	var card_palette := [Color(0.95, 0.92, 0.85), Color(0.85, 0.9, 0.95), Color(0.95, 0.85, 0.85), Color(0.2, 0.2, 0.25)]
-	var sym_palette := [Color(0.9, 0.3, 0.2), Color(0.2, 0.5, 0.9), Color(0.95, 0.75, 0.15), Color(0.3, 0.7, 0.4), Color(0.6, 0.3, 0.8)]
 	for r in rows:
 		var sy := y0 + 0.03 + r * ((y1 - y0 - 0.05) / rows)
 		MeshKit.box(root, Vector3(depth - 0.02, 0.008, z1 - z0 - 0.05), Vector3(x0 + depth * 0.5, sy - 0.004, cz), shelf)
@@ -394,13 +399,10 @@ func _build_card_case() -> void:
 				back_xf.append(Transform3D(tilt * Basis(Vector3.UP, PI * 0.5), pos + tilt * Vector3(0.0025, 0, 0)))
 				z += 0.075
 				continue
-			var keys := sym.keys()
-			var key: String = keys[_rng.randi() % keys.size()]
-			var face := pos + tilt * Vector3(0.004, 0.005, 0.0)
-			var s := _rng.randf_range(0.022, 0.034)
-			var rot := Basis(Vector3.RIGHT, deg_to_rad(_rng.randf_range(0.0, 60.0)))
-			sym[key][0].append(Transform3D(tilt * Basis(Vector3.FORWARD, deg_to_rad(90.0)) * rot * Basis.from_scale(Vector3(s, 0.002, s)), face))
-			sym[key][1].append(sym_palette[_rng.randi() % sym_palette.size()])
+			# 表向きのカード：card_front_01〜08 のどれかを正面に貼る（同じ絵が並びすぎないよう順番に回す）
+			var n := front_i % CARD_FRONT_COUNT
+			front_i += 1
+			fronts[n].append(Transform3D(tilt * Basis(Vector3.UP, PI * 0.5), pos + tilt * Vector3(0.0025, 0, 0)))
 			z += 0.075
 	_multimesh(root, "Cards", BoxMesh.new(), card_xf, card_col, MeshKit.mat("card_base", Color.WHITE, 0.6))
 	var back_quad := QuadMesh.new()
@@ -408,18 +410,33 @@ func _build_card_case() -> void:
 	var back_mat := MeshKit.texture_mat("card_back", TEX_CARD_BACK, 0.6).duplicate() as StandardMaterial3D
 	_multimesh(root, "CardBacks", back_quad, back_xf, back_xf.map(func(_x): return Color.WHITE), back_mat)
 	back_mat.vertex_color_use_as_albedo = false
-	var disc := CylinderMesh.new()
-	disc.radial_segments = 16
-	disc.rings = 1
-	var tri := CylinderMesh.new()
-	tri.radial_segments = 3
-	tri.rings = 1
-	var dia := CylinderMesh.new()
-	dia.radial_segments = 4
-	dia.rings = 1
-	var meshes := {"disc": disc, "tri": tri, "diamond": dia}
-	for key in sym:
-		_multimesh(root, "Symbols_" + key, meshes[key], sym[key][0], sym[key][1], MeshKit.mat("symbol_base_" + key, Color.WHITE, 0.5))
+	# 表の絵（画像の比率を保つ：高さ 0.088m に合わせて幅を決める）
+	for i in CARD_FRONT_COUNT:
+		if fronts[i].is_empty():
+			continue
+		var tex: Texture2D = load(ART_DIR + "card_front_%02d.png" % (i + 1))
+		var q := QuadMesh.new()
+		q.size = Vector2(0.088 * tex.get_width() / tex.get_height(), 0.088)
+		var m := MeshKit.texture_mat("card_front_%02d" % (i + 1), tex, 0.5).duplicate() as StandardMaterial3D
+		_multimesh(root, "CardFronts%02d" % (i + 1), q, fronts[i], fronts[i].map(func(_x): return Color.WHITE), m)
+		m.vertex_color_use_as_albedo = false
+	# 展示札「本日も非売品」（ケースの上の枠の正面）
+	_sign(root, "collection_label_07", Vector3(x0 + depth + 0.004, y1 + 0.05, cz + 0.55), 0.09, Vector3.RIGHT)
+
+
+## 画像のラベル・札を、normal の向きに貼る（高さ h、幅は画像の比率から）。
+func _sign(parent: Node3D, file: String, pos: Vector3, h: float, normal: Vector3) -> MeshInstance3D:
+	var tex: Texture2D = load(ART_DIR + file + ".png")
+	var q := QuadMesh.new()
+	q.size = Vector2(h * tex.get_width() / tex.get_height(), h)
+	var mi := MeshInstance3D.new()
+	mi.name = file
+	mi.mesh = q
+	mi.material_override = MeshKit.texture_mat(file, tex, 0.7)
+	mi.position = pos
+	mi.basis = Basis.looking_at(-normal)   # 表（+z）を normal の向きへ
+	parent.add_child(mi)
+	return mi
 
 
 # ---------------------------------------------------------------- 机と椅子
@@ -541,9 +558,21 @@ func _build_gem() -> void:
 	mi.rotation = Vector3(deg_to_rad(12.0), deg_to_rad(20.0), 0)
 	root.add_child(mi)
 	MeshKit.shape_box(_body, Vector3(0.42, 1.3, 0.42), root.position + Vector3(0, 0.65, 0))
+	# 展示札「触ると普通」（台座の正面＝部屋の中央側 -x）
+	_sign(root, "collection_label_08", Vector3(-0.211, 0.3, 0.0), 0.14, Vector3.LEFT)
 
 
 # ---------------------------------------------------------------- 額装絵画（仮の抽象模様）
+
+func _art(n: int) -> Texture2D:
+	return load(ART_DIR + "collection_art_%02d.png" % n)
+
+
+## 額の外寸：絵の部分（高さ h - 0.08）を画像の比率に合わせ、まわりに 4cm ずつの額
+func _art_size(n: int, h: float) -> Vector2:
+	var tex := _art(n)
+	return Vector2((h - 0.08) * tex.get_width() / tex.get_height() + 0.08, h)
+
 
 func _build_paintings() -> void:
 	var root := Node3D.new()
@@ -552,9 +581,17 @@ func _build_paintings() -> void:
 	# [中心, 大きさ（横, 縦）, 向き（壁の法線の方向）]
 	var list := [
 		[Vector3(1.6, 1.25, ROOM.end.z), Vector2(0.86, 0.76), Vector3.FORWARD, TEX_PAINTING_A],   # 手前の壁、大きな絵（画像 408×359）
-		[Vector3(3.45, 0.75, ROOM.position.z), Vector2(0.4, 0.5), Vector3.BACK],     # 奥の壁、窓の右（小）
+		[Vector3(3.45, 0.75, ROOM.position.z), _art_size(1, 0.5), Vector3.BACK, _art(1)],   # 奥の壁、窓の右（ASSETS-24 の絵）
 		[Vector3(3.45, 1.4, ROOM.position.z), Vector2(0.46, 0.405), Vector3.BACK, TEX_PAINTING_B],
-		[Vector3(3.45, 2.0, ROOM.position.z), Vector2(0.4, 0.4), Vector3.BACK],
+		[Vector3(3.45, 2.0, ROOM.position.z), _art_size(2, 0.4), Vector3.BACK, _art(2)],
+		# 寝床の上（手前の壁、フィギュア棚の下）に小さな絵を4枚
+		[Vector3(2.35, 1.05, ROOM.end.z), _art_size(3, 0.4), Vector3.FORWARD, _art(3)],
+		[Vector3(2.72, 1.05, ROOM.end.z), _art_size(4, 0.4), Vector3.FORWARD, _art(4)],
+		[Vector3(3.09, 1.05, ROOM.end.z), _art_size(5, 0.4), Vector3.FORWARD, _art(5)],
+		[Vector3(3.46, 1.05, ROOM.end.z), _art_size(6, 0.4), Vector3.FORWARD, _art(6)],
+		# 絵 A の上に2枚
+		[Vector3(1.38, 2.0, ROOM.end.z), _art_size(7, 0.36), Vector3.FORWARD, _art(7)],
+		[Vector3(1.82, 2.0, ROOM.end.z), _art_size(8, 0.36), Vector3.FORWARD, _art(8)],
 		[Vector3(2.5, 2.2, ROOM.position.z), Vector2(1.2, 0.28), Vector3.BACK],     # 窓の上の横長
 		[Vector3(1.44, 0.95 + 1.3 + 0.0, ROOM.position.z), Vector2(0.0, 0.0), Vector3.BACK],
 	]
@@ -613,7 +650,8 @@ func _build_specimens() -> void:
 	root.position = Vector3(ROOM.position.x + 0.14 + 0.32, 0.735, -0.38)
 	add_child(root)
 	MeshKit.box(root, Vector3(0.12, 0.012, 0.3), Vector3(0, 0.006, 0), MeshKit.mat("tray_wood", Color(0.5, 0.38, 0.26), 0.7), "Tray")
-	var rocks := [["Granite", TEX_GRANITE, -0.09, 0.035], ["Basalt", TEX_BASALT, 0.0, 0.03], ["Sandstone", TEX_SANDSTONE, 0.09, 0.033]]
+	var rocks := [["Granite", TEX_GRANITE, -0.09, 0.035, "collection_label_04"], ["Basalt", TEX_BASALT, 0.0, 0.03, "collection_label_05"],
+			["Sandstone", TEX_SANDSTONE, 0.09, 0.033, "collection_label_06"]]
 	for r in rocks:
 		var mesh := SphereMesh.new()
 		mesh.radius = r[3]
@@ -633,7 +671,26 @@ func _build_specimens() -> void:
 		mi.position = Vector3(0, 0.012 + r[3] * 0.65, r[2])
 		mi.rotation = Vector3(_rng.randf_range(-0.4, 0.4), _rng.randf_range(0, TAU), _rng.randf_range(-0.4, 0.4))
 		root.add_child(mi)
-		MeshKit.box(root, Vector3(0.002, 0.012, 0.04), Vector3(-0.059, 0.016, r[2]), MeshKit.mat("specimen_label", Color(0.95, 0.94, 0.88), 0.9))
+		# 標本の札（ASSETS-24 のラベル 04〜06）を、トレーの手前（部屋側 +x）の縁に立てる
+		var tag := _sign(root, r[4], Vector3(0.061, 0.012 + 0.024, r[2]), 0.048, Vector3.RIGHT)
+		tag.rotation.z = 0.0
+
+
+# ---------------------------------------------------------------- 玩具の箱（机の下。正面にラベル 01〜03）
+
+func _build_toy_boxes() -> void:
+	var root := Node3D.new()
+	root.name = "ToyBoxes"
+	add_child(root)
+	var x := ROOM.position.x + 0.14 + 0.2   # 机の天板の下、壁寄り（通路にかからない）
+	var zs := [-0.82, -0.58, -0.34]
+	for i in 3:
+		var size := Vector3(0.2, 0.0, 0.2)
+		var tex: Texture2D = load(ART_DIR + "collection_label_%02d.png" % (i + 1))
+		size.y = size.z * tex.get_height() / tex.get_width()   # 正面の比率をラベルに合わせる
+		var col := MeshKit.mat("toybox_%d" % i, [Color(0.9, 0.75, 0.3), Color(0.85, 0.45, 0.35), Color(0.2, 0.3, 0.6)][i], 0.7)
+		MeshKit.box(root, size, Vector3(x, size.y * 0.5, zs[i]), col, "ToyBox%02d" % (i + 1))
+		_sign(root, "collection_label_%02d" % (i + 1), Vector3(x + size.x * 0.5 + 0.0015, size.y * 0.5, zs[i]), size.y - 0.004, Vector3.RIGHT)
 
 
 func _build_lights() -> void:
