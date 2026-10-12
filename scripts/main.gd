@@ -10,14 +10,29 @@ const MESSAGES := {
 	"start": "……気がつくと、ユニットバスに閉じ込められていた。ドアを開けて外に出よう。",
 	"toilet": "普通の便器だ。水は流れるが、ここから出られるわけではない。",
 	"bathtub": "空っぽの浴槽。乾いていて、何も入っていない。",
+	"bathtub_water": "浴槽に水がたまっている。",
+	"bathtub_wet": "空の浴槽。底がまだ濡れている。",
 	"mirror": "くもった鏡。疲れた顔の自分がぼんやり映っている。",
-	"sink": "洗面台。蛇口をひねっても特に何も起きない。……下に何か落ちている？",
+	"sink": "小さな洗面台。……下に何か落ちている？",
 	"vent": "換気口。格子の奥は暗く、よく見えない。",
 	"poster": "水道修理の広告だ。連絡先は管理会社……スマホは部屋に置いてきた。",
 	"bath_powder": "ユブロマン。ゆずの香りの入浴剤。今はのんびり浸かっている場合じゃない。",
 	"driver": "ドライバーを手に入れた。",
 	"door_locked": "ドアノブが空回りする。開かない。",
 	"door_fixed": "ドライバーでドアノブのネジを締め直した。……ドアが開いた！",
+}
+
+## 状態で変わる操作の案内。設備スクリプトの get_prompt() がキーを返す
+const PROMPTS := {
+	"examine": "左クリック：調べる",
+	"lid_open": "左クリック：蓋を開ける",
+	"lid_close": "左クリック：蓋を閉める",
+	"seat_up": "左クリック：便座を上げる",
+	"seat_down": "左クリック：便座を下ろす",
+	"water_on": "左クリック：水を出す",
+	"water_off": "左クリック：水を止める",
+	"plug_pull": "左クリック：栓を抜く",
+	"plug_insert": "左クリック：栓をする",
 }
 
 const PROMPT_EXAMINE := "左クリック：調べる"
@@ -89,6 +104,9 @@ func _prompt_for(target: Object) -> String:
 	if target == null:
 		return ""
 	var id := String(target.get_meta("interact_id", ""))
+	var fixture: Object = target.get_meta("fixture") if target.has_meta("fixture") else null
+	if fixture:
+		return PROMPTS.get(fixture.get_prompt(id), "")
 	match id:
 		"":
 			return ""
@@ -104,8 +122,15 @@ func _on_interact_requested(target: Object) -> void:
 	if paused or cleared or target == null:
 		return
 	var id := String(target.get_meta("interact_id", ""))
+	var fixture: Object = target.get_meta("fixture") if target.has_meta("fixture") else null
+	if fixture:
+		# 便器・浴槽・蛇口など状態を持つ設備は、その設備が操作し、表示する説明のキーを返す
+		var key: String = fixture.interact(id)
+		if not key.is_empty():
+			hud.show_message(MESSAGES[key])
+		return
 	match id:
-		"toilet", "bathtub", "mirror", "sink", "vent", "poster", "bath_powder":
+		"mirror", "sink", "vent", "poster", "bath_powder":
 			hud.show_message(MESSAGES[id])
 		"driver":
 			if has_driver:

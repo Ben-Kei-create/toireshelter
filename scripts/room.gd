@@ -10,6 +10,11 @@ extends Node3D
 ##     ├ Visual (Node3D)          … 見た目だけ。GLB に差し替えるならここを入れ替える
 ##     └ Collision (StaticBody3D) … 当たり判定と「調べる」対象。メタデータ interact_id を持つ
 
+const MeshKit := preload("res://scripts/mesh_kit.gd")
+const ToiletScript := preload("res://scripts/toilet.gd")
+const BathtubScript := preload("res://scripts/bathtub.gd")
+const FaucetScript := preload("res://scripts/faucet.gd")
+
 const LAYER_WORLD := 1      # 壁・設備（プレイヤーがぶつかる）
 const LAYER_INTERACT := 2   # 拾える小物（ぶつからない、照準だけ当たる）
 const LAYER_PLAYER := 8     # プレイヤー（layer 4）
@@ -48,8 +53,9 @@ var door_pivot: Node3D
 var door_body: StaticBody3D
 var driver_node: Node3D
 var exit_area: Area3D
-
-var _mat_cache := {}
+var toilet: ToiletScript
+var bathtub: BathtubScript
+var sink_faucet: FaucetScript
 
 
 func _ready() -> void:
@@ -61,6 +67,8 @@ func _ready() -> void:
 	_build_toilet()
 	_build_sink_and_mirror()
 	_build_vent()
+	_build_floor_drain()
+	_build_towel()
 	_build_bath_powder()
 	_build_driver()
 	_build_door()
@@ -230,57 +238,74 @@ func _build_corridor() -> void:
 # ---------------------------------------------------------------- 設備
 
 func _build_bathtub() -> void:
-	# 奥の壁沿い。幅いっぱい、奥行き0.75、高さ0.55
-	var f := _fixture("Bathtub", "bathtub")
-	var visual: Node3D = f[0]
-	var body: StaticBody3D = f[1]
-	var size := Vector3(ROOM_W, 0.55, 0.75)
-	var center := Vector3(0, size.y * 0.5, -ROOM_D * 0.5 + size.z * 0.5)
-	_mesh_box(visual, size, center, _mat("porcelain", PORCELAIN_COLOR, 0.3))
-	_mesh_box(visual, Vector3(size.x - 0.16, 0.02, size.z - 0.16), Vector3(0, size.y + 0.001, center.z), _mat("tub_inner", Color(0.7, 0.8, 0.86), 0.3))
-	# 蛇口
-	_mesh_box(visual, Vector3(0.06, 0.06, 0.12), Vector3(0.6, 0.75, -ROOM_D * 0.5 + 0.06), _mat("metal", Color(0.75, 0.75, 0.78), 0.25, 0.8))
-	_shape_box(body, size, center)
+	# 奥の壁沿い。幅いっぱい、奥行き0.75、高さ0.55。くぼみ・水・栓・蛇口は bathtub.gd
+	bathtub = BathtubScript.new()
+	bathtub.name = "Bathtub"
+	bathtub.position = Vector3(0.0, 0.0, -ROOM_D * 0.5 + BathtubScript.HALF.z)
+	add_child(bathtub)
 
 
 func _build_toilet() -> void:
-	# 左の壁沿い。タンクを壁につけ、便器は +x 方向（部屋の中央）を向く
-	var f := _fixture("Toilet", "toilet")
-	var visual: Node3D = f[0]
-	var body: StaticBody3D = f[1]
-	var porcelain := _mat("porcelain", PORCELAIN_COLOR, 0.3)
-	var wx := -ROOM_W * 0.5
-	var tank_size := Vector3(0.2, 0.45, 0.4)
-	var tank_center := Vector3(wx + 0.1, 0.7, 0.0)
-	var bowl_size := Vector3(0.5, 0.4, 0.36)
-	var bowl_center := Vector3(wx + 0.35, 0.2, 0.0)
-	_mesh_box(visual, tank_size, tank_center, porcelain)
-	_mesh_box(visual, bowl_size, bowl_center, porcelain)
-	_mesh_box(visual, Vector3(0.46, 0.04, 0.38), Vector3(wx + 0.36, 0.42, 0.0), _mat("seat", Color(0.86, 0.86, 0.86), 0.4))
-	_mesh_box(visual, Vector3(0.06, 0.02, 0.03), Vector3(wx + 0.17, 0.88, 0.14), _mat("metal", Color(0.75, 0.75, 0.78), 0.25, 0.8))
-	_shape_box(body, tank_size, tank_center)
-	_shape_box(body, bowl_size, bowl_center)
+	# 左の壁沿い。タンクを壁につけ、便器は +x 方向（部屋の中央）を向く。蓋と便座の開閉は toilet.gd
+	toilet = ToiletScript.new()
+	toilet.name = "Toilet"
+	add_child(toilet)
 
 
 func _build_sink_and_mirror() -> void:
-	# 右の壁沿い。下が空いたペデスタル型。床（洗面台の下）にドライバーを置く
+	# 右の壁に付けた小さな洗面台（ペデスタルなし）。下に排水管とトラップが見え、床（洗面台の下）にドライバーを置く
 	var f := _fixture("Sink", "sink")
 	var visual: Node3D = f[0]
 	var body: StaticBody3D = f[1]
 	var porcelain := _mat("porcelain", PORCELAIN_COLOR, 0.3)
 	var metal := _mat("metal", Color(0.75, 0.75, 0.78), 0.25, 0.8)
 	var wx := ROOM_W * 0.5
-	var basin_size := Vector3(0.38, 0.15, 0.5)
-	var basin_center := Vector3(wx - 0.19, 0.775, 0.1)
-	var leg_size := Vector3(0.1, 0.7, 0.12)
-	var leg_center := Vector3(wx - 0.05, 0.35, 0.1)
+	var z := 0.1
+	# 下から配管が見えるよう、ボウルは薄め（底 y=0.74）
+	var basin_size := Vector3(0.38, 0.11, 0.5)
+	var basin_center := Vector3(wx - 0.19, 0.795, z)
 	_mesh_box(visual, basin_size, basin_center, porcelain)
-	_mesh_box(visual, Vector3(0.28, 0.02, 0.38), Vector3(wx - 0.18, 0.851, 0.1), _mat("basin_inner", Color(0.82, 0.86, 0.88), 0.3))
-	_mesh_box(visual, leg_size, leg_center, porcelain)
-	_mesh_box(visual, Vector3(0.04, 0.12, 0.04), Vector3(wx - 0.04, 0.91, 0.1), metal)
-	_mesh_box(visual, Vector3(0.12, 0.03, 0.03), Vector3(wx - 0.09, 0.96, 0.1), metal)
+	_mesh_box(visual, Vector3(0.28, 0.02, 0.38), Vector3(wx - 0.18, 0.851, z), _mat("basin_inner", Color(0.82, 0.86, 0.88), 0.3))
+	# 洗面ボウルの排水口（ボウルの中央。排水管はここから下りる）
+	var drain_x := wx - 0.21
+	MeshKit.cylinder(visual, 0.016, 0.002, Vector3(drain_x, 0.8615, z), _mat("drain_hole", Color(0.05, 0.05, 0.06), 1.0))
+	# 壁の受け金具
+	_mesh_box(visual, Vector3(0.03, 0.05, 0.4), Vector3(wx - 0.015, 0.715, z), metal)
+	# 排水管：ボウルの底から下りて U 字のトラップを通り、壁へ（当たり判定なし）
+	var r := 0.016
+	var pipe_mat := _mat("pipe", Color(0.86, 0.86, 0.88), 0.3, 0.35)   # 影の中でも沈まない明るめのメッキ
+	var tail_x := drain_x
+	# U 字の底を低め（約0.36m）にして、立った目線でもボウルの陰から見えるようにする
+	var bend_y := 0.40
+	var trap_pts := [Vector3(tail_x, 0.74, z), Vector3(tail_x, bend_y, z)]
+	var bend_c := Vector3(tail_x + 0.045, bend_y, z)
+	for i in range(1, 7):
+		var a := PI * i / 6.0
+		trap_pts.append(bend_c + Vector3(-cos(a) * 0.045, -sin(a) * 0.045, 0.0))
+	trap_pts.append(Vector3(tail_x + 0.09, 0.47, z))
+	trap_pts.append(Vector3(wx - 0.004, 0.47, z))
+	MeshKit.pipe(visual, trap_pts, r, pipe_mat)
+	var flange := MeshKit.cylinder(visual, 0.03, 0.008, Vector3(wx - 0.004, 0.47, z), pipe_mat)
+	flange.rotation.z = deg_to_rad(90.0)
 	_shape_box(body, basin_size, basin_center)
-	_shape_box(body, leg_size, leg_center)
+
+	# 蛇口（クリックで水を出す／止める。水はたまらず、ボウルの底へ流れ続ける）
+	sink_faucet = FaucetScript.new()
+	sink_faucet.name = "Faucet"
+	sink_faucet.position = Vector3(wx - 0.04, 0.85, z)
+	_mesh_box(sink_faucet, Vector3(0.04, 0.12, 0.04), Vector3(0, 0.06, 0), metal)
+	_mesh_box(sink_faucet, Vector3(0.12, 0.03, 0.03), Vector3(-0.05, 0.11, 0), metal)
+	var lever := Node3D.new()
+	lever.name = "Lever"
+	lever.position = Vector3(0, 0.12, 0)
+	sink_faucet.add_child(lever)
+	_mesh_box(lever, Vector3(0.07, 0.01, 0.016), Vector3(-0.03, 0.005, 0), metal)
+	sink_faucet.setup(Vector3(-0.1, 0.095, 0), 0.852, lever, 0.004)
+	var faucet_area := MeshKit.interact_area(sink_faucet, "FaucetArea", "sink_faucet", sink_faucet)
+	_shape_box(faucet_area, Vector3(0.16, 0.1, 0.06), Vector3(-0.04, 0.09, 0))
+	add_child(sink_faucet)
+
+	_build_sink_shelf(wx, z)
 
 	# 鏡（仮の材質。リアルタイム反射なし）
 	var m := _fixture("Mirror", "mirror")
@@ -291,6 +316,83 @@ func _build_sink_and_mirror() -> void:
 	_mesh_box(m_visual, Vector3(0.015, 0.54, 0.44), Vector3(wx - 0.005, 1.4, 0.1), _mat("frame_dark", Color(0.3, 0.3, 0.32)))
 	_mesh_box(m_visual, mirror_size, mirror_center, _mat("mirror", Color(0.72, 0.78, 0.82), 0.08, 0.6))
 	_shape_box(m_body, mirror_size, mirror_center)
+
+
+func _build_sink_shelf(wx: float, z: float) -> void:
+	# 鏡の下の小さな棚：歯ブラシ立て・歯ブラシ2本・キャップ付きの歯磨き粉（架空の無地）。見た目だけ
+	var shelf := Node3D.new()
+	shelf.name = "SinkShelf"
+	add_child(shelf)
+	var top := 1.075
+	_mesh_box(shelf, Vector3(0.11, 0.015, 0.44), Vector3(wx - 0.055, top - 0.0075, z), _mat("shelf", Color(0.95, 0.95, 0.93), 0.4))
+	var cup_pos := Vector3(wx - 0.055, top, z + 0.16)
+	MeshKit.cylinder(shelf, 0.03, 0.09, cup_pos + Vector3(0, 0.045, 0), _mat("cup", Color(0.62, 0.8, 0.7), 0.5), "Cup", 0.033)
+	var brushes := [[Color(0.2, 0.45, 0.85), -12.0, -0.01], [Color(0.9, 0.45, 0.6), 14.0, 0.01]]
+	for b in brushes:
+		var brush := Node3D.new()
+		brush.name = "Toothbrush"
+		brush.position = cup_pos + Vector3(0, 0.01, b[2])
+		brush.rotation = Vector3(deg_to_rad(b[1]), 0.0, deg_to_rad(-8.0))
+		shelf.add_child(brush)
+		var handle_mat := _mat("brush_%s" % b[0].to_html(false), b[0], 0.4)
+		_mesh_box(brush, Vector3(0.012, 0.17, 0.008), Vector3(0, 0.085, 0), handle_mat)
+		_mesh_box(brush, Vector3(0.012, 0.025, 0.012), Vector3(-0.006, 0.16, 0), _mat("bristle", Color(0.97, 0.97, 0.97), 0.9))
+	# 歯磨き粉：棚の上に寝かせたチューブ。白地に青い帯、青いキャップ、反対側は平たく潰した端
+	var tube := Node3D.new()
+	tube.name = "Toothpaste"
+	tube.position = Vector3(wx - 0.06, top + 0.015, z - 0.06)
+	tube.rotation.x = deg_to_rad(90.0)
+	shelf.add_child(tube)
+	MeshKit.cylinder(tube, 0.015, 0.12, Vector3.ZERO, _mat("paste_body", Color(0.96, 0.96, 0.95), 0.5), "Body", 0.012)
+	MeshKit.cylinder(tube, 0.0153, 0.03, Vector3(0, -0.02, 0), _mat("paste_band", Color(0.2, 0.42, 0.75), 0.5))
+	MeshKit.cylinder(tube, 0.009, 0.018, Vector3(0, -0.069, 0), _mat("paste_cap", Color(0.15, 0.32, 0.68), 0.4), "Cap")
+	_mesh_box(tube, Vector3(0.03, 0.012, 0.004), Vector3(0, 0.066, 0), _mat("paste_body", Color(0.96, 0.96, 0.95), 0.5))
+
+
+func _build_floor_drain() -> void:
+	# 浴室の床の排水口（浴槽の排水とは別。床に流れた水用）。格子の隙間から暗い穴が見える。見た目だけ
+	var drain := Node3D.new()
+	drain.name = "FloorDrain"
+	drain.position = Vector3(-0.15, 0.0, -0.33)
+	add_child(drain)
+	var metal := _mat("metal", Color(0.75, 0.75, 0.78), 0.25, 0.8)
+	var s := 0.1
+	var fw := 0.008
+	_mesh_box(drain, Vector3(s - fw * 2.0, 0.001, s - fw * 2.0), Vector3(0, 0.0015, 0), _mat("drain_hole", Color(0.05, 0.05, 0.06), 1.0))
+	for sd in [-1.0, 1.0]:
+		_mesh_box(drain, Vector3(s, 0.004, fw), Vector3(0, 0.002, sd * (s - fw) * 0.5), metal)
+		_mesh_box(drain, Vector3(fw, 0.004, s - fw * 2.0), Vector3(sd * (s - fw) * 0.5, 0.002, 0), metal)
+	for i in 5:
+		var x := -0.034 + 0.017 * i
+		_mesh_box(drain, Vector3(0.004, 0.003, s - fw * 2.0), Vector3(x, 0.0025, 0), metal)
+
+
+func _build_towel() -> void:
+	# 左の壁、便器と入口の間のタオル掛け。タオルは2枚重ねで掛かり、上は丸く折り返し、手前の裾に縁取り。見た目だけ
+	var holder := Node3D.new()
+	holder.name = "TowelBar"
+	holder.position = Vector3(-ROOM_W * 0.5, 1.15, 0.72)
+	add_child(holder)
+	var metal := _mat("metal", Color(0.75, 0.75, 0.78), 0.25, 0.8)
+	var out := 0.06   # 壁からの出幅
+	MeshKit.pipe(holder, [Vector3(out, 0, -0.23), Vector3(out, 0, 0.23)], 0.008, metal)
+	for zz in [-0.22, 0.22]:
+		_mesh_box(holder, Vector3(out, 0.012, 0.012), Vector3(out * 0.5, 0, zz), metal)
+	var towel := Node3D.new()
+	towel.name = "Towel"
+	holder.add_child(towel)
+	var cloth := _mat("towel", Color(0.55, 0.68, 0.78), 1.0)
+	var hem := _mat("towel_hem", Color(0.45, 0.57, 0.68), 1.0)
+	var w := 0.34
+	var t := 0.009
+	var fold_r := 0.022
+	var fold := MeshKit.cylinder(towel, fold_r, w, Vector3(out, 0, 0), cloth, "Fold", -1.0, 16)
+	fold.rotation.x = deg_to_rad(90.0)
+	var front_len := 0.46
+	var back_len := 0.3
+	_mesh_box(towel, Vector3(t, front_len, w), Vector3(out + fold_r - t * 0.5, -front_len * 0.5, 0), cloth)
+	_mesh_box(towel, Vector3(t, back_len, w), Vector3(out - fold_r + t * 0.5, -back_len * 0.5, 0), cloth)
+	_mesh_box(towel, Vector3(t + 0.004, 0.035, w + 0.004), Vector3(out + fold_r - t * 0.5, -front_len + 0.02, 0), hem)
 
 
 func _build_vent() -> void:
@@ -554,14 +656,7 @@ func _static_box(parent: Node, node_name: String, size: Vector3, center: Vector3
 
 
 func _mesh_box(parent: Node, size: Vector3, center: Vector3, material: Material) -> MeshInstance3D:
-	var box := BoxMesh.new()
-	box.size = size
-	var mi := MeshInstance3D.new()
-	mi.mesh = box
-	mi.material_override = material
-	mi.position = center
-	parent.add_child(mi)
-	return mi
+	return MeshKit.box(parent, size, center, material)
 
 
 ## X 軸方向に寝かせた円柱（ドライバーの柄・軸用）。
@@ -582,32 +677,12 @@ func _mesh_cylinder_x(parent: Node, radius: float, length: float, center: Vector
 
 
 func _shape_box(body: CollisionObject3D, size: Vector3, center: Vector3) -> void:
-	var shape := BoxShape3D.new()
-	shape.size = size
-	var cs := CollisionShape3D.new()
-	cs.shape = shape
-	cs.position = center
-	body.add_child(cs)
+	MeshKit.shape_box(body, size, center)
 
 
-## 画像を貼るマテリアル。照明の陰影は通常どおり受けるが、画像側に陰影は焼き込まない。
 func _texture_mat(key: String, tex: Texture2D, roughness: float) -> StandardMaterial3D:
-	if _mat_cache.has(key):
-		return _mat_cache[key]
-	var m := StandardMaterial3D.new()
-	m.albedo_texture = tex
-	m.roughness = roughness
-	m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
-	_mat_cache[key] = m
-	return m
+	return MeshKit.texture_mat(key, tex, roughness)
 
 
 func _mat(key: String, color: Color, roughness: float = 0.85, metallic: float = 0.0) -> StandardMaterial3D:
-	if _mat_cache.has(key):
-		return _mat_cache[key]
-	var m := StandardMaterial3D.new()
-	m.albedo_color = color
-	m.roughness = roughness
-	m.metallic = metallic
-	_mat_cache[key] = m
-	return m
+	return MeshKit.mat(key, color, roughness, metallic)

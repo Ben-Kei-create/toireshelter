@@ -1,0 +1,169 @@
+extends Node3D
+## 便器：本体（くぼみと少量の水）・便座リング・蓋。蓋と便座は後ろの蝶番を軸に開閉する。
+## 座標は部屋と同じ（この節点は原点に置く）。左の壁 x=-0.9 にタンクをつけ、便器は +x を向く。
+##
+##   Toilet/Visual            … タンク・本体・水
+##   Toilet/SeatPivot         … 便座リング（蝶番 x=-0.645, y=0.40）。子に照準用の判定 SeatArea
+##   Toilet/LidPivot          … 蓋（蝶番 x=-0.675, y=0.43）。子に照準用の判定 LidArea
+##   Toilet/Collision         … 移動を止める本体とタンクの箱（interact_id = toilet）
+##
+## 開いた蓋はタンクの手前、上げた便座は蓋の手前に立つ（角度と蝶番の位置で重ならないようにしてある）。
+## 蓋を閉じるときは、便座が上がっていれば先に便座を下ろしてから蓋を下ろす（蓋が便座を突き抜けない）。
+## アニメーション中のクリックは無視する。
+
+const MeshKit := preload("res://scripts/mesh_kit.gd")
+
+const WALL_X := -0.9
+const RIM_Y := 0.40            # 便器の縁の高さ（便座の下面）
+const LID_HINGE := Vector3(-0.675, 0.43, 0.0)
+const SEAT_HINGE := Vector3(-0.645, RIM_Y, 0.0)
+const LID_OPEN_DEG := 88.0
+const SEAT_OPEN_DEG := 80.0
+const SWING_TIME := 0.4
+
+var lid_open := false
+var seat_up := false
+var busy := false
+
+var lid_pivot: Node3D
+var seat_pivot: Node3D
+
+
+func _ready() -> void:
+	var visual := Node3D.new()
+	visual.name = "Visual"
+	add_child(visual)
+	_build_body(visual)
+	_build_seat()
+	_build_lid()
+
+	var body := StaticBody3D.new()
+	body.name = "Collision"
+	body.collision_layer = MeshKit.LAYER_WORLD
+	body.collision_mask = 0
+	body.set_meta("interact_id", "toilet")
+	body.set_meta("fixture", self)
+	add_child(body)
+	MeshKit.shape_box(body, Vector3(0.2, 0.45, 0.4), Vector3(WALL_X + 0.1, 0.7, 0.0))      # タンク
+	MeshKit.shape_box(body, Vector3(0.4, RIM_Y, 0.36), Vector3(-0.5, RIM_Y * 0.5, 0.0))   # 本体
+
+
+func _build_body(visual: Node3D) -> void:
+	var porcelain := MeshKit.mat("porcelain", Color(0.92, 0.92, 0.92), 0.3)
+	var inner := MeshKit.mat("bowl_inner", Color(0.82, 0.83, 0.84), 0.25)
+	var metal := MeshKit.mat("metal", Color(0.75, 0.75, 0.78), 0.25, 0.8)
+	# タンクとレバー（バスの入浴剤がタンク上面 y=0.925 に載る）
+	MeshKit.box(visual, Vector3(0.2, 0.45, 0.4), Vector3(WALL_X + 0.1, 0.7, 0.0), porcelain, "Tank")
+	MeshKit.box(visual, Vector3(0.06, 0.02, 0.03), Vector3(WALL_X + 0.17, 0.88, 0.14), metal)
+	# 台座と、くぼみの底（上面 y=0.23）
+	MeshKit.box(visual, Vector3(0.26, 0.2, 0.22), Vector3(-0.53, 0.1, 0.0), porcelain, "Foot")
+	MeshKit.box(visual, Vector3(0.4, 0.05, 0.36), Vector3(-0.5, 0.205, 0.0), inner, "BowlBottom")
+	# 縁の壁（内側の開口 x -0.64〜-0.36, z -0.12〜0.12、深さ 0.17）
+	var wall_h := RIM_Y - 0.23
+	var wy := 0.23 + wall_h * 0.5
+	MeshKit.box(visual, Vector3(0.06, wall_h, 0.36), Vector3(-0.67, wy, 0.0), porcelain)
+	MeshKit.box(visual, Vector3(0.06, wall_h, 0.36), Vector3(-0.33, wy, 0.0), porcelain)
+	MeshKit.box(visual, Vector3(0.28, wall_h, 0.06), Vector3(-0.5, wy, -0.15), porcelain)
+	MeshKit.box(visual, Vector3(0.28, wall_h, 0.06), Vector3(-0.5, wy, 0.15), porcelain)
+	# 底の排水口（暗い穴）と少量の水
+	MeshKit.cylinder(visual, 0.035, 0.002, Vector3(-0.5, 0.231, 0.0), MeshKit.mat("bowl_hole", Color(0.18, 0.2, 0.22), 0.6))
+	var water := MeshKit.box(visual, Vector3(0.2, 0.004, 0.16), Vector3(-0.5, 0.236, 0.0), MeshKit.water_surface_mat(), "BowlWater")
+	water.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	# 蝶番の金具
+	for z in [-0.12, 0.12]:
+		MeshKit.box(visual, Vector3(0.04, 0.03, 0.03), Vector3(-0.665, RIM_Y + 0.015, z), metal)
+
+
+func _build_seat() -> void:
+	# 便座リング：蝶番からの長さ 0.37、幅 0.34、厚さ 0.025。開口 x 0.035〜0.30（蝶番基準）, z ±0.115
+	seat_pivot = Node3D.new()
+	seat_pivot.name = "SeatPivot"
+	seat_pivot.position = SEAT_HINGE
+	add_child(seat_pivot)
+	var seat_mat := MeshKit.mat("seat", Color(0.96, 0.96, 0.95), 0.4)
+	var t := 0.025
+	var parts := [
+		[Vector3(0.035, t, 0.34), Vector3(0.0175, t * 0.5, 0.0)],      # 後ろ
+		[Vector3(0.07, t, 0.34), Vector3(0.335, t * 0.5, 0.0)],        # 前
+		[Vector3(0.265, t, 0.055), Vector3(0.1675, t * 0.5, -0.1425)], # 左右
+		[Vector3(0.265, t, 0.055), Vector3(0.1675, t * 0.5, 0.1425)],
+	]
+	var area := MeshKit.interact_area(seat_pivot, "SeatArea", "toilet_seat", self)
+	for p in parts:
+		MeshKit.box(seat_pivot, p[0], p[1], seat_mat)
+		MeshKit.shape_box(area, p[0], p[1])
+
+
+func _build_lid() -> void:
+	# 蓋：蝶番からの長さ 0.40、幅 0.36、厚さ 0.02。閉じると便座の 5mm 上に載る
+	lid_pivot = Node3D.new()
+	lid_pivot.name = "LidPivot"
+	lid_pivot.position = LID_HINGE
+	add_child(lid_pivot)
+	var size := Vector3(0.40, 0.02, 0.36)
+	var center := Vector3(0.20, 0.01, 0.0)
+	MeshKit.box(lid_pivot, size, center, MeshKit.mat("lid", Color(0.95, 0.95, 0.94), 0.4), "Lid")
+	var area := MeshKit.interact_area(lid_pivot, "LidArea", "toilet_lid", self)
+	MeshKit.shape_box(area, size, center)
+
+
+## 蓋を開ける／閉める。閉じるときに便座が上がっていれば、先に便座を下ろす。
+func toggle_lid() -> void:
+	if busy:
+		return
+	busy = true
+	var tween := _swing_tween()
+	if lid_open:
+		if seat_up:
+			seat_up = false
+			tween.tween_property(seat_pivot, "rotation:z", 0.0, SWING_TIME)
+		lid_open = false
+		tween.tween_property(lid_pivot, "rotation:z", 0.0, SWING_TIME)
+	else:
+		lid_open = true
+		tween.tween_property(lid_pivot, "rotation:z", deg_to_rad(LID_OPEN_DEG), SWING_TIME)
+	tween.tween_callback(func() -> void: busy = false)
+
+
+## 便座を上げる／下ろす。蓋が閉じているときは何もしない（便座は蓋の下）。
+func toggle_seat() -> void:
+	if busy or not lid_open:
+		return
+	busy = true
+	seat_up = not seat_up
+	var tween := _swing_tween()
+	tween.tween_property(seat_pivot, "rotation:z", deg_to_rad(SEAT_OPEN_DEG) if seat_up else 0.0, SWING_TIME)
+	tween.tween_callback(func() -> void: busy = false)
+
+
+func _swing_tween() -> Tween:
+	var tween := create_tween()
+	tween.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	return tween
+
+
+# ---------------------------------------------------------------- main.gd から呼ばれる
+
+func get_prompt(id: String) -> String:
+	if id == "toilet":
+		return "examine"
+	if busy:
+		return ""
+	if id == "toilet_seat" and lid_open:
+		return "seat_down" if seat_up else "seat_up"
+	return "lid_close" if lid_open else "lid_open"
+
+
+func interact(id: String) -> String:
+	match id:
+		"toilet":
+			return "toilet"
+		"toilet_lid":
+			toggle_lid()
+		"toilet_seat":
+			# 蓋が閉じているときに便座の縁を狙った場合は、蓋を開ける
+			if lid_open:
+				toggle_seat()
+			else:
+				toggle_lid()
+	return ""

@@ -4,7 +4,7 @@ extends SceneTree
 ## 保存先: 環境変数 SHOT_DIR（なければ res://docs/screenshots/latest）
 
 const VIEWS := [
-	# [ファイル名, プレイヤー位置, 注視点]
+	# [ファイル名, プレイヤー位置, 注視点, 撮影前に切り替える状態（省略可）]
 	["room_overview", Vector3(0.45, 0.0, 0.95), Vector3(-0.3, 0.9, -1.2)],
 	["vent_from_floor", Vector3(0.0, 0.0, 0.75), Vector3(-0.72, 2.2, -1.02)],
 	["vent_closeup", Vector3(-0.45, 0.0, -0.25), Vector3(-0.72, 2.2, -1.02)],
@@ -13,6 +13,14 @@ const VIEWS := [
 	["door_poster", Vector3(-0.03, 0.0, 0.55), Vector3(-0.03, 1.4, 1.2)],
 	["bath_powder", Vector3(-0.2, 0.0, 0.1), Vector3(-0.8, 1.0, -0.08)],
 	["bath_powder_closeup", Vector3(-0.45, 0.0, -0.05), Vector3(-0.8, 1.0, -0.08)],
+	["t5_room_overview", Vector3(0.45, 0.0, 0.95), Vector3(-0.3, 0.6, -1.0)],
+	["t5_sink_area", Vector3(-0.1, 0.0, 0.2), Vector3(0.8, 0.85, 0.1), "sink_water"],
+	["t5_sink_trap_low_reference", Vector3(0.25, 0.0, 0.75), Vector3(0.75, 0.45, 0.1), "low_camera"],
+	["t5_toilet_lid_open", Vector3(-0.05, 0.0, 0.3), Vector3(-0.5, 0.3, 0.0), "toilet_open"],
+	["t5_toilet_seat_up", Vector3(-0.05, 0.0, 0.35), Vector3(-0.55, 0.45, 0.0), "toilet_seat_up"],
+	["t5_tub_filling", Vector3(0.3, 0.0, -0.1), Vector3(0.5, 0.3, -0.9), "tub_filling"],
+	["t5_tub_drained", Vector3(0.45, 0.0, -0.15), Vector3(0.62, 0.1, -0.88), "tub_drained"],
+	["t5_towel_and_floor_drain", Vector3(0.35, 0.0, 0.0), Vector3(-0.6, 0.6, 0.5)],
 	["door_open", Vector3(0.0, 0.0, 0.2), Vector3(0.0, 1.2, 2.4)],
 	["door_open_poster_from_corridor", Vector3(0.35, 0.0, 2.6), Vector3(-0.35, 1.4, 1.6)],
 ]
@@ -41,6 +49,9 @@ func _run() -> void:
 			main.door_open = true
 			main.room.open_door()
 			await create_timer(1.5).timeout
+		player.camera.position.y = player.EYE_HEIGHT
+		if v.size() > 3:
+			await _apply_state(main, player, v[3])
 		player.global_position = v[1]
 		_aim(player, v[2])
 		for i in 8:
@@ -58,8 +69,30 @@ func _run() -> void:
 	quit()
 
 
+func _apply_state(main: Node, player: Node3D, state: String) -> void:
+	var room = main.room
+	match state:
+		"sink_water":
+			room.sink_faucet.set_on(true)
+		"low_camera":   # 参考：ゲーム内ではしゃがめないので、カメラだけ床から 0.6m に下げる
+			player.camera.position.y = 0.6
+		"toilet_open":
+			room.toilet.toggle_lid()
+			await create_timer(0.6).timeout
+		"toilet_seat_up":
+			room.toilet.toggle_seat()
+			await create_timer(0.6).timeout
+		"tub_filling":
+			room.bathtub.faucet.set_on(true)
+			room.bathtub.advance(18.0)
+		"tub_drained":
+			room.bathtub.faucet.set_on(false)
+			room.bathtub.set_plug(false)
+			room.bathtub.advance(60.0)
+
+
 func _aim(player: Node3D, point: Vector3) -> void:
-	var eye: Vector3 = player.global_position + Vector3(0.0, player.EYE_HEIGHT, 0.0)
+	var eye: Vector3 = player.camera.global_position
 	var d := point - eye
 	player.rotation.y = atan2(-d.x, -d.z)
 	var pitch := clampf(atan2(d.y, Vector2(d.x, d.z).length()), deg_to_rad(-85.0), deg_to_rad(85.0))
