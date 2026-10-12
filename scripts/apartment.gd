@@ -70,6 +70,8 @@ func _ready() -> void:
 	_build_cartridges()
 	_build_room_stickers()
 	_build_novelties()
+	_build_tv_corner()
+	_build_hall_slippers()
 	_build_lights()
 
 
@@ -871,6 +873,130 @@ func _build_novelties() -> void:
 		mi.rotation.y = PI * 0.5   # 表（+z）を +x へ
 		item.add_child(mi)
 		MeshKit.box(item, Vector3(0.04, 0.004, w * 0.8), Vector3(0.0, 0.002, 0), base_mat, "Base")
+
+
+## 玄関ホール：浴室のドアの左（-x）の床にスリッパ。コルクボードの下・動線の外。見た目だけ。
+func _build_hall_slippers() -> void:
+	MeshKit.slipper_pair(self, Vector3(-0.64, 0.0, 1.55), 8.0, Color(0.92, 0.88, 0.72), Color(0.6, 0.45, 0.32), "HallSlippers")
+
+
+## テレビ台・テレビ・ゲーム機・ゲームのソフト（手前の壁の左側、大きな絵の下）。
+## 台は x 1.10〜2.06、奥行き 0.32（z 2.08〜2.40）、高さ 0.34。出入口（x 1.0・z 1.5〜2.2）の動線は z 2.08 までで、台の手前は空く。
+## 大きな絵（下端 y 0.83）の下に収まる高さ（テレビの上端 0.79）。寝床（x 2.1〜）には触れない。
+## 左の室：ゲーム機（白い横置きの本体）、右の室：ソフトのケース5本（文字・ロゴのない無地の背）。天板：テレビと白いコントローラ。
+## テレビの画面は、コードで描いた小さな絵（空と丘。ロゴなし）を弱く光らせている。
+## 台の当たり判定は1つの箱。装飾のみで、調べる判定・取得・脱出条件はなし。実在の機種名・商標は入れていない。
+func _build_tv_corner() -> void:
+	var root := Node3D.new()
+	root.name = "TvCorner"
+	add_child(root)
+	var z1 := ROOM.end.z
+	var x0 := 1.10
+	var x1 := 2.06
+	var depth := 0.32
+	var h := 0.34
+	var cz := z1 - depth * 0.5
+	var wood := MeshKit.tiled_mat("shelf_wood_tex", TEX_SHELF_WOOD, 0.5, Color.WHITE, 0.7)
+	var t := 0.02
+	var cx := (x0 + x1) * 0.5
+	var w := x1 - x0
+	MeshKit.box(root, Vector3(w, t, depth), Vector3(cx, h - t * 0.5, cz), wood, "Top")
+	MeshKit.box(root, Vector3(w, t, depth), Vector3(cx, t * 0.5 + 0.03, cz), wood, "Bottom")
+	for sx in [x0 + t * 0.5, x1 - t * 0.5, cx + 0.12]:
+		MeshKit.box(root, Vector3(t, h - 0.03, depth), Vector3(sx, 0.03 + (h - 0.03) * 0.5, cz), wood, "Side")
+	MeshKit.box(root, Vector3(w, h - 0.03, 0.01), Vector3(cx, 0.03 + (h - 0.03) * 0.5, z1 - 0.005), MeshKit.mat("tv_back", Color(0.2, 0.17, 0.14), 0.9), "Back")
+	for fx in [x0 + 0.04, x1 - 0.04]:
+		MeshKit.box(root, Vector3(0.035, 0.03, 0.035), Vector3(fx, 0.015, z1 - 0.06), wood, "Foot")
+	MeshKit.shape_box(_body, Vector3(w, h, depth), Vector3(cx, h * 0.5, cz))
+	# ゲーム機：左の室（x x0+t 〜 cx+0.12-t/2）の中に横置き。白い外装、黒い中央の帯、青い小さなランプ
+	var white := MeshKit.mat("console_white", Color(0.93, 0.94, 0.96), 0.4)
+	var black := MeshKit.mat("console_black", Color(0.08, 0.08, 0.1), 0.5)
+	var cons_x := (x0 + t + cx + 0.12 - t * 0.5) * 0.5
+	var floor_y := 0.03 + t
+	var con := Node3D.new()
+	con.name = "Console"
+	con.position = Vector3(cons_x, floor_y, z1 - 0.17)
+	root.add_child(con)
+	MeshKit.box(con, Vector3(0.36, 0.034, 0.24), Vector3(0, 0.05, 0), white, "ShellMid")
+	MeshKit.box(con, Vector3(0.36, 0.016, 0.24), Vector3(0, 0.082, 0), white, "ShellTop")
+	MeshKit.box(con, Vector3(0.36, 0.016, 0.24), Vector3(0, 0.018, 0), white, "ShellBottom")
+	MeshKit.box(con, Vector3(0.352, 0.036, 0.236), Vector3(0, 0.05, 0.002), black, "Core")
+	MeshKit.box(con, Vector3(0.36, 0.03, 0.24), Vector3(0, 0.05, -0.004), white, "ShellFace")
+	MeshKit.box(con, Vector3(0.352, 0.016, 0.006), Vector3(0, 0.05, -0.121), black, "Slot")
+	var lamp := MeshKit.mat("console_lamp", Color(0.3, 0.6, 1.0), 0.3)
+	lamp.emission_enabled = true
+	lamp.emission = Color(0.3, 0.6, 1.0)
+	lamp.emission_energy_multiplier = 1.2
+	MeshKit.box(con, Vector3(0.012, 0.004, 0.002), Vector3(0.13, 0.036, -0.122), lamp, "Lamp")
+	# ソフト：右の室に立てた5本。無地の色の背（ロゴなし）、高さ 0.19・厚み 0.015・奥行き 0.135
+	var cols := [Color(0.2, 0.35, 0.75), Color(0.75, 0.25, 0.25), Color(0.25, 0.6, 0.45), Color(0.9, 0.78, 0.3), Color(0.25, 0.25, 0.3)]
+	var gx0 := cx + 0.12 + t * 0.5 + 0.03
+	for i in cols.size():
+		var g := Node3D.new()
+		g.name = "Game%02d" % (i + 1)
+		g.position = Vector3(gx0 + i * 0.0165, floor_y, z1 - 0.17)
+		g.rotation.z = deg_to_rad(-6.0) if i == cols.size() - 1 else 0.0
+		root.add_child(g)
+		MeshKit.box(g, Vector3(0.015, 0.19, 0.135), Vector3(0, 0.095, 0), MeshKit.mat("game_case_%d" % i, cols[i], 0.5), "Case")
+		MeshKit.box(g, Vector3(0.0165, 0.012, 0.0), Vector3(0, 0.15, -0.0676), MeshKit.mat("game_stripe", Color(0.95, 0.95, 0.95), 0.5), "Stripe")
+	# 天板：テレビ（台座つき）と白いコントローラ
+	var tv := Node3D.new()
+	tv.name = "Tv"
+	tv.position = Vector3(cx - 0.08, h, z1 - 0.17)
+	root.add_child(tv)
+	MeshKit.box(tv, Vector3(0.22, 0.012, 0.15), Vector3(0, 0.006, 0), MeshKit.mat("tv_black", Color(0.08, 0.08, 0.09), 0.4), "Foot")
+	MeshKit.box(tv, Vector3(0.05, 0.05, 0.03), Vector3(0, 0.035, 0.02), MeshKit.mat("tv_black", Color(0.08, 0.08, 0.09), 0.4), "Neck")
+	var sw := 0.72
+	var sh := 0.405
+	var bz := 0.025
+	MeshKit.box(tv, Vector3(sw + 0.03, sh + 0.03, 0.04), Vector3(0, 0.06 + (sh + 0.03) * 0.5, 0.02), MeshKit.mat("tv_black", Color(0.08, 0.08, 0.09), 0.4), "Bezel")
+	var q := QuadMesh.new()
+	q.size = Vector2(sw, sh)
+	var sm := StandardMaterial3D.new()
+	var tex := _tv_picture()
+	sm.albedo_texture = tex
+	sm.emission_enabled = true
+	sm.emission_texture = tex
+	sm.emission_energy_multiplier = 0.55
+	sm.roughness = 0.25
+	var screen := MeshInstance3D.new()
+	screen.name = "Screen"
+	screen.mesh = q
+	screen.material_override = sm
+	screen.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	screen.position = Vector3(0, 0.06 + (sh + 0.03) * 0.5, -0.0003 - 0.0)
+	screen.rotation.y = PI   # 表を部屋側（-z）へ
+	tv.add_child(screen)
+	var pad := Node3D.new()
+	pad.name = "Controller"
+	pad.position = Vector3(cx + 0.36, h, z1 - 0.12)
+	pad.rotation.y = deg_to_rad(-15.0)
+	root.add_child(pad)
+	MeshKit.box(pad, Vector3(0.15, 0.03, 0.09), Vector3(0, 0.015, 0), white, "Body")
+	MeshKit.box(pad, Vector3(0.04, 0.032, 0.1), Vector3(-0.05, 0.016, 0.0), black, "GripL")
+	MeshKit.box(pad, Vector3(0.04, 0.032, 0.1), Vector3(0.05, 0.016, 0.0), black, "GripR")
+
+
+## テレビ画面の絵：空のグラデーションと、重なる丘、小さな太陽（ロゴ・文字なし）。160×90。
+func _tv_picture() -> ImageTexture:
+	var w := 160
+	var h := 90
+	var img := Image.create(w, h, false, Image.FORMAT_RGB8)
+	for y in h:
+		var f := float(y) / h
+		for x in w:
+			var c := Color(0.35, 0.55, 0.85).lerp(Color(0.95, 0.75, 0.6), f)
+			var d := Vector2(x - 118.0, y - 24.0).length()
+			if d < 9.0:
+				c = Color(1.0, 0.95, 0.7)
+			var hill1 := 62.0 + 7.0 * sin(x * 0.07)
+			var hill2 := 72.0 + 6.0 * sin(x * 0.11 + 2.0)
+			if y > hill1:
+				c = Color(0.3, 0.55, 0.4)
+			if y > hill2:
+				c = Color(0.18, 0.4, 0.3)
+			img.set_pixel(x, y, c)
+	return ImageTexture.create_from_image(img)
 
 
 func _build_lights() -> void:

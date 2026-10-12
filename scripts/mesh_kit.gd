@@ -287,6 +287,29 @@ static func sticker(parent: Node3D, n: int, h: float, pos: Vector3, normal: Vect
 	return mi
 
 
+## スリッパ1足（左右2つ）。pos は足の中心（床の上）、yaw は つま先の向き（度。0 で +z、90 で +x）。
+## 底（sole_col）と甲の覆い（col）の2色。0.255m の足型で、左右の間隔 0.11m。見た目だけ（当たり判定なし）。
+static func slipper_pair(parent: Node3D, pos: Vector3, yaw: float, col: Color, sole_col: Color, node_name := "Slippers") -> Node3D:
+	var root := Node3D.new()
+	root.name = node_name
+	root.position = pos
+	root.rotation.y = deg_to_rad(yaw)
+	parent.add_child(root)
+	var sole_m := mat("slipper_sole_%s" % sole_col.to_html(false), sole_col, 0.9)
+	var top_m := mat("slipper_top_%s" % col.to_html(false), col, 0.95)
+	for side in [-1.0, 1.0]:
+		var foot := Node3D.new()
+		foot.name = "Left" if side < 0.0 else "Right"
+		foot.position = Vector3(side * 0.055, 0.0, 0.0)
+		foot.rotation.y = deg_to_rad(side * 3.5)
+		root.add_child(foot)
+		var sole := box(foot, Vector3(0.095, 0.014, 0.255), Vector3(0, 0.007, 0), sole_m, "Sole")
+		sole.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		box(foot, Vector3(0.092, 0.03, 0.125), Vector3(0, 0.029, 0.062), top_m, "Cover")
+		box(foot, Vector3(0.088, 0.018, 0.05), Vector3(0, 0.022, -0.1), top_m, "Heel")
+	return root
+
+
 ## 水面用の半透明マテリアル（共有）。
 static func water_surface_mat() -> StandardMaterial3D:
 	if _mat_cache.has("water_surface"):

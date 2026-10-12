@@ -31,6 +31,8 @@ func _ready() -> void:
 	_build_mirror(room)
 	_build_washcloth()
 	_build_photo()
+	# 浴室用のスリッパ（右の壁ぎわ、入口の手前。洗面台・風呂桶・用具の台から離れている）
+	MeshKit.slipper_pair(self, Vector3(0.68, 0.0, 0.98), -6.0, Color(0.55, 0.78, 0.82), Color(0.9, 0.9, 0.88), "BathSlippers")
 	_build_contact_shadows()
 
 
