@@ -33,6 +33,17 @@ const MESSAGES := {
 	"remote_already_full": "もうお湯は設定の量まで入っている。",
 	"remote_need_water": "お湯が少ないので追い焚きできない。",
 	"washlet_need_sit": "座っているときだけ使える。",
+	"remote_power_on": "運転を入れた。40℃。",
+	"remote_power_off": "運転を切った。",
+	"remote_auto_start": "ふろ自動：お湯はりを始めた。",
+	"remote_auto_done": "ふろ自動：お湯はりが終わった。",
+	"remote_reheat_start": "追い焚きを始めた。",
+	"remote_reheat_done": "追い焚きが終わった。",
+	"remote_stopped": "お湯はり・追い焚きを止めた。",
+	"washlet_rear_on": "おしり：作動中。",
+	"washlet_bidet_on": "ビデ：作動中。",
+	"washlet_stopped": "洗浄を止めた。",
+	"washlet_stood_up": "立ったので、洗浄が止まった。",
 	"paper_holder": "いつものトイレットペーパー。ここだけは平常運転だ。",
 	"spare_roll": "『明日もある』。今日の分は、なんとかしてほしい。",
 	"toilet_cleaner": "『無かったことに』。閉じ込められた件にも効くだろうか。",
@@ -172,6 +183,7 @@ func _ready() -> void:
 	add_child(player)
 	player.global_position = room.spawn_position
 	player.interact_requested.connect(_on_interact_requested)
+	room.bath_remote.notice.connect(func(key: String) -> void: hud.show_message(MESSAGES[key]))
 	player.crouch_blocked.connect(func() -> void: hud.show_message(MESSAGES["no_headroom"]))
 
 
@@ -284,6 +296,8 @@ func do_action() -> void:
 		"stand_up":
 			if player.leave_fixed(SEAT_EXITS):
 				room.toilet.occupied = false
+				if not room.toilet_panel.mode.is_empty():
+					hud.show_message(MESSAGES["washlet_stood_up"])
 				room.toilet_panel.stop()   # 立つと操作パネルは止まる
 			else:
 				hud.show_message(MESSAGES["no_way_out"])
@@ -316,6 +330,9 @@ func _prompt_for(target: Object) -> String:
 	var id := String(target.get_meta("interact_id", ""))
 	var fixture: Object = target.get_meta("fixture") if target.has_meta("fixture") else null
 	if fixture:
+		# リモコン・操作パネルは「ボタン名：状態｜クリックしたときの動作」をそのまま返す
+		if fixture.has_method("get_prompt_text"):
+			return fixture.get_prompt_text(id)
 		return PROMPTS.get(fixture.get_prompt(id), "")
 	match id:
 		"":

@@ -7,6 +7,9 @@ extends Node3D
 ##   停止      … ふろ自動と追い焚きを止める
 ## この節点はパネルの中心（壁面）に置き、ローカル +z が部屋側。ボタンごとに照準の判定（Area3D）を持つ。
 
+## 照準を外していても分かるよう、お湯はり・追い焚きが終わったときに短いメッセージのキーを知らせる
+signal notice(key: String)
+
 const MeshKit := preload("res://scripts/mesh_kit.gd")
 const UIPanel := preload("res://scripts/ui_panel.gd")
 
@@ -22,6 +25,8 @@ var _display: Label
 var _status: Label
 var _lamps: Array[Panel] = []
 var _screen: Panel
+var _was_auto := false
+var _was_reheat := false
 
 
 func setup(tub: Node3D) -> void:
@@ -54,6 +59,13 @@ func _ready() -> void:
 
 
 func _process(_delta: float) -> void:
+	if bathtub:
+		if _was_auto and not bathtub.auto_filling and bathtub.auto_done:
+			notice.emit("remote_auto_done")
+		if _was_reheat and not bathtub.reheating and power:
+			notice.emit("remote_reheat_done")
+		_was_auto = bathtub.auto_filling
+		_was_reheat = bathtub.reheating
 	_refresh()
 
 
@@ -85,7 +97,32 @@ func status_text() -> String:
 # ---------------------------------------------------------------- main.gd から呼ばれる
 
 func get_prompt(id: String) -> String:
-	return id   # main.gd の PROMPTS に "remote_power" などがある
+	return id
+
+
+## 照準を合わせたときの案内：「ボタン名：状態｜クリックしたときの動作」。
+func get_prompt_text(id: String) -> String:
+	var t = bathtub
+	match id:
+		"remote_power":
+			return "運転：ON（40℃）｜クリックで運転を切る" if power else "運転：OFF｜クリックで運転を入れる"
+		"remote_auto":
+			if not power:
+				return "ふろ自動：運転OFF｜先に「運転」を入れる"
+			if t.auto_filling:
+				return "ふろ自動：お湯はり中｜止めるときは「停止」"
+			return "ふろ自動：停止中｜クリックで開始"
+		"remote_reheat":
+			if not power:
+				return "追い焚き：運転OFF｜先に「運転」を入れる"
+			if t.reheating:
+				return "追い焚き：作動中｜止めるときは「停止」"
+			return "追い焚き：停止中｜クリックで開始"
+		"remote_stop":
+			if t.auto_filling or t.reheating:
+				return "停止：クリックでお湯はり・追い焚きを止める"
+			return "停止：止めるものはない"
+	return ""
 
 
 ## 押したボタンの動作。結果の説明文のキーを返す（なければ空）。
@@ -95,6 +132,10 @@ func interact(id: String) -> String:
 			power = not power
 			if not power:
 				bathtub.stop_remote()
+				_was_auto = false
+				_was_reheat = false
+			_refresh()
+			return "remote_power_on" if power else "remote_power_off"
 		"remote_auto":
 			if not power:
 				return "remote_off"
@@ -103,12 +144,23 @@ func interact(id: String) -> String:
 					return "remote_plug_open"
 				"full":
 					return "remote_already_full"
+			_was_auto = true
+			_refresh()
+			return "remote_auto_start"
 		"remote_reheat":
 			if not power:
 				return "remote_off"
 			if bathtub.start_reheat() == "low":
 				return "remote_need_water"
+			_was_reheat = true
+			_refresh()
+			return "remote_reheat_start"
 		"remote_stop":
+			var running: bool = bathtub.auto_filling or bathtub.reheating
 			bathtub.stop_remote()
+			_was_auto = false
+			_was_reheat = false
+			_refresh()
+			return "remote_stopped" if running else ""
 	_refresh()
 	return ""

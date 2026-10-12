@@ -104,13 +104,17 @@ func _run() -> void:
 	player.global_position = Vector3(0.4, 0.0, -0.3)
 	_aim(player, remote.to_global(Vector3(-0.07, -0.02, 0.016)))
 	var b_power = player.get_focused(true)
-	_check(_id(b_power) == "remote_power" and main._prompt_for(b_power) == main.PROMPTS["remote_power"], "リモコンの「運転」を狙える")
+	_check(_id(b_power) == "remote_power" and main._prompt_for(b_power) == "運転：OFF｜クリックで運転を入れる", "リモコンの「運転」を狙うと「運転：OFF｜クリックで運転を入れる」")
 	_check(remote.status_text() == "" and remote._display.text == "", "初期状態は運転OFF（表示なし）")
 	main.hud._message_label.text = ""
 	_press(main, player, remote, "remote_auto")
 	_check(main.hud._message_label.text == main.MESSAGES["remote_off"] and not tub.auto_filling, "運転OFFでは「ふろ自動」は動かない")
 	_press(main, player, remote, "remote_power")
-	_check(remote.power and remote._display.text == "40℃" and remote.status_text() == "運転中", "運転ONで 40℃ を表示")
+	_check(remote.power and remote._display.text == "40℃" and remote.status_text() == "運転中"
+			and main.hud._message_label.text == main.MESSAGES["remote_power_on"], "運転ONで 40℃ を表示し、メッセージでも知らせる")
+	_check(_prompt_at(main, player, remote, "remote_auto") == "ふろ自動：停止中｜クリックで開始"
+			and _prompt_at(main, player, remote, "remote_reheat") == "追い焚き：停止中｜クリックで開始"
+			and _prompt_at(main, player, remote, "remote_stop") == "停止：止めるものはない", "各ボタンの案内に名前・状態・動作が出る")
 	# 栓が抜けていると拒否
 	tub.set_plug(false)
 	main.hud._message_label.text = ""
@@ -118,7 +122,10 @@ func _run() -> void:
 	_check(main.hud._message_label.text == main.MESSAGES["remote_plug_open"] and not tub.auto_filling, "栓が抜けていると案内を出し、ふろ自動を始めない")
 	tub.set_plug(true)
 	_press(main, player, remote, "remote_auto")
-	_check(tub.auto_filling and tub.is_filling() and not tub.faucet.is_on, "栓をして「ふろ自動」で給水が始まる（手の蛇口は動かない）")
+	_check(tub.auto_filling and tub.is_filling() and not tub.faucet.is_on and main.hud._message_label.text == main.MESSAGES["remote_auto_start"],
+			"栓をして「ふろ自動」で給水が始まる（手の蛇口は動かない）。「お湯はりを始めた」")
+	_check(_prompt_at(main, player, remote, "remote_auto") == "ふろ自動：お湯はり中｜止めるときは「停止」"
+			and _prompt_at(main, player, remote, "remote_stop") == "停止：クリックでお湯はり・追い焚きを止める", "お湯はり中の案内")
 	await _frames(3)
 	_check(remote.status_text() == "お湯はり中", "表示「お湯はり中」")
 	var l0: float = tub.level
@@ -132,7 +139,9 @@ func _run() -> void:
 	tub.faucet.set_on(false)
 	tub.advance(100.0)
 	_check(is_equal_approx(tub.level, tub.AUTO_LEVEL) and not tub.auto_filling and tub.auto_done, "設定水位（%.1f）で自動停止" % tub.AUTO_LEVEL)
+	main.hud._message_label.text = ""
 	await _frames(3)
+	_check(main.hud._message_label.text == main.MESSAGES["remote_auto_done"], "お湯はりが終わると、照準を外していてもメッセージで分かる")
 	_check(remote.status_text() == "お湯はり完了", "表示「お湯はり完了」")
 	tub.advance(30.0)
 	_check(is_equal_approx(tub.level, tub.AUTO_LEVEL), "止まったあとは水位を保つ")
@@ -176,7 +185,10 @@ func _run() -> void:
 	_check(is_equal_approx(tub._reheat_left, tl), "一時停止中は追い焚きの時間も止まる")
 	main._resume()
 	tub.advance(10.0)
-	_check(not tub.reheating and not tub._swirl.visible, "しばらくすると追い焚きは終わる")
+	main.hud._message_label.text = ""
+	await _frames(3)
+	_check(not tub.reheating and not tub._swirl.visible and main.hud._message_label.text == main.MESSAGES["remote_reheat_done"],
+			"しばらくすると追い焚きは終わり、メッセージで分かる")
 	_press(main, player, remote, "remote_auto")
 	_press(main, player, remote, "remote_power")
 	_check(not remote.power and not tub.auto_filling and not tub.reheating, "運転OFFで自動運転も止まる")
@@ -211,13 +223,16 @@ func _run() -> void:
 	var flat := Vector3(cam_to_panel.x, 0.0, cam_to_panel.z).normalized()
 	_check(cam_to_panel.y < 0.0 and flat.dot(left) > 0.7, "パネルは座った本人の左下にある")
 	player.try_interact()
+	_check(main.hud._message_label.text == main.MESSAGES["washlet_rear_on"]
+			and main._prompt_for(player.get_focused(true)) == "おしり：作動中｜クリックで選択", "「おしり」：メッセージと案内で作動中と分かる")
 	_check(panel.mode == "rear" and panel._status.text == "おしり 作動中" and panel._lamps[0].get_theme_stylebox("panel").bg_color != Color(0.3, 0.3, 0.3), "「おしり」でランプと作動表示")
 	_aim(player, panel.to_global(Vector3(0.0, 0.006, 0.0)))
 	player.try_interact()
 	_check(panel.mode == "bidet", "「ビデ」へ切り替え")
 	_aim(player, panel.to_global(Vector3(0.044, 0.006, 0.0)))
 	player.try_interact()
-	_check(panel.mode == "", "「止」で止まる")
+	_check(panel.mode == "" and main.hud._message_label.text == main.MESSAGES["washlet_stopped"], "「止」で止まり、「洗浄を止めた」")
+	_check(main._prompt_for(player.get_focused(true)) == "止：作動していない", "止まっているときの「止」の案内")
 	_aim(player, rear_pt)
 	player.try_interact()
 	# レバーは別に使える
@@ -226,7 +241,7 @@ func _run() -> void:
 	_check(toilet.flushing and panel.mode == "rear", "座ったままタンクのレバーで流せる（パネルとは別）")
 	# 立つと自動停止
 	await _key(KEY_E)
-	_check(panel.mode == "", "立つと操作パネルは止まる")
+	_check(panel.mode == "" and main.hud._message_label.text == main.MESSAGES["washlet_stood_up"], "立つと操作パネルは止まり、メッセージで分かる")
 	await _seconds(0.8)
 	_check(player.pose == Pose.WALK, "立った")
 	# パネルが壁・便器を突き抜けない
@@ -262,6 +277,12 @@ func _press(main: Node, player: Node3D, remote: Node3D, id: String) -> void:
 	if _id(f) != id:
 		print("    （%s を狙えなかった：%s）" % [id, _id(f)])
 	player.try_interact()
+
+
+func _prompt_at(main: Node, player: Node3D, remote: Node3D, id: String) -> String:
+	var area: Area3D = remote.get_node("Button%d" % remote.BUTTONS.find(id))
+	_aim(player, (area.get_child(0) as Node3D).global_position)
+	return main._prompt_for(player.get_focused(true))
 
 
 func _aim_get(player: Node3D, p: Vector3) -> Object:

@@ -83,15 +83,33 @@ func get_prompt(id: String) -> String:
 	return id
 
 
+## 照準を合わせたときの案内：「ボタン名：状態｜クリックしたときの動作」。
+func get_prompt_text(id: String) -> String:
+	if not toilet.occupied:
+		return "%s：座っているときだけ使える" % LABELS[BUTTONS.find(id)]
+	match id:
+		"washlet_rear":
+			return "おしり：%s｜クリックで選択" % ("作動中" if mode == "rear" else "停止中")
+		"washlet_bidet":
+			return "ビデ：%s｜クリックで選択" % ("作動中" if mode == "bidet" else "停止中")
+		"washlet_stop":
+			return "止：クリックで洗浄を停止" if not mode.is_empty() else "止：作動していない"
+	return ""
+
+
 func interact(id: String) -> String:
 	if not toilet.occupied:
 		return "washlet_need_sit"
+	var key := ""
 	match id:
 		"washlet_rear":
 			mode = "rear"
+			key = "washlet_rear_on"
 		"washlet_bidet":
 			mode = "bidet"
+			key = "washlet_bidet_on"
 		"washlet_stop":
+			key = "washlet_stopped" if not mode.is_empty() else ""
 			mode = ""
 	_refresh()
-	return ""
+	return key

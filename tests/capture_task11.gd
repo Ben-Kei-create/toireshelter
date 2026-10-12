@@ -56,17 +56,41 @@ func _run() -> void:
 	room.toilet_panel.interact("washlet_rear")
 	_hide_msg(main)
 	await _shot_seated(p, "t11_toilet_panel_seated", room.toilet_panel.global_position)
+	# 通常の画角（80°）で「おしり」に照準を合わせたときの案内
+	var rear: Area3D = room.toilet_panel.get_node("Button0")
+	await _shot_seated_prompt(main, p, "t11_prompt_panel_80deg", (rear.get_child(0) as Node3D).global_position)
 	# 参考：同じ着座位置から画角を狭めた拡大（ゲーム内の画角は 80°）
 	p.camera.fov = 25.0
 	await _shot_seated(p, "t11_toilet_panel_seated_zoom_reference", room.toilet_panel.global_position)
 	main.do_action()
 	await create_timer(0.9).timeout
-	p.global_position = Vector3(0.3, 0.0, -0.6)
+	p.global_position = Vector3(0.25, 0.0, -0.15)
 	await create_timer(1.0).timeout   # 立ち上がりの目の高さが落ち着くまで
 	p.camera.fov = 30.0
 	_hide_msg(main)
-	await _shot(p, "t11_bath_remote_zoom_reference", Vector3(0.3, 0.0, -0.6), room.bath_remote.global_position)
+	await _shot(p, "t11_bath_remote_zoom_reference", Vector3(0.25, 0.0, -0.15), room.bath_remote.global_position)
+	# 通常の画角（80°）で「ふろ自動」に照準を合わせたときの案内（お湯はり中）
+	p.camera.fov = 80.0
+	tub.level = 0.3
+	tub.advance(0.0)
+	room.bath_remote.interact("remote_auto")
+	var auto_btn: Area3D = room.bath_remote.get_node("Button1")
+	p.global_position = Vector3(0.25, 0.0, -0.15)   # 浴槽の縁・洗面台に体が重ならない位置
+	await _shot_seated_prompt(main, p, "t11_prompt_remote_80deg", (auto_btn.get_child(0) as Node3D).global_position)
 	quit()
+
+
+## 照準を合わせ、案内（プロンプト）が出た状態で撮る。メッセージは消しておく。
+func _shot_seated_prompt(main: Node, p, name: String, look: Vector3) -> void:
+	_aim(p, look)
+	for i in 4:
+		await physics_frame
+	main._process(0.0)
+	_hide_msg(main)
+	for i in 6:
+		await process_frame
+	await RenderingServer.frame_post_draw
+	root.get_texture().get_image().save_png(out.path_join(name + ".png"))
 
 
 func _hide_msg(main: Node) -> void:
