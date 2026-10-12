@@ -7,6 +7,7 @@ extends CharacterBody3D
 ##   CROUCH     … しゃがむ（目の高さ 0.6m、体の高さ 0.7m、移動は遅い）。C で切り替え。立つ前に頭上を確かめる
 ##   SEATED     … 便器に座っている（決まった位置から見回すだけ。歩けない・しゃがめない）
 ##   IN_TUB     … 浴槽の中（決まった位置から見回すだけ）
+##   DUCT       … 換気経路の中（低い姿勢で這う。目 0.38m・体 0.5m・半径 0.2m・速さ 0.7m/s。立ち上がれない）
 ##   TRANSITION … 座る／立つ／浴槽に入る／出るの移動演出中（見回し・操作・移動すべて無効）
 ## SEATED / IN_TUB / TRANSITION の間は体の当たり判定を切り、重力もかけない（決まった位置に置くため）。
 ## 足元（このノードの原点）はどの姿勢でも床の高さで、体の形は足元から上に伸ばす。
@@ -14,7 +15,7 @@ extends CharacterBody3D
 signal interact_requested(target: Object)
 signal crouch_blocked   # 頭上が狭くて立てなかった
 
-enum Pose { WALK, CROUCH, SEATED, IN_TUB, TRANSITION }
+enum Pose { WALK, CROUCH, SEATED, IN_TUB, TRANSITION, DUCT }
 
 const SPEED := 1.8
 const CROUCH_SPEED := 0.8
@@ -30,6 +31,10 @@ const CROUCH_BODY_HEIGHT := 0.7
 const EYE_LERP_SPEED := 8.0       # 目の高さの追従（大きいほど速い）
 const PITCH_LIMIT_DEG := 85.0
 const MOVE_TIME := 0.6            # 座る／浴槽に入るときの移動演出の長さ
+const DUCT_SPEED := 0.7
+const DUCT_EYE_HEIGHT := 0.38
+const DUCT_BODY_HEIGHT := 0.5
+const DUCT_BODY_RADIUS := 0.2
 
 var controls_enabled := true
 var pose: Pose = Pose.WALK
@@ -120,15 +125,19 @@ func _physics_process(delta: float) -> void:
 	dir.y = 0.0
 	if dir.length() > 0.001:
 		dir = dir.normalized()
-	var speed := CROUCH_SPEED if pose == Pose.CROUCH else SPEED
+	var speed := SPEED
+	if pose == Pose.CROUCH:
+		speed = CROUCH_SPEED
+	elif pose == Pose.DUCT:
+		speed = DUCT_SPEED
 	velocity.x = dir.x * speed
 	velocity.z = dir.z * speed
 	move_and_slide()
 
 
-## 歩ける姿勢（立つ／しゃがむ）か。
+## 自分の足で動ける姿勢（立つ／しゃがむ／換気経路で這う）か。
 func is_walking() -> bool:
-	return pose == Pose.WALK or pose == Pose.CROUCH
+	return pose == Pose.WALK or pose == Pose.CROUCH or pose == Pose.DUCT
 
 
 # ---------------------------------------------------------------- しゃがむ
@@ -151,9 +160,9 @@ func toggle_crouch() -> bool:
 
 
 ## 足元 feet に、高さ height の体が壁や設備に重ならずに入るか。
-func is_space_free(feet: Vector3, height: float) -> bool:
+func is_space_free(feet: Vector3, height: float, radius: float = BODY_RADIUS) -> bool:
 	var capsule := CapsuleShape3D.new()
-	capsule.radius = BODY_RADIUS
+	capsule.radius = radius
 	capsule.height = height
 	var params := PhysicsShapeQueryParameters3D.new()
 	params.shape = capsule
@@ -164,7 +173,8 @@ func is_space_free(feet: Vector3, height: float) -> bool:
 	return get_world_3d().direct_space_state.intersect_shape(params, 1).is_empty()
 
 
-func _set_body_height(height: float) -> void:
+func _set_body_height(height: float, radius: float = BODY_RADIUS) -> void:
+	_capsule.radius = radius
 	_capsule.height = height
 	_shape.position = Vector3(0.0, height * 0.5, 0.0)
 
@@ -176,38 +186,50 @@ func _set_body_height(height: float) -> void:
 func enter_fixed(target_pose: Pose, feet: Vector3, yaw: float, eye: float) -> void:
 	if not is_walking():
 		return
-	_shape.disabled = true
-	_settled_pose = target_pose
-	pose = Pose.TRANSITION
-	var tween := create_tween().set_parallel()
-	tween.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-	tween.tween_property(self, "global_position", feet, MOVE_TIME)
-	tween.tween_property(self, "rotation:y", _nearest_angle(rotation.y, yaw), MOVE_TIME)
-	tween.tween_property(camera, "position:y", eye, MOVE_TIME)
-	tween.chain().tween_callback(func() -> void: pose = _settled_pose)
+	move_to(target_pose, feet, yaw, eye)
 
 
-## 座っている／浴槽にいる状態から、候補の足元のうち最初に空いている所へ立って戻る。
+## 座っている／浴槽にいる／換気経路にいる状態から、候補の足元のうち最初に空いている所へ立って移る。
 ## どこも空いていなければ何もせず false。
-func leave_fixed(candidates: Array) -> bool:
-	if pose != Pose.SEATED and pose != Pose.IN_TUB:
+func leave_fixed(candidates: Array, via: Array = []) -> bool:
+	if pose != Pose.SEATED and pose != Pose.IN_TUB and pose != Pose.DUCT:
 		return false
 	for c in candidates:
 		var feet: Vector3 = c
 		if is_space_free(feet, BODY_HEIGHT):
-			_set_body_height(BODY_HEIGHT)
-			_settled_pose = Pose.WALK
-			_eye_target = EYE_HEIGHT
-			pose = Pose.TRANSITION
-			var tween := create_tween().set_parallel()
-			tween.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-			tween.tween_property(self, "global_position", feet, MOVE_TIME)
-			tween.tween_property(camera, "position:y", EYE_HEIGHT, MOVE_TIME)
-			tween.chain().tween_callback(func() -> void:
-				_shape.disabled = false
-				pose = _settled_pose)
+			move_to(Pose.WALK, feet, rotation.y, EYE_HEIGHT, via, true, BODY_HEIGHT, BODY_RADIUS)
 			return true
 	return false
+
+
+## 移動演出の共通部分。体の当たり判定を切って、via（足元の経由点）を順に通り feet へ移る。
+## 終わると target_pose になる。enable_body なら体の形を (body_h, body_r) にして当たり判定を戻す。
+func move_to(target_pose: Pose, feet: Vector3, yaw: float, eye: float, via: Array = [],
+		enable_body := false, body_h := BODY_HEIGHT, body_r := BODY_RADIUS) -> void:
+	_shape.disabled = true
+	_settled_pose = target_pose
+	pose = Pose.TRANSITION
+	velocity = Vector3.ZERO
+	if target_pose == Pose.WALK or target_pose == Pose.CROUCH:
+		_eye_target = eye
+	var points := via.duplicate()
+	points.append(feet)
+	# 経由点が多いときは少し長く（1区間あたり最低 0.3 秒）。向きと目の高さは全体の時間で変える
+	var total := maxf(MOVE_TIME, 0.3 * points.size())
+	var seg := total / points.size()
+	var look := create_tween().set_parallel()
+	look.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	look.tween_property(self, "rotation:y", _nearest_angle(rotation.y, yaw), total)
+	look.tween_property(camera, "position:y", eye, total)
+	var tween := create_tween()
+	tween.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	for i in points.size():
+		tween.tween_property(self, "global_position", points[i], seg)
+	tween.tween_callback(func() -> void:
+		if enable_body:
+			_set_body_height(body_h, body_r)
+			_shape.disabled = false
+		pose = _settled_pose)
 
 
 func _nearest_angle(from: float, to: float) -> float:

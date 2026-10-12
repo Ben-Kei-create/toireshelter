@@ -1,5 +1,8 @@
 extends Node3D
-## ゲーム進行（開始→探索→ドライバー取得→ドア修理→脱出）・持ち物・一時停止を管理する。
+## ゲーム進行・持ち物・一時停止・クリア判定を管理する。
+## クリア（自室へ帰る）は2通り。通った経路（区画の移り変わり）で判定し、位置だけでは判定しない：
+##   正規ルート … 浴槽 → 換気口 → 換気経路 → ベランダへ降りる → 窓から自室へ（「正規ルートで帰還」）
+##   裏技ルート … ドライバーでドアを直す → 玄関ホール → 自室へ（「裏技ルートで帰還」）
 ## 操作：左クリック＝調べる・開閉・拾う／F＝選んだ持ち物を照準の対象に使う／1・2・ホイール＝持ち物を選ぶ／
 ##       Q＝選んだ持ち物を拡大して見る／E＝座る・浴槽に出入り／C＝しゃがむ
 ## 再プレイはシーンを読み込み直すので、ドライバー・ドア・所持品はすべて初期状態に戻る。
@@ -7,9 +10,11 @@ extends Node3D
 const RoomScript := preload("res://scripts/room.gd")
 const PlayerScript := preload("res://scripts/player.gd")
 const HudScript := preload("res://scripts/hud.gd")
+const ExteriorScript := preload("res://scripts/exterior.gd")
+const ApartmentScript := preload("res://scripts/apartment.gd")
 
 const MESSAGES := {
-	"start": "……気がつくと、ユニットバスに閉じ込められていた。ドアを開けて外に出よう。",
+	"start": "……気がつくと、ユニットバスに閉じ込められていた。自分の部屋に戻らないと。",
 	"toilet": "普通の便器だ。水は流れるが、ここから出られるわけではない。",
 	"bathtub": "空っぽの浴槽。乾いていて、何も入っていない。",
 	"bathtub_water": "浴槽に水がたまっている。",
@@ -60,6 +65,8 @@ const PROMPTS := {
 	"tank_close": "左クリック：タンクの蓋を戻す",
 	"cabinet_open": "左クリック：鏡の扉を開ける",
 	"cabinet_close": "左クリック：鏡の扉を閉める",
+	"window_open": "左クリック：窓を開ける",
+	"window_close": "左クリック：窓を閉める",
 	"flush": "左クリック：水を流す",
 	"towel_slide": "左クリック：タオルをずらす",
 	"towel_back": "左クリック：タオルを戻す",
@@ -79,7 +86,19 @@ const ACTION_PROMPTS := {
 	"stand_up": "E：立つ",
 	"tub_enter": "E：浴槽に入る",
 	"tub_exit": "E：浴槽から出る",
+	"vent_enter": "E：換気口へ入る",
+	"duct_back": "E：浴室へ戻る",
+	"balcony_down": "E：ベランダへ降りる",
 }
+
+const CLEAR_TITLES := {"legit": "正規ルートで帰還", "shortcut": "裏技ルートで帰還"}
+# 換気経路：入口で浴槽へ戻れる範囲（換気口の真上からの水平距離）、出口からベランダへ降りる経由点と着地候補
+const DUCT_BACK_RANGE := 0.75
+const DUCT_YAW := -PI * 0.5   # 入ったら +x（自室の上の方）を向く
+const VENT_BELOW := Vector3(-0.72, 1.6, -1.02)       # 換気口の真下（足元の経由点）
+const VENT_MOUTH := Vector3(-0.72, 2.45, -1.0)       # 換気口の中（足元の経由点）
+const DUCT_EXIT_MOUTH := Vector3(1.9, 2.5, -1.45)    # 外壁の出口の外（足元の経由点）
+const BALCONY_LANDINGS := [Vector3(1.7, 0.0, -1.7), Vector3(2.0, 0.0, -1.7), Vector3(1.6, 0.0, -1.65)]
 
 # 便器に座る位置（足元）と目の高さ、立つときに戻る通路側の候補
 const SEAT_FEET := Vector3(-0.46, 0.0, 0.0)
@@ -102,6 +121,10 @@ var has_driver := false          # ドライバーを持っているか（使っ
 var inventory: Array[String] = []   # 持ち物の id（取った順）
 var selected := -1                  # 選択中の番号（なければ -1）
 var _item_models := {}              # 拡大表示用の3Dモデル（拾ったときに複製）
+var route_duct := false            # 換気経路を通ってベランダへ降りた
+var clear_route := ""              # "legit" / "shortcut"（クリアした経路）
+var region := ""                   # 今いる区画：bath / hall / room / duct / balcony
+var _last_region := ""
 var door_open := false
 var cleared := false
 var paused := false
@@ -130,7 +153,6 @@ func _ready() -> void:
 	player.interact_requested.connect(_on_interact_requested)
 	player.crouch_blocked.connect(func() -> void: hud.show_message(MESSAGES["no_headroom"]))
 
-	room.exit_area.body_entered.connect(_on_exit_body_entered)
 
 	hud = HudScript.new()
 	hud.name = "HUD"
@@ -205,8 +227,18 @@ func _action_for(target: Object) -> String:
 		PlayerScript.Pose.SEATED:
 			return "stand_up"
 		PlayerScript.Pose.IN_TUB:
+			# 浴槽の中から換気口を狙うと「換気口へ入る」
+			if target and String(target.get_meta("interact_id", "")) == "vent":
+				return "vent_enter"
 			return "tub_exit"
 		PlayerScript.Pose.TRANSITION:
+			return ""
+		PlayerScript.Pose.DUCT:
+			var p := player.global_position
+			if Vector2(p.x - VENT_MOUTH.x, p.z - VENT_MOUTH.z).length() < DUCT_BACK_RANGE:
+				return "duct_back"
+			if p.z < ExteriorScript.DUCT_EXIT_EDGE_Z and p.x > ExteriorScript.DUCT_B.position.x:
+				return "balcony_down"
 			return ""
 	if target == null:
 		return ""
@@ -236,6 +268,18 @@ func do_action() -> void:
 				player.enter_fixed(PlayerScript.Pose.IN_TUB, feet, TUB_YAW, TUB_EYE)
 		"tub_exit":
 			if not player.leave_fixed(TUB_EXITS):
+				hud.show_message(MESSAGES["no_way_out"])
+		"vent_enter":
+			room.open_vent()
+			player.move_to(PlayerScript.Pose.DUCT, ExteriorScript.DUCT_START, DUCT_YAW, PlayerScript.DUCT_EYE_HEIGHT,
+					[VENT_BELOW, VENT_MOUTH], true, PlayerScript.DUCT_BODY_HEIGHT, PlayerScript.DUCT_BODY_RADIUS)
+		"duct_back":
+			var tub_feet: Vector3 = room.bathtub.to_global(TUB_FEET_LOCAL)
+			player.move_to(PlayerScript.Pose.IN_TUB, tub_feet, TUB_YAW, TUB_EYE, [VENT_MOUTH, VENT_BELOW])
+		"balcony_down":
+			if player.leave_fixed(BALCONY_LANDINGS, [DUCT_EXIT_MOUTH]):
+				route_duct = true
+			else:
 				hud.show_message(MESSAGES["no_way_out"])
 
 
@@ -408,13 +452,43 @@ func _model_without_areas(node: Node3D) -> Node3D:
 
 # ---------------------------------------------------------------- 脱出
 
-func _on_exit_body_entered(body: Node3D) -> void:
-	if body != player or not door_open or cleared:
+func _physics_process(_delta: float) -> void:
+	if paused or cleared:
 		return
+	region = _region_of(player.global_position)
+	if region.is_empty() or region == _last_region:
+		return
+	# 自室に入った瞬間に、直前の区画と通ってきた経路で判定する
+	if region == "room":
+		if _last_region == "hall" and door_open:
+			_clear("shortcut")
+		elif _last_region == "balcony" and route_duct:
+			_clear("legit")
+	_last_region = region
+
+
+## 足元の位置の区画。敷居など境目の上では空（直前の区画を保つ）。
+func _region_of(p: Vector3) -> String:
+	if player.pose == PlayerScript.Pose.DUCT or ExteriorScript.in_duct(p):
+		return "duct"
+	if ApartmentScript.in_room(p):
+		return "room"
+	if ApartmentScript.in_hall(p):
+		return "hall"
+	var b: AABB = ExteriorScript.BALCONY
+	if p.x > b.position.x and p.x < b.end.x and p.z > b.position.z and p.z < -1.25 and p.y > -0.2 and p.y < 2.0:
+		return "balcony"
+	if absf(p.x) < 0.9 and absf(p.z) < 1.2 and p.y < 2.0:
+		return "bath"
+	return ""
+
+
+func _clear(route: String) -> void:
 	cleared = true
+	clear_route = route
 	player.controls_enabled = false
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-	hud.show_clear()
+	hud.show_clear(CLEAR_TITLES[route])
 
 
 func _retry() -> void:

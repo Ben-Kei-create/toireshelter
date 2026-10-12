@@ -476,13 +476,19 @@ func _run() -> void:
 
 	# --- 出口通過
 	await _seconds(1.4)
-	for i in 120:
-		player.velocity = Vector3.ZERO
-		player.global_position = player.global_position.move_toward(Vector3(0.0, 0.05, 2.4), 0.03)
-		await physics_frame
-		if main.cleared:
-			break
-	_check(main.cleared, "廊下に出るとクリアになる")
+	# 玄関ホールに出ただけではクリアにならず、自室に入ると「裏技ルートで帰還」
+	for target in [Vector3(0.0, 0.05, 1.85), Vector3(1.5, 0.05, 1.85)]:
+		for i in 200:
+			player.velocity = Vector3.ZERO
+			player.global_position = player.global_position.move_toward(target, 0.03)
+			await physics_frame
+			if main.cleared or player.global_position.distance_to(target) < 0.01:
+				break
+		if target.x < 1.0:
+			_check(not main.cleared and main.region == "hall", "ドアから玄関ホールに出ただけではクリアにならない")
+	_check(main.cleared and main.clear_route == "shortcut"
+			and (main.hud._clear_menu.get_node("Center/Box").get_child(0) as Label).text == "裏技ルートで帰還",
+			"ホールから自室へ入ると「裏技ルートで帰還」でクリア")
 
 	# --- 再プレイ
 	main._retry()

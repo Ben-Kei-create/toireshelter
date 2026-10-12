@@ -18,6 +18,8 @@ const SuppliesScript := preload("res://scripts/supplies.gd")
 const SinkScript := preload("res://scripts/sink.gd")
 const MirrorCabinetScript := preload("res://scripts/mirror_cabinet.gd")
 const TowelScript := preload("res://scripts/towel.gd")
+const ApartmentScript := preload("res://scripts/apartment.gd")
+const ExteriorScript := preload("res://scripts/exterior.gd")
 
 const LAYER_WORLD := 1      # 壁・設備（プレイヤーがぶつかる）
 const LAYER_INTERACT := 2   # 拾える小物（ぶつからない、照準だけ当たる）
@@ -58,7 +60,10 @@ var spawn_position := Vector3(0.0, 0.05, 0.75)
 var door_pivot: Node3D
 var door_body: StaticBody3D
 var driver_node: Node3D
-var exit_area: Area3D
+var apartment: ApartmentScript
+var exterior: ExteriorScript
+var vent_cover: Node3D
+var vent_open := false
 var toilet: ToiletScript
 var bathtub: BathtubScript
 var sink: SinkScript
@@ -72,7 +77,13 @@ func _ready() -> void:
 	_build_environment()
 	_build_shell()
 	_build_wall_details()
-	_build_corridor()
+	# 玄関ホール・自室（apartment.gd）と、換気経路・ベランダ・外景（exterior.gd）
+	apartment = ApartmentScript.new()
+	apartment.name = "Apartment"
+	add_child(apartment)
+	exterior = ExteriorScript.new()
+	exterior.name = "Exterior"
+	add_child(exterior)
 	_build_bathtub()
 	_build_toilet()
 	_build_sink_and_mirror()
@@ -86,7 +97,6 @@ func _ready() -> void:
 	add_child(supplies)
 	_build_driver()
 	_build_door()
-	_build_exit()
 
 
 # ---------------------------------------------------------------- 公開API
@@ -95,6 +105,16 @@ func remove_driver() -> void:
 	if driver_node and is_instance_valid(driver_node):
 		driver_node.queue_free()
 	driver_node = null
+
+
+## 換気口の格子の蓋を開ける（奥側の辺を軸に下へ垂れる）。開けたまま（再プレイで閉じる）。
+func open_vent() -> void:
+	if vent_open:
+		return
+	vent_open = true
+	var tween := create_tween()
+	tween.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	tween.tween_property(vent_cover, "rotation:x", deg_to_rad(95.0), 0.35)
 
 
 func open_door() -> void:
@@ -110,7 +130,7 @@ func open_door() -> void:
 func _build_environment() -> void:
 	var env := Environment.new()
 	env.background_mode = Environment.BG_COLOR
-	env.background_color = Color(0.05, 0.05, 0.06)
+	env.background_color = Color(0.32, 0.36, 0.44)   # 外の空（夕方の曇り空）。浴室の中からは見えない
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	# 電球色（2700〜3000K 相当）で少し薄暗いユニットバス。環境光も暖色にして、影が真っ黒にならないようにする
 	env.ambient_light_color = Color(0.8, 0.77, 0.72)
@@ -136,7 +156,7 @@ func _build_environment() -> void:
 
 	var hall_light := OmniLight3D.new()
 	hall_light.name = "HallLight"
-	hall_light.position = Vector3(0.0, 2.05, 2.4)
+	hall_light.position = Vector3(0.0, 2.05, 1.85)
 	hall_light.light_color = Color(1.0, 0.92, 0.8)
 	hall_light.light_energy = 1.0
 	hall_light.omni_range = 3.0
@@ -162,7 +182,17 @@ func _build_shell() -> void:
 	var half_d := ROOM_D * 0.5
 
 	_static_box(shell, "Floor", Vector3(outer_w, WALL_T, outer_d), Vector3(0, -WALL_T * 0.5, 0), floor_mat)
-	_static_box(shell, "Ceiling", Vector3(outer_w, WALL_T, outer_d), Vector3(0, ROOM_H + WALL_T * 0.5, 0), ceil_mat)
+	# 天井：換気口の格子の内側（ExteriorScript.VENT_HOLE）に穴を空け、奥の換気経路へつなぐ
+	var hole: Rect2 = ExteriorScript.VENT_HOLE
+	var cy := ROOM_H + WALL_T * 0.5
+	var cx0 := -outer_w * 0.5
+	var cx1 := outer_w * 0.5
+	var cz0 := -outer_d * 0.5
+	var cz1 := outer_d * 0.5
+	_static_box(shell, "CeilingL", Vector3(hole.position.x - cx0, WALL_T, outer_d), Vector3((cx0 + hole.position.x) * 0.5, cy, 0), ceil_mat)
+	_static_box(shell, "CeilingR", Vector3(cx1 - hole.end.x, WALL_T, outer_d), Vector3((hole.end.x + cx1) * 0.5, cy, 0), ceil_mat)
+	_static_box(shell, "CeilingBack", Vector3(hole.size.x, WALL_T, hole.position.y - cz0), Vector3(hole.get_center().x, cy, (cz0 + hole.position.y) * 0.5), ceil_mat)
+	_static_box(shell, "CeilingFront", Vector3(hole.size.x, WALL_T, cz1 - hole.end.y), Vector3(hole.get_center().x, cy, (hole.end.y + cz1) * 0.5), ceil_mat)
 	_static_box(shell, "WallBack", Vector3(outer_w, ROOM_H, WALL_T), Vector3(0, ROOM_H * 0.5, -half_d - WALL_T * 0.5), wall_mat)
 	_static_box(shell, "WallLeft", Vector3(WALL_T, ROOM_H, ROOM_D), Vector3(-half_w - WALL_T * 0.5, ROOM_H * 0.5, 0), wall_mat)
 	# 右の壁は鏡裏収納の開口（MirrorCabinetScript.Y_RANGE × Z_RANGE）を空けて4枚に分ける
@@ -247,25 +277,6 @@ func _seam_positions(length: float) -> Array:
 	for i in range(1, count):
 		result.append(-length * 0.5 + length * i / count)
 	return result
-
-
-func _build_corridor() -> void:
-	# ドアの外の廊下（脱出先）。z: 1.3〜3.3, x: -1.0〜1.0
-	var hall := Node3D.new()
-	hall.name = "Corridor"
-	add_child(hall)
-	var wall_mat := _mat("hall_wall", Color(0.82, 0.8, 0.76))
-	var floor_mat := _mat("hall_floor", Color(0.5, 0.36, 0.24), 0.7)
-	var ceil_mat := _mat("ceiling", Color(0.95, 0.95, 0.95))
-	var z0 := ROOM_D * 0.5 + WALL_T
-	var depth := 2.0
-	var cz := z0 + depth * 0.5
-	var inner_w := 2.0
-	_static_box(hall, "HallFloor", Vector3(inner_w + WALL_T * 2.0, WALL_T, depth), Vector3(0, -WALL_T * 0.5, cz), floor_mat)
-	_static_box(hall, "HallCeiling", Vector3(inner_w + WALL_T * 2.0, WALL_T, depth), Vector3(0, ROOM_H + WALL_T * 0.5, cz), ceil_mat)
-	_static_box(hall, "HallWallL", Vector3(WALL_T, ROOM_H, depth), Vector3(-inner_w * 0.5 - WALL_T * 0.5, ROOM_H * 0.5, cz), wall_mat)
-	_static_box(hall, "HallWallR", Vector3(WALL_T, ROOM_H, depth), Vector3(inner_w * 0.5 + WALL_T * 0.5, ROOM_H * 0.5, cz), wall_mat)
-	_static_box(hall, "HallWallEnd", Vector3(inner_w + WALL_T * 2.0, ROOM_H, WALL_T), Vector3(0, ROOM_H * 0.5, z0 + depth + WALL_T * 0.5), wall_mat)
 
 
 # ---------------------------------------------------------------- 設備
@@ -395,6 +406,7 @@ func _build_vent() -> void:
 	_mesh_box(frame, Vector3(fw, fh, s - fw * 2.0), Vector3(s * 0.5 - fw * 0.5, fy, 0), frame_mat)
 
 	var cover := Node3D.new()
+	vent_cover = cover
 	cover.name = "Cover"
 	cover.position = Vector3(0, 0, -s * 0.5 + fw)   # 蝶番にする奥側の辺
 	visual.add_child(cover)
@@ -556,19 +568,6 @@ func _build_door_poster(door_visual: Node3D, half_thickness: float) -> void:
 	area.set_meta("interact_id", "poster")
 	door_pivot.add_child(area)
 	_shape_box(area, Vector3(POSTER_SIZE.x, POSTER_SIZE.y, 0.006), Vector3(center.x, center.y, -half_thickness - 0.003))
-
-
-func _build_exit() -> void:
-	# 廊下に入ったらクリア。ドアが閉じている間は物理的に入れない
-	exit_area = Area3D.new()
-	exit_area.name = "ExitArea"
-	exit_area.collision_layer = 0
-	exit_area.collision_mask = LAYER_PLAYER
-	exit_area.monitoring = true
-	exit_area.monitorable = false
-	exit_area.position = Vector3(0.0, 1.0, 2.4)
-	add_child(exit_area)
-	_shape_box(exit_area, Vector3(2.0, 2.0, 1.6), Vector3.ZERO)
 
 
 # ---------------------------------------------------------------- ヘルパー

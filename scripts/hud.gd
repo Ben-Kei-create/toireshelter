@@ -155,7 +155,8 @@ func show_pause(is_paused: bool) -> void:
 		_resume_button.grab_focus()
 
 
-func show_clear() -> void:
+func show_clear(title: String = "脱出成功") -> void:
+	(_clear_menu.get_node("Center/Box").get_child(0) as Label).text = title
 	set_prompt("")
 	_message_panel.visible = false
 	_message_time_left = 0.0
