@@ -260,6 +260,33 @@ static func faded_texture(tex: Texture2D, strength: float) -> Texture2D:
 	return out
 
 
+## ステッカー（assets/textures/stickers/sticker_NN.png）を、面の法線 normal の向きに、面から 1.5mm 浮かせて貼る。
+## h：高さ（m、幅は画像の比率から）、roll：面の中での傾き（度）。透過部分は alpha scissor で抜く。見た目だけ。
+static func sticker(parent: Node3D, n: int, h: float, pos: Vector3, normal: Vector3, roll := 0.0) -> MeshInstance3D:
+	var tex: Texture2D = load("res://assets/textures/stickers/sticker_%02d.png" % n)
+	var key := "sticker_%02d" % n
+	if not _mat_cache.has(key):
+		var m := StandardMaterial3D.new()
+		m.albedo_texture = tex
+		m.roughness = 0.8
+		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR
+		m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
+		_mat_cache[key] = m
+	var q := QuadMesh.new()
+	q.size = Vector2(h * tex.get_width() / tex.get_height(), h)
+	var mi := MeshInstance3D.new()
+	mi.name = "Sticker%02d" % n
+	mi.mesh = q
+	mi.material_override = _mat_cache[key]
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var nn := normal.normalized()
+	var up := Vector3.UP if absf(nn.dot(Vector3.UP)) < 0.95 else Vector3.FORWARD
+	mi.basis = Basis.looking_at(-nn, up) * Basis(Vector3.BACK, deg_to_rad(roll))
+	mi.position = pos + nn * 0.0015
+	parent.add_child(mi)
+	return mi
+
+
 ## 水面用の半透明マテリアル（共有）。
 static func water_surface_mat() -> StandardMaterial3D:
 	if _mat_cache.has("water_surface"):

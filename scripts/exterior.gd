@@ -226,6 +226,13 @@ func _build_balcony() -> void:
 	# 冷媒管：化粧テープを巻いた太い管が、室外機の背から外壁へ
 	var tape := MeshKit.tiled_mat("pipe_tape", TEX_PIPE_TAPE, 0.12, Color.WHITE, 0.8)
 	MeshKit.pipe(b, [unit.position + Vector3(0.0, 0.42, 0.05), Vector3(3.45, 0.8, z1 - 0.06), Vector3(3.6, 1.7, z1 - 0.04)], 0.022, tape)
+	# ステッカー：室外機の天板・隔て板・腰板の内側
+	MeshKit.sticker(b, 9, 0.12, Vector3(3.4, 0.5 + 0.001, -1.48), Vector3.UP, 20.0)
+	MeshKit.sticker(b, 10, 0.12, Vector3(3.55, 0.5 + 0.001, -1.85), Vector3.UP, -12.0)
+	MeshKit.sticker(b, 11, 0.16, Vector3(x0, 1.2, -1.7), Vector3.RIGHT, 5.0)
+	MeshKit.sticker(b, 12, 0.16, Vector3(x0, 0.85, -1.55), Vector3.RIGHT, -7.0)
+	MeshKit.sticker(b, 13, 0.16, Vector3(x1, 1.25, -1.6), Vector3.LEFT, 4.0)
+	MeshKit.sticker(b, 14, 0.14, Vector3(2.0, 0.75, z0 + 0.03), Vector3.BACK, -3.0)
 	# サンダル（窓の右側の前）と小さな植木鉢（左奥の隅）。見た目だけ
 	var sandal := MeshKit.mat("sandal", Color(0.25, 0.32, 0.42), 0.8)
 	for dz in [-0.05, 0.07]:
@@ -363,6 +370,10 @@ func _build_street() -> void:
 	# 路地の両端：別の建物が視界をふさぎ、路地はその先で曲がっていく（空が抜けないように）
 	_end_building(st, -4.6, 1.0, deg_to_rad(10.0), Color(0.78, 0.82, 0.76), [7, 11])
 	_end_building(st, 8.6, -1.0, deg_to_rad(-14.0), Color(0.86, 0.8, 0.7), [2, 12])
+	# 自動販売機：向かいの建物の1階の店先と、自分の建物の1階の壁際
+	_vending(st, Vector3(2.9, -2.0 * FLOOR_PITCH, OPPOSITE_Z + 0.36), 0.0, Color(0.78, 0.12, 0.12), [32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45])
+	_vending(st, Vector3(5.0, -2.0 * FLOOR_PITCH, FACADE_Z - FACADE_T - 0.36), PI, Color(0.92, 0.93, 0.95), [46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59])
+	_street_stickers(st)
 	# 自分の建物の換気口（各階の同じ位置）
 	for k in [-2, -1, 1, 2]:
 		_quad(st, TEX_VENT, Vector2(0.3, 0.23), Vector3(1.9, k * FLOOR_PITCH + 2.8, FACADE_Z - FACADE_T - 0.004), Vector3(0, PI, 0), "")
@@ -378,6 +389,77 @@ func _build_street() -> void:
 	for e in [Vector3(-4.0, 4.9, -2.5), Vector3(8.0, 5.1, -2.6), Vector3(3.0, 4.5, OPPOSITE_Z + 0.05), Vector3(-1.5, 4.0, FACADE_Z - 0.05)]:
 		MeshKit.pipe(st, [Vector3(pole_pos.x, top - 0.4, pole_pos.z), (Vector3(pole_pos.x, top - 0.4, pole_pos.z) + e) * 0.5 + Vector3(0, -0.35, 0), e], 0.007, wire)
 	MeshKit.auto_round = true
+
+
+## 自動販売機（幅0.9・高さ1.8・奥行き0.7）。ローカル +z が正面。明るい商品見本の窓・ボタン・取り出し口・硬貨投入口。
+## 側面と正面の下にステッカー（stickers の番号）を貼る。背景だけ（当たり判定なし）。
+func _vending(parent: Node3D, pos: Vector3, yaw: float, body_col: Color, stickers: Array) -> void:
+	var vm := Node3D.new()
+	vm.name = "VendingMachine"
+	vm.position = pos
+	vm.rotation.y = yaw
+	parent.add_child(vm)
+	var body := MeshKit.mat("vending_%s" % body_col.to_html(false), body_col, 0.4, 0.2)
+	var dark := MeshKit.mat("vending_dark", Color(0.08, 0.08, 0.09), 0.6)
+	var w := 0.9
+	var h := 1.8
+	var d := 0.7
+	MeshKit.box(vm, Vector3(w, h, d), Vector3(0, h * 0.5, 0), body, "Body")
+	MeshKit.box(vm, Vector3(w + 0.02, 0.08, d + 0.02), Vector3(0, 0.04, 0), dark, "Base")
+	# 商品見本の窓（光る）と、3段×6列の缶
+	var window := MeshKit.mat("vending_window", Color(0.95, 0.96, 1.0), 0.2)
+	window.emission_enabled = true
+	window.emission = Color(0.92, 0.95, 1.0)
+	window.emission_energy_multiplier = 1.4
+	MeshKit.box(vm, Vector3(w - 0.12, 0.72, 0.02), Vector3(0, 1.32, d * 0.5 + 0.005), window, "Window")
+	var can_cols := [Color(0.85, 0.15, 0.12), Color(0.15, 0.35, 0.75), Color(0.95, 0.75, 0.15), Color(0.2, 0.55, 0.3), Color(0.95, 0.95, 0.95), Color(0.45, 0.25, 0.15)]
+	for row in 3:
+		for col in 6:
+			var c: Color = can_cols[(row * 2 + col) % can_cols.size()]
+			var cx := -0.3 + col * 0.12
+			var cy := 1.06 + row * 0.23
+			MeshKit.cylinder(vm, 0.028, 0.1, Vector3(cx, cy + 0.05, d * 0.5 + 0.035), MeshKit.mat("can_%s" % c.to_html(false), c, 0.3, 0.4), "", -1.0, 10)
+			var btn := MeshKit.mat("vending_btn_lit" if (row + col) % 3 else "vending_btn", Color(0.3, 0.9, 0.4) if (row + col) % 3 else Color(0.9, 0.2, 0.2), 0.4)
+			btn.emission_enabled = true
+			btn.emission = btn.albedo_color
+			btn.emission_energy_multiplier = 0.8
+			MeshKit.box(vm, Vector3(0.05, 0.02, 0.012), Vector3(cx, cy - 0.025, d * 0.5 + 0.02), btn)
+	# 硬貨投入口・お札・取り出し口
+	MeshKit.box(vm, Vector3(0.14, 0.22, 0.03), Vector3(0.3, 0.78, d * 0.5 + 0.015), dark, "CoinPanel")
+	MeshKit.box(vm, Vector3(0.62, 0.18, 0.04), Vector3(-0.08, 0.28, d * 0.5 + 0.02), dark, "Dispenser")
+	var lamp := OmniLight3D.new()
+	lamp.position = Vector3(0, 1.3, d * 0.5 + 0.6)
+	lamp.light_color = Color(0.9, 0.95, 1.0)
+	lamp.light_energy = 0.6
+	lamp.omni_range = 2.5
+	vm.add_child(lamp)
+	# ステッカー：左右の側面に5〜6枚ずつ、正面の下（取り出し口のまわり）に残り
+	var places := [
+		[Vector3(w * 0.5, 1.45, 0.15), Vector3.RIGHT, 6.0], [Vector3(w * 0.5, 1.2, -0.12), Vector3.RIGHT, -4.0], [Vector3(w * 0.5, 0.95, 0.18), Vector3.RIGHT, 3.0],
+		[Vector3(w * 0.5, 0.7, -0.1), Vector3.RIGHT, -8.0], [Vector3(w * 0.5, 0.45, 0.12), Vector3.RIGHT, 5.0], [Vector3(w * 0.5, 1.62, -0.2), Vector3.RIGHT, -2.0],
+		[Vector3(-w * 0.5, 1.4, -0.12), Vector3.LEFT, -5.0], [Vector3(-w * 0.5, 1.15, 0.16), Vector3.LEFT, 4.0], [Vector3(-w * 0.5, 0.9, -0.15), Vector3.LEFT, -3.0],
+		[Vector3(-w * 0.5, 0.62, 0.12), Vector3.LEFT, 7.0], [Vector3(-w * 0.5, 0.38, -0.08), Vector3.LEFT, -6.0],
+		[Vector3(0.3, 0.52, d * 0.5 + 0.03), Vector3.BACK, 4.0], [Vector3(-0.3, 0.6, d * 0.5), Vector3.BACK, -6.0], [Vector3(0.28, 0.14, d * 0.5), Vector3.BACK, 2.0],
+	]
+	for i in mini(stickers.size(), places.size()):
+		MeshKit.sticker(vm, stickers[i], 0.13, places[i][0], places[i][1], places[i][2])
+
+
+## 向かいの建物の2階と3階の間の壁、電柱、自分の建物の外壁（換気経路の出口の横）にステッカー。
+func _street_stickers(parent: Node3D) -> void:
+	var face := OPPOSITE_Z
+	var y_band := -0.35   # 2階の看板の上、3階の窓の下
+	var opp := [[-3.3, 15], [-2.1, 16], [-0.9, 17], [0.5, 18], [1.6, 19], [3.3, 20], [4.6, 21], [6.0, 22], [7.2, 23]]
+	for i in opp.size():
+		MeshKit.sticker(parent, opp[i][1], 0.32, Vector3(opp[i][0], y_band + (0.15 if i % 2 else -0.1), face), Vector3.BACK, [-5.0, 4.0, 8.0, -3.0, 6.0][i % 5])
+	# 電柱：自分のベランダから見える高さ（重ね貼り）
+	var pole := Vector3(0.45, 0.0, -2.55)
+	var pole_n := [24, 25, 26, 27, 30, 31]
+	for i in pole_n.size():
+		MeshKit.sticker(parent, pole_n[i], 0.2, Vector3(pole.x, 0.35 + i * 0.27, pole.z + 0.15), Vector3.BACK, [-6.0, 5.0, -2.0, 9.0, -4.0, 3.0][i])
+	# 自分の建物の外壁：換気経路の出口の右
+	MeshKit.sticker(parent, 28, 0.2, Vector3(2.45, 2.75, FACADE_Z - FACADE_T), Vector3.FORWARD, -4.0)
+	MeshKit.sticker(parent, 29, 0.18, Vector3(2.7, 2.55, FACADE_Z - FACADE_T), Vector3.FORWARD, 6.0)
 
 
 ## 路地の突き当たりの建物。x：壁の位置、facing：路地側の向き（+1 = +x を向く）、yaw：少し振って曲がり角に見せる。

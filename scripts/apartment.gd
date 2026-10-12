@@ -68,6 +68,7 @@ func _ready() -> void:
 	_build_specimens()
 	_build_toy_boxes()
 	_build_cartridges()
+	_build_room_stickers()
 	_build_lights()
 
 
@@ -800,6 +801,22 @@ func _build_cartridges() -> void:
 		label.position = Vector3(body.x * 0.5 + 0.0008, body.y * 0.42, 0)
 		label.rotation.y = PI * 0.5   # 表を +x（部屋側）へ
 		cart.add_child(label)
+
+
+## 自室のステッカー：カセットの台の正面、宝石の台座の横、本棚の端の板、椅子の背、机の天板。見た目だけ。
+func _build_room_stickers() -> void:
+	var root := Node3D.new()
+	root.name = "RoomStickers"
+	add_child(root)
+	var rack_x := ROOM.position.x + 0.006 + 0.28
+	MeshKit.sticker(root, 1, 0.13, Vector3(rack_x, 0.2, 0.2), Vector3.RIGHT, -6.0)
+	MeshKit.sticker(root, 2, 0.13, Vector3(rack_x, 0.26, 0.55), Vector3.RIGHT, 4.0)
+	MeshKit.sticker(root, 3, 0.1, Vector3(rack_x, 0.15, 0.85), Vector3.RIGHT, 8.0)
+	MeshKit.sticker(root, 4, 0.12, Vector3(3.3, 0.3, 1.15 - 0.21), Vector3.FORWARD, -5.0)
+	MeshKit.sticker(root, 5, 0.12, Vector3(3.3, 0.22, 1.15 + 0.21), Vector3.BACK, 6.0)
+	MeshKit.sticker(root, 6, 0.14, Vector3(3.85, 1.35, 2.3 - 0.0125), Vector3.FORWARD, 3.0)
+	MeshKit.sticker(root, 7, 0.12, Vector3(ROOM.position.x + 0.14 + 0.72 + 0.19, 0.72, -0.55), Vector3.RIGHT, -4.0)
+	MeshKit.sticker(root, 8, 0.1, Vector3(ROOM.position.x + 0.14 + 0.38, 0.735 + 0.0005, -0.85), Vector3.UP, 15.0)
 
 
 func _build_lights() -> void:
