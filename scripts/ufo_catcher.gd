@@ -12,6 +12,7 @@ extends Node3D
 ## 遊んでいる間は調べられない。一時停止中は止まる（Room の子）。再プレイで初期状態に戻る。
 
 const MeshKit := preload("res://scripts/mesh_kit.gd")
+const Sfx := preload("res://scripts/sfx.gd")
 
 const W := 0.5
 const D := 0.5
@@ -195,6 +196,7 @@ func interact(_id: String) -> String:
 	if taken >= prizes.size():
 		return "ufo_empty"
 	busy = true
+	Sfx.play("beep")
 	var win: bool = SUCCESS_EVERY[plays % SUCCESS_EVERY.size()]
 	plays += 1
 	var target := _next_prize()
@@ -220,6 +222,7 @@ func _play(index: int, win: bool) -> void:
 	tw.tween_property(claw, "position", top, 1.1)
 	tw.tween_method(_set_cable, 0.06, CLAW_TOP_Y - CLAW_DOWN_Y, 0.8)
 	tw.tween_method(_close_prongs, 0.0, 1.0, 0.4)
+	tw.tween_callback(func() -> void: Sfx.play("clunk"))
 	if win:
 		tw.tween_callback(func() -> void: _grab(p))
 	tw.tween_method(_set_cable, CLAW_TOP_Y - CLAW_DOWN_Y, 0.06, 0.8)
@@ -227,7 +230,10 @@ func _play(index: int, win: bool) -> void:
 	tw.tween_method(_close_prongs, 1.0, 0.0, 0.3)
 	if win:
 		tw.tween_callback(func() -> void: _drop(p))
+		tw.tween_callback(func() -> void: Sfx.play("chime"))
 		tw.tween_interval(0.6)
+	else:
+		tw.tween_callback(func() -> void: Sfx.play("buzz"))
 	tw.tween_property(claw, "position", Vector3(HOME.x, CLAW_TOP_Y, HOME.y), 1.0)
 	tw.tween_callback(func() -> void: busy = false)
 

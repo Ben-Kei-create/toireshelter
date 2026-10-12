@@ -121,6 +121,70 @@ func _run() -> void:
 			if player.is_space_free(e, 1.6):
 				exits_ok = true
 		check(exits_ok, "座布団 %d から立てる位置が空いている" % seat_i)
+	# --- こたつの中を這って、反対側へ抜ける
+	var K2 = preload("res://scripts/kotatsu.gd")
+	var seat0: Dictionary = K2.SEATS[0]
+	player.global_position = seat0.feet
+	player.rotation.y = PI
+	player.pose = player.Pose.KOTATSU_SEAT
+	player.camera.position.y = K2.EYE_SEATED
+	main.kotatsu_seat = 0
+	var tgt2 = null
+	player.camera.rotation.x = -0.9
+	player.global_position = Vector3(2.6, 0.05, -0.1)
+	for i in 4:
+		await physics_frame
+	player.global_position = seat0.feet
+	player._pitch = 0.0
+	player.camera.rotation.x = 0.0
+	main.room.apartment.kotatsu.set_solid(false)
+	player.move_to(player.Pose.KOTATSU_IN, seat0.inside, PI, K2.EYE_INSIDE, [], true, player.KOTATSU_BODY_HEIGHT, player.KOTATSU_BODY_RADIUS)
+	await create_timer(1.0).timeout
+	check(player.pose == player.Pose.KOTATSU_IN and player.is_walking(), "こたつの中では這って動ける姿勢（歩ける）")
+	var before: Vector3 = player.global_position
+	Input.action_press("move_forward")
+	await create_timer(0.8).timeout
+	Input.action_release("move_forward")
+	var moved: float = player.global_position.distance_to(before)
+	check(moved > 0.25 and moved < 0.7, "WASD でこたつの中を這って進める（0.8秒で %.2fm、速さ 0.6m/s 以下）" % moved)
+	# 中を進み続けて布団の外へ出ると、抜けて立つ（または屈む）
+	Input.action_press("move_forward")
+	for i in 300:
+		await physics_frame
+		if player.pose != player.Pose.KOTATSU_IN:
+			break
+	Input.action_release("move_forward")
+	check(player.pose == player.Pose.WALK or player.pose == player.Pose.CROUCH, "布団の反対側へ出ると、立つ（または屈む）")
+	check(player.global_position.z > 1.2, "こたつの反対側（南）まで抜けた（z %.2f）" % player.global_position.z)
+	check(main.room.apartment.kotatsu.body.collision_layer == 1, "抜けたら、こたつの当たり判定が戻る")
+	# --- 浴室のドアを開けたり閉めたりできる
+	check(room.door_area.collision_layer == 0 and not room.door_unlocked, "直す前は、開け閉め用の判定は無効")
+	room.open_door()
+	await create_timer(1.5).timeout
+	check(room.door_swung and room.door_area.collision_layer == 2 and room.door_body.collision_layer == 0, "直すと開き、開け閉め用の判定が有効（通り抜けられる）")
+	check(room.door_area.get_meta("fixture").get_prompt("") == "bath_door_close" and main.PROMPTS.has("bath_door_close"), "開いているとき「トイレのドアを閉める」")
+	room.toggle_door()
+	await create_timer(1.2).timeout
+	check(not room.door_swung and room.door_body.collision_layer == 1 and absf(room.door_pivot.rotation.y) < 0.01, "閉められる（扉が戻り、体を止める判定も戻る）")
+	check(room.door_area.get_meta("fixture").get_prompt("") == "bath_door_open", "閉まっているとき「トイレのドアを開ける」")
+	room.toggle_door()
+	await create_timer(1.2).timeout
+	check(room.door_swung and room.door_body.collision_layer == 0, "もう一度開けられる")
+	# --- 勉強机の上の本3冊（本棚と同じ本が読める）
+	var desk_books := 0
+	for b in apt.get_node("StudyDesk").get_children():
+		if str(b.name).begins_with("DeskBook"):
+			desk_books += 1
+			var area: Area3D = b.get_node("BookArea")
+			check(String(area.get_meta("interact_id")).begins_with("book_") and area.get_meta("fixture") == apt.books, "%s は本を読む判定" % b.name)
+	check(desk_books == 3, "机の上の本が3冊")
+	# --- 効果音
+	var SfxS = preload("res://scripts/sfx.gd")
+	check(SfxS.instance != null and SfxS.instance._streams.size() == SfxS.NAMES.size(), "効果音が %d 種類ある" % SfxS.NAMES.size())
+	var all_ok := true
+	for n in SfxS.NAMES:
+		all_ok = all_ok and SfxS.instance._streams[n].get_length() > 0.05
+	check(all_ok, "どの効果音にも長さがある")
 	# --- 勉強机
 	var desk: Node3D = apt.get_node("StudyDesk")
 	check(desk != null and desk.get_node("Top").position.y < 0.7, "小さな勉強机がある（高さ 0.6m）")

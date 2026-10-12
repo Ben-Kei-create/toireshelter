@@ -11,6 +11,7 @@ extends Node3D
 ##     └ Collision (StaticBody3D) … 当たり判定と「調べる」対象。メタデータ interact_id を持つ
 
 const MeshKit := preload("res://scripts/mesh_kit.gd")
+const Sfx := preload("res://scripts/sfx.gd")
 const ToiletScript := preload("res://scripts/toilet.gd")
 const BathtubScript := preload("res://scripts/bathtub.gd")
 const FaucetScript := preload("res://scripts/faucet.gd")
@@ -27,6 +28,7 @@ const FrontDoorScript := preload("res://scripts/front_door.gd")
 const CorridorScript := preload("res://scripts/corridor.gd")
 const SkyClockScript := preload("res://scripts/sky_clock.gd")
 const LightSwitchScript := preload("res://scripts/light_switch.gd")
+const BathDoorControlScript := preload("res://scripts/bath_door_control.gd")
 const BathWearScript := preload("res://scripts/bath_wear.gd")
 const AmbientSoundScript := preload("res://scripts/ambient_sound.gd")
 
@@ -71,6 +73,10 @@ const PORCELAIN_COLOR := Color(0.92, 0.92, 0.92)
 var spawn_position := Vector3(0.0, 0.05, 0.75)
 var door_pivot: Node3D
 var door_body: StaticBody3D
+var door_area: Area3D          # ドアを直したあとの開け閉め用の判定（開いて通れるようになった扉にも当たる）
+var door_unlocked := false     # ドライバーで直した
+var door_swung := false        # 今、開いている
+var door_busy := false
 var driver_node: Node3D
 var apartment: ApartmentScript
 var exterior: ExteriorScript
@@ -235,6 +241,10 @@ func take_bath_powder() -> void:
 
 
 func open_door() -> void:
+	door_unlocked = true
+	door_swung = true
+	door_busy = true
+	door_area.collision_layer = LAYER_INTERACT
 	if door_body.has_meta("interact_id"):
 		door_body.remove_meta("interact_id")
 	var tween := create_tween()
@@ -242,7 +252,33 @@ func open_door() -> void:
 	tween.tween_property(door_pivot, "rotation:y", deg_to_rad(DOOR_OPEN_DEG), 1.2)
 	# 開ききったら扉の当たり判定をなくす。開いた扉はホールの左側（玄関ドアの側）を体の幅で通れなくするため、
 	# 扉をすり抜けられるようにしている（見た目の扉は残る）
-	tween.tween_callback(func() -> void: door_body.collision_layer = 0)
+	tween.tween_callback(func() -> void:
+		door_busy = false
+		if door_swung:
+			door_body.collision_layer = 0)
+
+
+## 直したドアを開けたり閉めたりする（クリック）。閉まっている間は体を止める当たり判定が戻る。
+func toggle_door() -> void:
+	if door_busy or not door_unlocked:
+		return
+	door_busy = true
+	door_swung = not door_swung
+	var tween := create_tween()
+	tween.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	if door_swung:
+		Sfx.play("creak")
+		tween.tween_property(door_pivot, "rotation:y", deg_to_rad(DOOR_OPEN_DEG), 0.9)
+		tween.tween_callback(func() -> void:
+			door_busy = false
+			if door_swung:
+				door_body.collision_layer = 0)
+	else:
+		door_body.collision_layer = LAYER_WORLD   # 閉め始めた時点で、扉の体の判定を戻す
+		tween.tween_property(door_pivot, "rotation:y", 0.0, 0.9)
+		tween.tween_callback(func() -> void:
+			Sfx.play("thunk")
+			door_busy = false)
 
 
 # ---------------------------------------------------------------- 環境・光
@@ -722,6 +758,20 @@ func _build_door() -> void:
 	door_body.set_meta("interact_id", "door")
 	door_pivot.add_child(door_body)
 	_shape_box(door_body, panel_size, panel_center)
+	# 直したあとの開け閉め用の判定（最初は無効。扉と一緒に回る）
+	var control := BathDoorControlScript.new()
+	control.name = "DoorControl"
+	control.room = self
+	add_child(control)
+	door_area = Area3D.new()
+	door_area.name = "DoorArea"
+	door_area.collision_layer = 0
+	door_area.collision_mask = 0
+	door_area.monitoring = false
+	door_area.set_meta("interact_id", "bath_door")
+	door_area.set_meta("fixture", control)
+	door_pivot.add_child(door_area)
+	_shape_box(door_area, panel_size + Vector3(0.0, 0.0, 0.02), panel_center)
 
 	_build_door_poster(visual, panel_size.z * 0.5)
 

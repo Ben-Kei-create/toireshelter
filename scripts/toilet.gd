@@ -19,6 +19,7 @@ extends Node3D
 ## アニメーション中のクリックは無視する。
 
 const MeshKit := preload("res://scripts/mesh_kit.gd")
+const Sfx := preload("res://scripts/sfx.gd")
 
 const WALL_X := -0.9
 const RIM_Y := 0.40            # 便器の縁の高さ（便座の下面）
@@ -189,6 +190,7 @@ func flush() -> void:
 	if flushing:
 		return
 	flushing = true
+	Sfx.play("flush")
 	var tween := create_tween()
 	tween.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 	# レバーを下げ、排水弁を開ける

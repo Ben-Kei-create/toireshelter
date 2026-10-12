@@ -17,8 +17,8 @@ var _rng := RandomNumberGenerator.new()
 
 func _ready() -> void:
 	_rng.seed = 20260
-	_add_loop("VentHum", _hum(), VENT_POS, -22.0, 2.0, 6.0)
-	_add_loop("AlleyMurmur", _murmur(), ALLEY_POS, -24.0, 4.0, 14.0)
+	_add_loop("VentHum", _hum(), VENT_POS, -40.0, 1.5, 4.0)   # 換気扇：ブーという単音ではなく、ごく小さな空気の流れの音
+	_add_loop("AlleyMurmur", _murmur(), ALLEY_POS, -32.0, 4.0, 14.0)
 	_drip = AudioStreamPlayer3D.new()
 	_drip.name = "Drip"
 	_drip.stream = _drip_wave()
@@ -71,15 +71,23 @@ func _wave(samples: PackedFloat32Array, loop: bool, mix_rate := MIX_RATE) -> Aud
 	return w
 
 
-## 1 秒ちょうどの周期波形（周波数を整数 Hz にして、つなぎ目のクリックを出さない）。
+## 換気扇の空気の音：低い単音（ブー）にならないよう、100〜600Hz の整数 Hz の正弦をたくさん重ねた「ふぅ」という柔らかい流れ。2 秒の周期波形。
 func _hum() -> AudioStreamWAV:
+	var rate := 11025
+	var n := rate * 2
 	var s := PackedFloat32Array()
-	s.resize(MIX_RATE)
-	for i in MIX_RATE:
-		var t := float(i) / MIX_RATE
-		var flutter := 0.85 + 0.15 * sin(TAU * 3.0 * t)
-		s[i] = flutter * (0.5 * sin(TAU * 100.0 * t) + 0.28 * sin(TAU * 200.0 * t + 0.7) + 0.14 * sin(TAU * 300.0 * t + 1.9) + 0.07 * sin(TAU * 750.0 * t))
-	return _wave(s, true)
+	s.resize(n)
+	var parts := []
+	for k in 36:
+		var f := float(_rng.randi_range(100, 600))
+		parts.append([f, _rng.randf() * TAU, 1.0 / sqrt(f / 100.0), float(_rng.randi_range(1, 3))])
+	for i in n:
+		var t := float(i) / rate
+		var v := 0.0
+		for p in parts:
+			v += (0.65 + 0.35 * sin(TAU * 0.5 * t * p[3] + p[1])) * p[2] * sin(TAU * p[0] * t + p[1])
+		s[i] = v * 0.03
+	return _wave(s, true, rate)
 
 
 ## 2 秒の周期波形。整数 Hz の正弦をたくさん重ねた、さわさわした雑音（高い音ほど弱く）。

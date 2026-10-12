@@ -268,7 +268,7 @@ func _build_opposite() -> void:
 	var x1 := 8.0
 	MeshKit.box(o, Vector3(x1 - x0, 20.0, 0.3), Vector3((x0 + x1) * 0.5, 2.0, OPPOSITE_Z - 0.15), wall, "Wall")
 	# 路地の地面（2階分下）
-	MeshKit.box(o, Vector3(x1 - x0, 0.1, OPPOSITE_Z - BALCONY.position.z + 0.8), Vector3((x0 + x1) * 0.5, -2.0 * FLOOR_PITCH - 0.05, (OPPOSITE_Z + FACADE_Z) * 0.5), MeshKit.tiled_mat("alley_concrete", TEX_CONCRETE, 1.2, Color(0.75, 0.75, 0.75), 1.0), "Alley")
+	MeshKit.box(o, Vector3(x1 - x0, 0.1, FACADE_Z - OPPOSITE_Z + 0.6), Vector3((x0 + x1) * 0.5, -2.0 * FLOOR_PITCH - 0.05, (OPPOSITE_Z + FACADE_Z) * 0.5 - 0.3), MeshKit.tiled_mat("alley_concrete", TEX_CONCRETE, 1.2, Color(0.75, 0.75, 0.75), 1.0), "Alley")
 	var glass := MeshKit.mat("opp_glass", Color(0.16, 0.18, 0.2), 0.2, 0.2)
 	var lit := MeshKit.mat("opp_lit", Color(1.0, 0.85, 0.6), 0.6)
 	lit.emission_enabled = true

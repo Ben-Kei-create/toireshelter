@@ -558,7 +558,7 @@ func _run() -> void:
 	player.rotation.y = PI * 0.5   # -x（左の壁）を向く
 	player._pitch = 0.0
 	player.camera.rotation.x = 0.0
-	player.global_position = Vector3(-0.3, 0.05, 1.85)
+	player.global_position = Vector3(-0.75, 0.05, 1.85)   # 開いた浴室のドア（x -0.35）の向こう側（玄関ドア側）から狙う
 	for i in 4:
 		await physics_frame
 	await _frames(2)

@@ -10,6 +10,7 @@ extends Node3D
 ## 本とカードは MultiMesh で軽く作る。当たり判定は大きな家具ごとの単純な箱だけ。展示品の取得や個別操作はなし。
 
 const MeshKit := preload("res://scripts/mesh_kit.gd")
+const Sfx := preload("res://scripts/sfx.gd")
 const BooksScript := preload("res://scripts/books.gd")
 const KotatsuScript := preload("res://scripts/kotatsu.gd")
 const AirconScript := preload("res://scripts/aircon.gd")
@@ -316,6 +317,7 @@ func toggle_window() -> void:
 		return
 	window_busy = true
 	window_open = not window_open
+	Sfx.play("slide")
 	var start_x := WINDOW_X.x + ((WINDOW_X.y - WINDOW_X.x) * 0.5 + 0.02) * 0.5
 	var tween := create_tween()
 	tween.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
@@ -345,6 +347,7 @@ func toggle_curtain() -> void:
 		return
 	curtain_busy = true
 	curtain_closed = not curtain_closed
+	Sfx.play("cloth")
 	var tween := create_tween()
 	tween.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 	tween.tween_property(curtain, "scale:x", 1.0 if curtain_closed else 0.18, 0.9)
@@ -1019,7 +1022,7 @@ func _life_paper(parent: Node3D, n: int, width: float, pos: Vector3, normal: Vec
 ## こたつ・天井のエアコン・扇風機・小さな勉強机（装飾と動きのみ。kotatsu.gd・aircon.gd・fan.gd）。
 ##   こたつ   … 部屋の真ん中（x 2.6、z 0.78、布団 1.1m 四方）。座布団は北と西。西側（カセットの台・勉強机）との間に体が通れる道（幅 0.15m の余裕）を残す
 ##   エアコン … 天井の真ん中（こたつの真上）。扇風機 … 窓の右の床（x 3.0、z -0.85）
-##   勉強机   … 左の壁ぎわ、玄関ホールへの出入口の北（x 1.0〜1.4、z 1.1〜1.5、高さ 0.6m の小さな机と、机の下に入れた小さな椅子）
+##   勉強机   … 左の壁ぎわ、玄関ホールへの出入口の北（x 1.0〜1.4、z 1.1〜1.5、高さ 0.6m の小さな机と、机の下に入れた小さな椅子）。机の上に本棚と同じ本3冊（読める）
 ## 本棚（x 3.7〜）・クレーンゲーム（x 3.05〜）・机・窓・出入口の通路をふさがない位置。
 func _build_living() -> void:
 	kotatsu = KotatsuScript.new()
@@ -1045,10 +1048,37 @@ func _build_living() -> void:
 	MeshKit.box(desk, Vector3(0.34, 0.1, 0.012), Vector3(x0 + 0.2, 0.5, 1.115), wood, "Apron")
 	MeshKit.shape_box(_body, Vector3(0.4, 0.6, 0.4), Vector3(x0 + 0.2, 0.3, 1.3))
 	var lamp_m := MeshKit.mat("study_lamp", Color(0.9, 0.45, 0.4), 0.5)
-	MeshKit.cylinder(desk, 0.05, 0.015, Vector3(x0 + 0.08, 0.608, 1.18), lamp_m, "LampBase")
-	MeshKit.cylinder(desk, 0.008, 0.2, Vector3(x0 + 0.08, 0.71, 1.18), lamp_m, "LampArm")
-	MeshKit.box(desk, Vector3(0.1, 0.04, 0.08), Vector3(x0 + 0.08, 0.82, 1.2), lamp_m, "LampShade")
-	MeshKit.box(desk, Vector3(0.16, 0.012, 0.21), Vector3(x0 + 0.24, 0.606, 1.34), MeshKit.mat("study_note", Color(0.92, 0.9, 0.82), 0.9), "Notebook")
+	MeshKit.cylinder(desk, 0.05, 0.015, Vector3(x0 + 0.06, 0.608, 1.18), lamp_m, "LampBase")
+	MeshKit.cylinder(desk, 0.008, 0.2, Vector3(x0 + 0.06, 0.71, 1.18), lamp_m, "LampArm")
+	MeshKit.box(desk, Vector3(0.1, 0.04, 0.08), Vector3(x0 + 0.06, 0.82, 1.2), lamp_m, "LampShade")
+	# 机の上の本3冊（本棚の表紙の本と同じ。狙って読める）：03 椅子の渡り鳥・12 一人分の宇宙・10 石の育て方。
+	# 表紙を上に、背（上）を壁側に、横に3冊並べる（机は 0.4m 角）
+	var book_basis := Basis(Vector3(0, 0, -1), Vector3(-1, 0, 0), Vector3(0, 1, 0))
+	var yaws := [4.0, -3.0, 5.0]
+	for i in 3:
+		var n: int = [3, 12, 10][i]
+		var tex: Texture2D = load("res://assets/textures/books/book_cover_%02d.png" % n)
+		var bh := 0.17
+		var bw := bh * float(tex.get_width()) / float(tex.get_height())
+		var book := Node3D.new()
+		book.name = "DeskBook%02d" % n
+		book.position = Vector3(x0 + 0.2, 0.6, 1.3 + (i - 1) * (bw + 0.008))
+		book.rotation.y = deg_to_rad(yaws[i])
+		desk.add_child(book)
+		MeshKit.box(book, Vector3(bh, 0.024, bw), Vector3(0, 0.012, 0), MeshKit.mat("book_body_%d" % n, Color(0.3, 0.27, 0.24), 0.8), "Body")
+		MeshKit.box(book, Vector3(bh - 0.006, 0.018, bw + 0.002), Vector3(0.004, 0.011, 0), MeshKit.mat("book_pages", Color(0.92, 0.89, 0.8), 0.9), "Pages")
+		var q := QuadMesh.new()
+		q.size = Vector2(bw, bh)
+		var cover := MeshInstance3D.new()
+		cover.name = "Cover"
+		cover.mesh = q
+		cover.material_override = MeshKit.texture_mat("book_cover_%02d" % n, tex, 0.7)
+		cover.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		cover.basis = book_basis
+		cover.position = Vector3(0, 0.0245, 0)
+		book.add_child(cover)
+		var area := MeshKit.interact_area(book, "BookArea", "book_%02d" % n, books)
+		MeshKit.shape_box(area, Vector3(bh, 0.04, bw), Vector3(0, 0.02, 0))
 	MeshKit.cylinder(desk, 0.03, 0.08, Vector3(x0 + 0.33, 0.64, 1.18), MeshKit.mat("study_cup", Color(0.4, 0.6, 0.7), 0.5), "PencilCup")
 	# 小さな椅子（座面 0.32m 角、高さ 0.32m）。机の手前（部屋側）
 	var stool := Node3D.new()

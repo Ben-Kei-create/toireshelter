@@ -14,6 +14,7 @@ const HudScript := preload("res://scripts/hud.gd")
 const ExteriorScript := preload("res://scripts/exterior.gd")
 const ApartmentScript := preload("res://scripts/apartment.gd")
 const KotatsuScript := preload("res://scripts/kotatsu.gd")
+const SfxScript := preload("res://scripts/sfx.gd")
 const BooksScript := preload("res://scripts/books.gd")
 const CorridorScript := preload("res://scripts/corridor.gd")
 
@@ -84,7 +85,8 @@ const MESSAGES := {
 	"fan_on": "扇風機がまわり出した。首がゆっくり振れる。",
 	"fan_off": "扇風機を止めた。",
 	"kotatsu_look": "こたつだ。座布団がある。……あったかそう。",
-	"kotatsu_inside": "こたつの中は、赤くてあたたかい。",
+	"kotatsu_inside": "こたつの中は、赤くてあたたかい。WASD で中を這える。布団の外まで進むと、抜けられる。",
+	"kotatsu_exit": "こたつの反対側へ抜けた。",
 	"ufo_miss": "アームが降りて……景品をつかみそこねた。",
 	"ufo_win": "景品をつかんだ。取り出し口に落ちた。持ち帰れはしないらしい。",
 	"ufo_empty": "景品は、もうない。",
@@ -132,6 +134,8 @@ const PROMPTS := {
 	"curtain_open": "左クリック：カーテンを開ける",
 	"kotatsu_enter": "左クリック：こたつに入る",
 	"front_door_open": "左クリック：玄関のドアを開ける",
+	"bath_door_open": "左クリック：トイレのドアを開ける",
+	"bath_door_close": "左クリック：トイレのドアを閉める",
 	"book_read": "左クリック：本を読む",
 	"bath_light_off": "左クリック：トイレの電気を消す",
 	"bath_light_on": "左クリック：トイレの電気をつける",
@@ -224,6 +228,9 @@ func _ready() -> void:
 	get_tree().paused = false
 	_setup_input_map()
 
+	var sfx := SfxScript.new()   # 効果音（コードで作る。assets/audio/sfx/ にファイルを置くと差し替わる）
+	sfx.name = "Sfx"
+	add_child(sfx)
 	room = RoomScript.new()
 	room.name = "Room"
 	room.process_mode = Node.PROCESS_MODE_PAUSABLE
@@ -285,6 +292,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		elif event is InputEventMouseButton and event.pressed and (event as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT:
 			get_viewport().set_input_as_handled()
 			_reader_page += 1
+			SfxScript.play("page")
 			if _reader_page >= _reader_pages.size():
 				_close_reader()
 			else:
@@ -333,6 +341,7 @@ func _unhandled_input(event: InputEvent) -> void:
 func _open_reader(title: String, pages: Array, cover: Texture2D, tint: Color) -> void:
 	if reading or paused or cleared:
 		return
+	SfxScript.play("page")
 	reading = true
 	_reader_title = title
 	_reader_pages = pages
@@ -399,6 +408,7 @@ func do_action() -> void:
 			room.toilet.occupied = true
 			player.enter_fixed(PlayerScript.Pose.SEATED, SEAT_FEET, SEAT_YAW, SEAT_EYE)
 		"kotatsu_sit":
+			SfxScript.play("rustle")
 			kotatsu_seat = KotatsuScript.nearest_seat(player.global_position)
 			var seat: Dictionary = KotatsuScript.SEATS[kotatsu_seat]
 			player.enter_fixed(PlayerScript.Pose.KOTATSU_SEAT, seat.feet, seat.yaw, KotatsuScript.EYE_SEATED)
@@ -407,6 +417,8 @@ func do_action() -> void:
 				hud.show_message(MESSAGES["no_way_out"])
 		"kotatsu_out":
 			var seat2: Dictionary = KotatsuScript.SEATS[kotatsu_seat]
+			room.apartment.kotatsu.set_solid(true)
+			SfxScript.play("rustle")
 			player.move_to(PlayerScript.Pose.KOTATSU_SEAT, seat2.feet, seat2.yaw, KotatsuScript.EYE_SEATED)
 		"stand_up":
 			if player.leave_fixed(SEAT_EXITS):
@@ -505,7 +517,9 @@ func _on_interact_requested(target: Object) -> void:
 			match player.pose:
 				PlayerScript.Pose.KOTATSU_SEAT:
 					var seat3: Dictionary = KotatsuScript.SEATS[kotatsu_seat]
-					player.move_to(PlayerScript.Pose.KOTATSU_IN, seat3.inside, seat3.yaw, KotatsuScript.EYE_INSIDE)
+					room.apartment.kotatsu.set_solid(false)   # 中を這って動けるように
+					SfxScript.play("rustle")
+					player.move_to(PlayerScript.Pose.KOTATSU_IN, seat3.inside, seat3.yaw, KotatsuScript.EYE_INSIDE, [], true, PlayerScript.KOTATSU_BODY_HEIGHT, PlayerScript.KOTATSU_BODY_RADIUS)
 					hud.show_message(MESSAGES["kotatsu_inside"])
 				PlayerScript.Pose.KOTATSU_IN:
 					hud.show_message(MESSAGES["kotatsu_inside"])
@@ -523,6 +537,7 @@ func _on_interact_requested(target: Object) -> void:
 func add_item(id: String) -> bool:
 	if inventory.has(id):
 		return false
+	SfxScript.play("pop")
 	inventory.append(id)
 	select_item(inventory.size() - 1)
 	return true
@@ -658,6 +673,14 @@ func _model_without_areas(node: Node3D) -> Node3D:
 func _physics_process(_delta: float) -> void:
 	if paused or cleared:
 		return
+	if player.pose == PlayerScript.Pose.KOTATSU_IN:
+		# こたつの中を這っていて、布団の外へ出たら、抜けて立つ
+		var d := player.global_position - KotatsuScript.CENTER
+		if absf(d.x) > KotatsuScript.OUT_DISTANCE or absf(d.z) > KotatsuScript.OUT_DISTANCE:
+			player.leave_crawl()
+			room.apartment.kotatsu.set_solid(true)
+			SfxScript.play("rustle")
+			hud.show_message(MESSAGES["kotatsu_exit"])
 	region = _region_of(player.global_position)
 	if region.is_empty() or region == _last_region:
 		return

@@ -8,6 +8,7 @@ extends Node3D
 ##   FrontDoor/Pivot/Leaf  … 扉。Pivot を回して開く。Leaf は当たり判定（world）つきで、調べる対象（front_door）
 
 const MeshKit := preload("res://scripts/mesh_kit.gd")
+const Sfx := preload("res://scripts/sfx.gd")
 
 const X := -0.95
 const Z := Vector2(1.5, 2.2)
@@ -78,6 +79,7 @@ func interact(_id: String) -> String:
 	if is_open or busy:
 		return ""
 	busy = true
+	Sfx.play("creak")
 	var tween := create_tween()
 	tween.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
 	tween.tween_property(pivot, "rotation:y", deg_to_rad(OPEN_DEG), SWING_TIME)

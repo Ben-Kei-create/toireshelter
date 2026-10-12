@@ -9,7 +9,7 @@ extends CharacterBody3D
 ##   IN_TUB     … 浴槽の中（決まった位置から見回すだけ）
 ##   DUCT       … 換気経路の中（低い姿勢で這う。目 0.38m・体 0.5m・半径 0.2m・速さ 0.7m/s。立ち上がれない）
 ##   KOTATSU_SEAT … こたつの座布団に座っている（決まった位置から見回すだけ。目の高さ 0.85m）
-##   KOTATSU_IN   … こたつの布団の中（決まった位置から見回すだけ。目の高さ 0.27m）
+##   KOTATSU_IN   … こたつの布団の中。這って動ける（WASD、速さ 0.6m/s、目の高さ 0.27m、体の高さ 0.4m・半径 0.2m）。布団の外へ出ると立つ
 ##   TRANSITION … 座る／立つ／浴槽に入る／出るの移動演出中（見回し・操作・移動すべて無効）
 ## SEATED / IN_TUB / TRANSITION の間は体の当たり判定を切り、重力もかけない（決まった位置に置くため）。
 ## 足元（このノードの原点）はどの姿勢でも床の高さで、体の形は足元から上に伸ばす。
@@ -18,6 +18,8 @@ signal interact_requested(target: Object)
 signal crouch_blocked   # 頭上が狭くて立てなかった
 
 enum Pose { WALK, CROUCH, SEATED, IN_TUB, TRANSITION, DUCT, KOTATSU_SEAT, KOTATSU_IN }
+
+const Sfx := preload("res://scripts/sfx.gd")
 
 const SPEED := 1.8
 const CROUCH_SPEED := 0.8
@@ -34,6 +36,10 @@ const EYE_LERP_SPEED := 8.0       # 目の高さの追従（大きいほど速�
 const PITCH_LIMIT_DEG := 85.0
 const MOVE_TIME := 0.6            # 座る／浴槽に入るときの移動演出の長さ
 const DUCT_SPEED := 0.7
+const KOTATSU_SPEED := 0.6        # こたつの中を這う速さ
+const KOTATSU_BODY_HEIGHT := 0.4
+const KOTATSU_BODY_RADIUS := 0.2
+const STEP_DISTANCE := 0.62       # 足音を鳴らす歩幅（しゃがむ・這うときは短い）
 const DUCT_EYE_HEIGHT := 0.38
 const DUCT_BODY_HEIGHT := 0.5
 const DUCT_BODY_RADIUS := 0.2
@@ -47,6 +53,7 @@ var _shape: CollisionShape3D
 var _capsule: CapsuleShape3D
 var _eye_target := EYE_HEIGHT
 var _settled_pose: Pose = Pose.WALK   # 移動演出が終わったあとの姿勢
+var _step_acc := 0.0
 
 
 func _ready() -> void:
@@ -132,14 +139,23 @@ func _physics_process(delta: float) -> void:
 		speed = CROUCH_SPEED
 	elif pose == Pose.DUCT:
 		speed = DUCT_SPEED
+	elif pose == Pose.KOTATSU_IN:
+		speed = KOTATSU_SPEED
 	velocity.x = dir.x * speed
 	velocity.z = dir.z * speed
 	move_and_slide()
+	# 足音（歩く・しゃがむ・這うとき。歩幅ごとに小さく1回）
+	if is_on_floor() and Vector2(velocity.x, velocity.z).length() > 0.2:
+		_step_acc += Vector2(velocity.x, velocity.z).length() * delta
+		var stride := STEP_DISTANCE * (0.6 if pose != Pose.WALK else 1.0)
+		if _step_acc >= stride:
+			_step_acc = 0.0
+			Sfx.play("step", randf_range(0.85, 1.15), -9.0 if pose == Pose.WALK else -15.0)
 
 
 ## 自分の足で動ける姿勢（立つ／しゃがむ／換気経路で這う）か。
 func is_walking() -> bool:
-	return pose == Pose.WALK or pose == Pose.CROUCH or pose == Pose.DUCT
+	return pose == Pose.WALK or pose == Pose.CROUCH or pose == Pose.DUCT or pose == Pose.KOTATSU_IN
 
 
 # ---------------------------------------------------------------- しゃがむ
@@ -159,6 +175,20 @@ func toggle_crouch() -> bool:
 		_eye_target = EYE_HEIGHT
 		return true
 	return false
+
+
+## こたつの中を這う状態から、外へ抜けて立つ（立てなければしゃがむ）。体の形を戻す。
+func leave_crawl() -> void:
+	if pose != Pose.KOTATSU_IN:
+		return
+	if is_space_free(global_position, BODY_HEIGHT):
+		_set_body_height(BODY_HEIGHT)
+		pose = Pose.WALK
+		_eye_target = EYE_HEIGHT
+	else:
+		_set_body_height(CROUCH_BODY_HEIGHT)
+		pose = Pose.CROUCH
+		_eye_target = CROUCH_EYE_HEIGHT
 
 
 ## 足元 feet に、高さ height の体が壁や設備に重ならずに入るか。

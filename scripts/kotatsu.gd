@@ -6,7 +6,8 @@ extends Node3D
 ##   入る  … 座った状態で、こたつを狙って左クリック（「こたつに入る」）。布団の中（暗く、ヒーターの赤い光）に入って見回せる
 ##   出る  … 中から E で座った姿勢へ。座った姿勢から E で立つ
 ## 座布団は北（窓側）と西（左の壁のカセットの台側）の2か所。東（クレーンゲームと宝石の台座の間）と南（寝床）は体が入らないので置かない。
-## 座る・入るの間は体の当たり判定を切る（player.gd の固定姿勢）。こたつ布団の内側が見えるよう、布団は両面描く。
+## 座っている間は体の当たり判定を切る（player.gd の固定姿勢）。中に入ると小さな体（高さ0.4m）で這って動け、布団の外へ出ると立つ（main.gd）。
+## 中にいる間は本体の当たり判定を切る（set_solid）。こたつ布団の内側が見えるよう、布団は両面描く。
 ## 判定：こたつ本体（体を止める箱、調べる対象 kotatsu）と、座布団の調べる判定（kotatsu）。
 
 const MeshKit := preload("res://scripts/mesh_kit.gd")
@@ -17,11 +18,20 @@ const TOP := 0.40            # 天板の上面
 const BLANKET := 1.1         # こたつ布団の一辺
 const EYE_SEATED := 0.85     # 座布団に座ったときの目の高さ
 const EYE_INSIDE := 0.27     # 布団の中の目の高さ
+const OUT_DISTANCE := 0.58   # 中心からこれより遠く（x か z）へ出ると、布団（半幅 0.55）の外へ抜けたことにする。南は寝床（z 1.58）が近いので、体の半径 0.2 を足して届く距離にしてある。東は宝石の台座で行き止まり
 ## 座る場所：[座布団の中心（床）, 向き（rotation.y）, 立つ位置の候補, 布団の中の足元]
 const SEATS := [
 	{"name": "north", "feet": Vector3(2.6, 0.0, 0.05), "yaw": PI, "exits": [Vector3(2.6, 0.0, -0.5), Vector3(2.9, 0.0, -0.45), Vector3(2.3, 0.0, -0.5)], "inside": Vector3(2.6, 0.0, 0.55)},
 	{"name": "west", "feet": Vector3(1.8, 0.0, 0.78), "yaw": -PI * 0.5, "exits": [Vector3(1.8, 0.0, 0.78), Vector3(1.8, 0.0, 0.55), Vector3(1.8, 0.0, 1.0)], "inside": Vector3(2.25, 0.0, 0.78)},
 ]
+
+
+var body: StaticBody3D
+
+
+## 本体の当たり判定を入れる／切る（中を這う間は切る）。
+func set_solid(solid: bool) -> void:
+	body.collision_layer = MeshKit.LAYER_WORLD if solid else 0
 
 
 func _ready() -> void:
@@ -78,7 +88,7 @@ func _ready() -> void:
 		var area := MeshKit.interact_area(self, "CushionArea%d" % i, "kotatsu")
 		MeshKit.shape_box(area, Vector3(0.42, 0.12, 0.42), local + Vector3(0, 0.06, 0))
 	# 本体の当たり判定（体を止める。調べる対象）
-	var body := StaticBody3D.new()
+	body = StaticBody3D.new()
 	body.name = "Collision"
 	body.collision_layer = MeshKit.LAYER_WORLD
 	body.collision_mask = 0
