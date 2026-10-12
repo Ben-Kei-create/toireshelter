@@ -11,6 +11,8 @@ extends Node3D
 ## 向かいのマンション：外壁の手前の面が z=-4.4（手すりから約2.3m、窓から約3.1m）。背景だけで入れない。
 
 const MeshKit := preload("res://scripts/mesh_kit.gd")
+const TEX_DUCT := preload("res://assets/textures/surfaces/surface_07.png")
+const TEX_FACADE := preload("res://assets/textures/surfaces/surface_10.png")
 
 const DUCT_FLOOR := 2.5
 const DUCT_TOP := 3.1
@@ -48,7 +50,7 @@ func _build_duct() -> void:
 	var duct := Node3D.new()
 	duct.name = "Duct"
 	add_child(duct)
-	var metal := MeshKit.mat("duct", Color(0.5, 0.52, 0.54), 0.5, 0.3)
+	var metal := MeshKit.tiled_mat("duct_tex", TEX_DUCT, 0.6, Color(0.85, 0.87, 0.9), 0.5)
 	var dark := MeshKit.mat("duct_dark", Color(0.08, 0.08, 0.09), 1.0)
 	var body := StaticBody3D.new()
 	body.name = "Collision"
@@ -232,7 +234,8 @@ func _build_opposite() -> void:
 	var o := Node3D.new()
 	o.name = "OppositeBuilding"
 	add_child(o)
-	var wall := MeshKit.mat("opposite_wall", Color(0.48, 0.46, 0.43), 0.95)
+	# くすんだ外壁（画像を 1.5m 四方で繰り返し、少し暗く）
+	var wall := MeshKit.tiled_mat("opposite_wall_tex", TEX_FACADE, 1.5, Color(0.72, 0.7, 0.66), 0.95)
 	var x0 := -4.0
 	var x1 := 8.0
 	MeshKit.box(o, Vector3(x1 - x0, 20.0, 0.3), Vector3((x0 + x1) * 0.5, 2.0, OPPOSITE_Z - 0.15), wall, "Wall")

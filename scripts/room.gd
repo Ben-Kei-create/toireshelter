@@ -56,6 +56,8 @@ const LID_RADIUS := 0.052
 const LID_HEIGHT := 0.025
 const LABEL_HEIGHT := 0.10                  # 1024x320px を円周 0.317m に巻く
 const FLOOR_COLOR := Color(0.55, 0.54, 0.52)    # 淡いグレージュ。壁より少し暗く、彩度を低く
+const FLOOR_TEX := preload("res://assets/textures/surfaces/surface_11.png")
+const FLOOR_TEX_AVG := Color(0.77, 0.73, 0.67)   # 画像の平均色（実測）。これで割って、平均が FLOOR_COLOR になるよう着色する
 const PORCELAIN_COLOR := Color(0.92, 0.92, 0.92)
 
 var spawn_position := Vector3(0.0, 0.05, 0.75)
@@ -186,7 +188,9 @@ func _build_shell() -> void:
 
 	# 壁：薄いアイボリー／床：少し暗いグレー／設備：白（PORCELAIN）で明度差をつける
 	var wall_mat := _mat("wall", WALL_COLOR)
-	var floor_mat := _mat("floor", FLOOR_COLOR, 0.6)
+	# 床：暖かいグレージュの色はそのまま、細かい粒の模様だけ足す
+	var floor_tint := Color(FLOOR_COLOR.r / FLOOR_TEX_AVG.r, FLOOR_COLOR.g / FLOOR_TEX_AVG.g, FLOOR_COLOR.b / FLOOR_TEX_AVG.b)
+	var floor_mat := MeshKit.tiled_mat("floor_tex", FLOOR_TEX, 0.6, floor_tint, 0.6)
 	var ceil_mat := _mat("ceiling", Color(0.95, 0.95, 0.95))
 
 	var outer_w := ROOM_W + WALL_T * 2.0

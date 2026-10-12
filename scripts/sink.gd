@@ -9,6 +9,8 @@ extends Node3D
 
 const MeshKit := preload("res://scripts/mesh_kit.gd")
 const FaucetScript := preload("res://scripts/faucet.gd")
+const TEX_PIPE := preload("res://assets/textures/surfaces/surface_08.png")
+const TEX_PIPE_WALLPAPER := preload("res://assets/textures/surfaces/surface_05.png")
 
 const FILL_TIME := 12.0
 const DRAIN_TIME := 8.0
@@ -132,7 +134,12 @@ func _build_bowl(visual: Node3D) -> void:
 func _build_pipes(visual: Node3D) -> void:
 	# 排水管：ボウルの底から下りて U 字のトラップを通り、壁へ（当たり判定なし）。
 	# U 字の底は低め（約0.36m）。立った目線ではボウルの陰になりやすい
-	var pipe_mat := MeshKit.mat("pipe", Color(0.86, 0.86, 0.88), 0.3, 0.35)
+	var pipe_mat := MeshKit.tiled_mat("pipe_tex", TEX_PIPE, 0.12, Color(1.1, 1.1, 1.12), 0.35)
+	pipe_mat.metallic = 0.35
+	# 配管の裏の壁だけ、配管柄の壁紙（洗面台の下の限られた範囲。浴室全体の樹脂パネルはそのまま）
+	var paper := MeshKit.tiled_mat("pipe_wallpaper", TEX_PIPE_WALLPAPER, 0.24, Color.WHITE, 0.9)
+	var pw := MeshKit.box(visual, Vector3(0.001, OUTER.position.y - 0.03, OUTER.size.z), Vector3(WALL_X - 0.0005, (OUTER.position.y + 0.03) * 0.5 + 0.0, OUTER.get_center().z), paper, "PipeWallpaper")
+	pw.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	var tail_x := DRAIN_POS.x
 	var bend_y := 0.40
 	var pts := [Vector3(tail_x, OUTER.position.y, Z), Vector3(tail_x, bend_y, Z)]

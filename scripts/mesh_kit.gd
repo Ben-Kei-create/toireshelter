@@ -132,6 +132,7 @@ static func texture_mat(key: String, tex: Texture2D, roughness: float) -> Standa
 
 ## 繰り返し模様（布地など）を、面ごとの UV に関係なく一定の細かさで貼る（トリプラナー投影）。
 ## tile_m：画像1枚がゲーム内で何 m 四方になるか。
+## 画像が正方形でないときは、縦の長さを画像の縦横比に合わせる（壁のような縦の面で、模様が伸びないように）。
 static func tiled_mat(key: String, tex: Texture2D, tile_m: float, tint := Color.WHITE, roughness := 1.0) -> StandardMaterial3D:
 	if _mat_cache.has(key):
 		return _mat_cache[key]
@@ -140,7 +141,8 @@ static func tiled_mat(key: String, tex: Texture2D, tile_m: float, tint := Color.
 	m.albedo_color = tint
 	m.roughness = roughness
 	m.uv1_triplanar = true
-	m.uv1_scale = Vector3.ONE / tile_m
+	var tile_h := tile_m * float(tex.get_height()) / float(tex.get_width())
+	m.uv1_scale = Vector3(1.0 / tile_m, 1.0 / tile_h, 1.0 / tile_m)
 	m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
 	_mat_cache[key] = m
 	return m
@@ -158,6 +160,30 @@ static func note_mat() -> StandardMaterial3D:
 	m.emission_energy_multiplier = 0.3
 	_mat_cache["note_paper"] = m
 	return m
+
+
+## 模様を弱めたテクスチャ（各画素を画像の平均色へ 1-strength だけ寄せる）。元の画像ファイルは変えない。
+static func faded_texture(tex: Texture2D, strength: float) -> Texture2D:
+	var key := "faded_%s_%.2f" % [tex.resource_path, strength]
+	if _mat_cache.has(key):
+		return _mat_cache[key]
+	var img := tex.get_image()
+	if img.is_compressed():
+		img.decompress()
+	img = img.duplicate()
+	img.clear_mipmaps()
+	var acc := Color(0, 0, 0)
+	for y in img.get_height():
+		for x in img.get_width():
+			acc += img.get_pixel(x, y)
+	var avg := acc / float(img.get_width() * img.get_height())
+	for y in img.get_height():
+		for x in img.get_width():
+			img.set_pixel(x, y, avg.lerp(img.get_pixel(x, y), strength))
+	img.generate_mipmaps()
+	var out := ImageTexture.create_from_image(img)
+	_mat_cache[key] = out
+	return out
 
 
 ## 水面用の半透明マテリアル（共有）。

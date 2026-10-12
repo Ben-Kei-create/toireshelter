@@ -11,6 +11,21 @@ extends Node3D
 
 const MeshKit := preload("res://scripts/mesh_kit.gd")
 
+# 素材（docs/assets.md の ASSETS-30）
+const TEX_GRANITE := preload("res://assets/textures/surfaces/surface_01.png")
+const TEX_BASALT := preload("res://assets/textures/surfaces/surface_02.png")
+const TEX_SANDSTONE := preload("res://assets/textures/surfaces/surface_03.png")
+const TEX_PURPLE := preload("res://assets/textures/surfaces/surface_04.png")
+const TEX_WALLPAPER := preload("res://assets/textures/surfaces/surface_06.png")
+const TEX_SHELF_WOOD := preload("res://assets/textures/surfaces/surface_09.png")
+const TEX_CURTAIN := preload("res://assets/textures/surfaces/surface_12.png")
+const TEX_PAINTING_A := preload("res://assets/textures/surfaces/surface_13.png")
+const TEX_PAINTING_B := preload("res://assets/textures/surfaces/surface_14.png")
+const TEX_CARD_BACK := preload("res://assets/textures/surfaces/surface_15.png")
+const BOOK_COUNT := 15
+const BOOK_H := 0.26              # 表紙を見せて置く本の高さ（m）
+const BOOK_T := 0.028             # 厚み
+
 const ROOM := AABB(Vector3(1.0, 0.0, -1.2), Vector3(3.0, 2.4, 3.6))
 const HALL := AABB(Vector3(-0.9, 0.0, 1.3), Vector3(1.8, 2.2, 1.1))
 const DOORWAY_Z := Vector2(1.5, 2.2)
@@ -46,6 +61,7 @@ func _ready() -> void:
 	_build_gem()
 	_build_paintings()
 	_build_bed()
+	_build_specimens()
 	_build_lights()
 
 
@@ -79,7 +95,8 @@ func _build_hall() -> void:
 # ---------------------------------------------------------------- 自室の外殻
 
 func _build_room_shell() -> void:
-	var wall := MeshKit.mat("room_wall", Color(0.86, 0.84, 0.8))
+	# 自室の壁紙。模様が強くなりすぎないよう小さめ（横 0.3m）で繰り返す
+	var wall := MeshKit.tiled_mat("room_wallpaper", MeshKit.faded_texture(TEX_WALLPAPER, 0.4), 0.3, Color.WHITE, 0.9)
 	var floor_m := MeshKit.mat("room_floor", Color(0.55, 0.42, 0.3), 0.7)
 	var ceil_m := MeshKit.mat("ceiling", Color(0.95, 0.95, 0.95))
 	var x0 := ROOM.position.x
@@ -147,7 +164,7 @@ func _build_window() -> void:
 	curtain.name = "Curtain"
 	curtain.position = Vector3(WINDOW_X.y + 0.05, 0.0, ROOM.position.z + 0.06)
 	add_child(curtain)
-	var cloth := MeshKit.mat("curtain", Color(0.42, 0.36, 0.3), 0.95)
+	var cloth := MeshKit.tiled_mat("curtain_tex", TEX_CURTAIN, 0.3, Color.WHITE, 0.95)
 	var cw := WINDOW_X.y - WINDOW_X.x + 0.1
 	for k in 7:   # ひだ
 		var m := MeshKit.box(curtain, Vector3(cw / 7.0, 2.05, 0.02), Vector3(-cw / 7.0 * (k + 0.5), 2.05 * 0.5, 0.012 if k % 2 == 0 else -0.004), cloth)
@@ -193,7 +210,7 @@ func interact(_id: String) -> String:
 # ---------------------------------------------------------------- 本棚（右の壁一面）
 
 func _build_bookshelf() -> void:
-	var wood := MeshKit.mat("shelf_wood", Color(0.42, 0.3, 0.2), 0.7)
+	var wood := MeshKit.tiled_mat("shelf_wood_tex", TEX_SHELF_WOOD, 0.5, Color.WHITE, 0.7)
 	var x1 := ROOM.end.x
 	var depth := 0.3
 	var x0 := x1 - depth
@@ -216,10 +233,23 @@ func _build_bookshelf() -> void:
 	var colors := []
 	var palette := [Color(0.55, 0.15, 0.12), Color(0.15, 0.25, 0.45), Color(0.2, 0.4, 0.25), Color(0.75, 0.62, 0.3),
 			Color(0.3, 0.2, 0.35), Color(0.85, 0.82, 0.75), Color(0.1, 0.1, 0.12), Color(0.6, 0.35, 0.45), Color(0.35, 0.5, 0.55)]
+	# 表紙を見せて置く本（15冊）：段1〜5に3冊ずつ。その範囲には背表紙の本を置かない
+	var face_out := []   # [段, z の中心, 番号]
+	for k in BOOK_COUNT:
+		var lv := 1 + k / 3
+		var zc: float = [-0.62, 0.48, 1.62][k % 3] + (0.22 if lv % 2 == 0 else 0.0)
+		face_out.append([lv, zc, k + 1])
 	for i in levels:
 		var base := i * step + 0.022
 		var z := z0 + 0.03
 		while z < z1 - 0.05:
+			var skip := false
+			for fo in face_out:
+				if fo[0] == i and z > fo[1] - 0.14 and z < fo[1] + 0.14:
+					z = fo[1] + 0.14
+					skip = true
+			if skip:
+				continue
 			var kind := _rng.randf()
 			var thick := _rng.randf_range(0.015, 0.06)
 			var height := minf(_rng.randf_range(0.14, 0.3), step - 0.04)
@@ -240,6 +270,31 @@ func _build_bookshelf() -> void:
 			colors.append(c)
 			z += thick + (0.012 if tilt != 0.0 else 0.002)
 	_multimesh(root, "Books", BoxMesh.new(), xforms, colors, MeshKit.mat("book_base", Color.WHITE, 0.8))
+	for fo in face_out:
+		_face_out_book(root, fo[2], Vector3(x1 - 0.2, fo[0] * step + 0.022, fo[1]))
+
+
+## 表紙を部屋側（-x）へ向けて立てた本。表紙の画像は正面だけ。厚み・背表紙・裏表紙は単色の箱。
+func _face_out_book(root: Node3D, n: int, base: Vector3) -> void:
+	var tex: Texture2D = load("res://assets/textures/books/book_cover_%02d.png" % n)
+	var w := BOOK_H * float(tex.get_width()) / float(tex.get_height())
+	var book := Node3D.new()
+	book.name = "Book%02d" % n
+	book.position = base
+	book.rotation.z = deg_to_rad(-7.0)   # 少し後ろ（壁側）へもたせかける
+	root.add_child(book)
+	var body_col := _rng.randf_range(0.2, 0.5)
+	MeshKit.box(book, Vector3(BOOK_T, BOOK_H, w), Vector3(BOOK_T * 0.5, BOOK_H * 0.5, 0), MeshKit.mat("book_body_%d" % n, Color(body_col, body_col * 0.9, body_col * 0.8), 0.8), "Body")
+	MeshKit.box(book, Vector3(BOOK_T - 0.004, BOOK_H - 0.006, w - 0.003), Vector3(BOOK_T * 0.5, BOOK_H * 0.5, 0.002), MeshKit.mat("book_pages", Color(0.92, 0.89, 0.8), 0.9), "Pages")
+	var quad := QuadMesh.new()
+	quad.size = Vector2(w, BOOK_H)
+	var cover := MeshInstance3D.new()
+	cover.name = "Cover"
+	cover.mesh = quad
+	cover.material_override = MeshKit.texture_mat("book_cover_%02d" % n, tex, 0.7)
+	cover.position = Vector3(-0.0008, BOOK_H * 0.5, 0)
+	cover.rotation.y = -PI * 0.5   # 表（+z）を -x（部屋側）へ。画像の左が部屋から見て左（+z 側）
+	book.add_child(cover)
 
 
 func _multimesh(parent: Node3D, node_name: String, mesh: Mesh, xforms: Array, colors: Array, material: StandardMaterial3D) -> MultiMeshInstance3D:
@@ -290,6 +345,7 @@ func _build_card_case() -> void:
 	var rows := 5
 	var card_xf := []
 	var card_col := []
+	var back_xf := []
 	var sym := {"disc": [[], []], "tri": [[], []], "diamond": [[], []]}
 	var shelf := MeshKit.mat("case_shelf", Color(0.7, 0.75, 0.8, 0.5), 0.1)
 	shelf.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
@@ -304,6 +360,10 @@ func _build_card_case() -> void:
 			var pos := Vector3(x0 + 0.05, sy + 0.045, z)
 			card_xf.append(Transform3D(tilt * Basis.from_scale(Vector3(0.004, 0.088, 0.063)), pos))
 			card_col.append(card_palette[_rng.randi() % card_palette.size()])
+			if _rng.randf() < 0.3:   # 3枚に1枚ほどは裏向き（裏面の模様）
+				back_xf.append(Transform3D(tilt * Basis(Vector3.UP, PI * 0.5), pos + tilt * Vector3(0.0025, 0, 0)))
+				z += 0.075
+				continue
 			var keys := sym.keys()
 			var key: String = keys[_rng.randi() % keys.size()]
 			var face := pos + tilt * Vector3(0.004, 0.005, 0.0)
@@ -313,6 +373,11 @@ func _build_card_case() -> void:
 			sym[key][1].append(sym_palette[_rng.randi() % sym_palette.size()])
 			z += 0.075
 	_multimesh(root, "Cards", BoxMesh.new(), card_xf, card_col, MeshKit.mat("card_base", Color.WHITE, 0.6))
+	var back_quad := QuadMesh.new()
+	back_quad.size = Vector2(0.063, 0.088)
+	var back_mat := MeshKit.texture_mat("card_back", TEX_CARD_BACK, 0.6).duplicate() as StandardMaterial3D
+	_multimesh(root, "CardBacks", back_quad, back_xf, back_xf.map(func(_x): return Color.WHITE), back_mat)
+	back_mat.vertex_color_use_as_albedo = false
 	var disc := CylinderMesh.new()
 	disc.radial_segments = 16
 	disc.rings = 1
@@ -425,13 +490,19 @@ func _build_gem() -> void:
 	gem.height = 0.8
 	gem.radial_segments = 6
 	gem.rings = 3
+	# 表面の模様は紫の鉱物の画像（不透明）。つやと反射は材質の数値で付ける
 	var m := StandardMaterial3D.new()
-	m.albedo_color = Color(0.55, 0.25, 0.85)
-	m.metallic = 0.4
-	m.roughness = 0.15
+	m.albedo_texture = TEX_PURPLE
+	m.uv1_triplanar = true
+	m.uv1_scale = Vector3.ONE / 0.35
+	m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
+	m.metallic = 0.35
+	m.roughness = 0.12
+	m.clearcoat_enabled = true
+	m.clearcoat = 0.8
 	m.emission_enabled = true
 	m.emission = Color(0.45, 0.15, 0.8)
-	m.emission_energy_multiplier = 0.35
+	m.emission_energy_multiplier = 0.2
 	var mi := MeshInstance3D.new()
 	mi.name = "Stone"
 	mi.mesh = gem
@@ -450,9 +521,9 @@ func _build_paintings() -> void:
 	add_child(root)
 	# [中心, 大きさ（横, 縦）, 向き（壁の法線の方向）]
 	var list := [
-		[Vector3(1.6, 1.25, ROOM.end.z), Vector2(0.75, 1.15), Vector3.FORWARD],   # 手前の壁、大きな縦長
+		[Vector3(1.6, 1.25, ROOM.end.z), Vector2(0.86, 0.76), Vector3.FORWARD, TEX_PAINTING_A],   # 手前の壁、大きな絵（画像 408×359）
 		[Vector3(3.45, 0.75, ROOM.position.z), Vector2(0.4, 0.5), Vector3.BACK],     # 奥の壁、窓の右（小）
-		[Vector3(3.45, 1.4, ROOM.position.z), Vector2(0.4, 0.55), Vector3.BACK],
+		[Vector3(3.45, 1.4, ROOM.position.z), Vector2(0.46, 0.405), Vector3.BACK, TEX_PAINTING_B],
 		[Vector3(3.45, 2.0, ROOM.position.z), Vector2(0.4, 0.4), Vector3.BACK],
 		[Vector3(2.5, 2.2, ROOM.position.z), Vector2(1.2, 0.28), Vector3.BACK],     # 窓の上の横長
 		[Vector3(1.44, 0.95 + 1.3 + 0.0, ROOM.position.z), Vector2(0.0, 0.0), Vector3.BACK],
@@ -470,6 +541,16 @@ func _build_paintings() -> void:
 		root.add_child(p)
 		var fm := MeshKit.mat("frame_%d" % (_rng.randi() % 3), frame_cols[_rng.randi() % 3], 0.5, 0.3)
 		MeshKit.box(p, Vector3(size.x, size.y, 0.03), Vector3.ZERO, fm)
+		if item.size() > 3:   # 絵の画像を貼る（額の内側。縦横比は画像に合わせてある）
+			var q := QuadMesh.new()
+			q.size = Vector2(size.x - 0.08, size.y - 0.08)
+			var art := MeshInstance3D.new()
+			art.name = "Art"
+			art.mesh = q
+			art.material_override = MeshKit.texture_mat("painting_%s" % (item[3] as Texture2D).resource_path.get_file(), item[3], 0.85)
+			art.position = Vector3(0, 0, 0.0165)
+			p.add_child(art)
+			continue
 		MeshKit.box(p, Vector3(size.x - 0.08, size.y - 0.08, 0.005), Vector3(0, 0, 0.016), MeshKit.mat("canvas", Color(0.92, 0.9, 0.84), 0.9))
 		for k in _rng.randi_range(3, 5):
 			var c: Color = art_cols[_rng.randi() % art_cols.size()]
@@ -492,6 +573,37 @@ func _build_bed() -> void:
 	MeshKit.box(root, Vector3(0.35, 0.1, 0.55), Vector3(3.4, 0.29, z1 - 0.42), MeshKit.mat("pillow", Color(0.9, 0.9, 0.92), 0.95))
 	MeshKit.box(root, Vector3(0.9, 0.05, 0.78), Vector3(2.55, 0.265, z1 - 0.42), MeshKit.mat("blanket", Color(0.45, 0.55, 0.65), 0.95))
 	MeshKit.shape_box(_body, Vector3(1.5, 0.3, 0.8), Vector3(2.85, 0.15, z1 - 0.42))
+
+
+# ---------------------------------------------------------------- 岩石の標本（机の上の小さなトレー）
+
+func _build_specimens() -> void:
+	var root := Node3D.new()
+	root.name = "RockSpecimens"
+	root.position = Vector3(ROOM.position.x + 0.14 + 0.32, 0.735, -0.38)
+	add_child(root)
+	MeshKit.box(root, Vector3(0.12, 0.012, 0.3), Vector3(0, 0.006, 0), MeshKit.mat("tray_wood", Color(0.5, 0.38, 0.26), 0.7), "Tray")
+	var rocks := [["Granite", TEX_GRANITE, -0.09, 0.035], ["Basalt", TEX_BASALT, 0.0, 0.03], ["Sandstone", TEX_SANDSTONE, 0.09, 0.033]]
+	for r in rocks:
+		var mesh := SphereMesh.new()
+		mesh.radius = r[3]
+		mesh.height = r[3] * 1.4
+		mesh.radial_segments = 7   # 角ばった石らしく、少ない分割
+		mesh.rings = 4
+		var m := StandardMaterial3D.new()
+		m.albedo_texture = r[1]
+		m.uv1_triplanar = true
+		m.uv1_scale = Vector3.ONE / 0.08
+		m.roughness = 0.85
+		m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
+		var mi := MeshInstance3D.new()
+		mi.name = r[0]
+		mi.mesh = mesh
+		mi.material_override = m
+		mi.position = Vector3(0, 0.012 + r[3] * 0.65, r[2])
+		mi.rotation = Vector3(_rng.randf_range(-0.4, 0.4), _rng.randf_range(0, TAU), _rng.randf_range(-0.4, 0.4))
+		root.add_child(mi)
+		MeshKit.box(root, Vector3(0.002, 0.012, 0.04), Vector3(-0.059, 0.016, r[2]), MeshKit.mat("specimen_label", Color(0.95, 0.94, 0.88), 0.9))
 
 
 func _build_lights() -> void:
