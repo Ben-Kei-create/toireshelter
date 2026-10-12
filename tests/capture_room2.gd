@@ -50,6 +50,10 @@ func _run() -> void:
 	await create_timer(1.0).timeout
 	_look(Vector3(4.6, 0, 0.3), Vector3(5.0, 1.0, 2.4))
 	await _shot("kitchen")
+	_look(Vector3(4.42, 0, 1.2), Vector3(4.42, 0.7, 2.4))
+	await _shot("kitchen_close")
+	_look(Vector3(4.0, 0, 1.3), Vector3(4.2, 0.9, 2.4))
+	await _shot("kitchen_sink_view")
 	_look(Vector3(3.9, 0, 0.6), Vector3(5.4, 1.2, 0.5))
 	await _shot("shelf_phone")
 	_look(Vector3(4.3, 0, 0.4), Vector3(5.5, 1.9, 0.9))
