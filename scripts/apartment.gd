@@ -590,23 +590,33 @@ func _art_size(n: int, h: float) -> Vector2:
 	return Vector2((h - 0.08) * tex.get_width() / tex.get_height() + 0.08, h)
 
 
+func _room_art(n: int) -> Texture2D:
+	return load("res://assets/textures/room/room_art_%02d.png" % n)
+
+
+func _room_art_size(n: int, h: float) -> Vector2:
+	var tex := _room_art(n)
+	return Vector2((h - 0.08) * tex.get_width() / tex.get_height() + 0.08, h)
+
+
 func _build_paintings() -> void:
 	var root := Node3D.new()
 	root.name = "Paintings"
 	add_child(root)
 	# [中心, 大きさ（横, 縦）, 向き（壁の法線の方向）]
 	var list := [
-		[Vector3(1.6, 1.25, ROOM.end.z), Vector2(0.86, 0.76), Vector3.FORWARD, TEX_PAINTING_A],   # 手前の壁、大きな絵（画像 408×359）
+		# ASSETS-20：既存の額11か所のうち7か所を room_art_01〜07 に差し替え（額の内寸を絵の比率 614:768 に合わせる）
+		[Vector3(1.6, 1.25, ROOM.end.z), _room_art_size(1, 0.84), Vector3.FORWARD, _room_art(1)],   # 手前の壁、大きな絵（紫の鉱石の月と街）
 		[Vector3(3.45, 0.75, ROOM.position.z), _art_size(1, 0.5), Vector3.BACK, _art(1)],   # 奥の壁、窓の右（ASSETS-24 の絵）
-		[Vector3(3.45, 1.4, ROOM.position.z), Vector2(0.46, 0.405), Vector3.BACK, TEX_PAINTING_B],
+		[Vector3(3.45, 1.4, ROOM.position.z), _room_art_size(2, 0.46), Vector3.BACK, _room_art(2)],
 		[Vector3(3.45, 2.0, ROOM.position.z), _art_size(2, 0.4), Vector3.BACK, _art(2)],
 		# 寝床の上（手前の壁、フィギュア棚の下）に小さな絵を4枚
-		[Vector3(2.35, 1.05, ROOM.end.z), _art_size(3, 0.4), Vector3.FORWARD, _art(3)],
-		[Vector3(2.72, 1.05, ROOM.end.z), _art_size(4, 0.4), Vector3.FORWARD, _art(4)],
-		[Vector3(3.09, 1.05, ROOM.end.z), _art_size(5, 0.4), Vector3.FORWARD, _art(5)],
-		[Vector3(3.46, 1.05, ROOM.end.z), _art_size(6, 0.4), Vector3.FORWARD, _art(6)],
+		[Vector3(2.35, 1.05, ROOM.end.z), _room_art_size(3, 0.4), Vector3.FORWARD, _room_art(3)],
+		[Vector3(2.72, 1.05, ROOM.end.z), _room_art_size(4, 0.4), Vector3.FORWARD, _room_art(4)],
+		[Vector3(3.09, 1.05, ROOM.end.z), _room_art_size(5, 0.4), Vector3.FORWARD, _room_art(5)],
+		[Vector3(3.46, 1.05, ROOM.end.z), _room_art_size(6, 0.4), Vector3.FORWARD, _room_art(6)],
 		# 絵 A の上に2枚
-		[Vector3(1.38, 2.0, ROOM.end.z), _art_size(7, 0.36), Vector3.FORWARD, _art(7)],
+		[Vector3(1.38, 2.0, ROOM.end.z), _room_art_size(7, 0.36), Vector3.FORWARD, _room_art(7)],
 		[Vector3(1.82, 2.0, ROOM.end.z), _art_size(8, 0.36), Vector3.FORWARD, _art(8)],
 		[Vector3(2.5, 2.2, ROOM.position.z), Vector2(1.2, 0.28), Vector3.BACK],     # 窓の上の横長
 		[Vector3(1.44, 0.95 + 1.3 + 0.0, ROOM.position.z), Vector2(0.0, 0.0), Vector3.BACK],
