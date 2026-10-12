@@ -144,10 +144,28 @@ func _run() -> void:
 	player.rotation.y = PI
 	player._pitch = 0.0
 	player.camera.rotation.x = 0.0
-	await _hold("move_forward", 1.5, func() -> bool: return main.cleared)
+	await _hold("move_forward", 1.5)
+	_check(not main.cleared and main.region == "room", "窓から自室へ入ってもクリアにならない")
+	# 自室からホール → 玄関ドアを開けて廊下へ出ると、正規ルートの脱出
+	for target in [Vector3(1.5, 0.05, 1.85), Vector3(0.0, 0.05, 1.85)]:
+		for i in 400:
+			player.velocity = Vector3.ZERO
+			player.global_position = player.global_position.move_toward(target, 0.03)
+			await physics_frame
+			if player.global_position.distance_to(target) < 0.01:
+				break
+	_check(not main.cleared and main.region == "hall", "ホールに着いてもクリアにならない")
+	main.room.front_door.interact("front_door")
+	await _seconds(1.1)
+	for i in 400:
+		player.velocity = Vector3.ZERO
+		player.global_position = player.global_position.move_toward(Vector3(-1.7, 0.05, 1.85), 0.03)
+		await physics_frame
+		if main.cleared:
+			break
 	_check(main.cleared and main.clear_route == "legit"
-			and (main.hud._clear_menu.get_node("Center/Box").get_child(0) as Label).text == "正規ルートで帰還",
-			"窓から自室へ入ると「正規ルートで帰還」でクリア")
+			and (main.hud._clear_menu.get_node("Center/Box").get_child(0) as Label).text == "正規ルートで脱出",
+			"玄関ドアから廊下へ出ると「正規ルートで脱出」でクリア")
 
 	# ---------------------------------------------------------------- 再プレイ
 	main._retry()

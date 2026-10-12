@@ -540,19 +540,38 @@ func _run() -> void:
 
 	# --- 出口通過
 	await _seconds(1.4)
-	# 玄関ホールに出ただけではクリアにならず、自室に入ると「裏技ルートで帰還」
-	for target in [Vector3(0.0, 0.05, 1.85), Vector3(1.5, 0.05, 1.85)]:
-		for i in 200:
+	# 玄関ホールに出ても、自室に入っても、クリアにならない。玄関ドアを開けて廊下へ出ると「裏技ルートで脱出」
+	var walk := func(target: Vector3) -> void:
+		for i in 300:
 			player.velocity = Vector3.ZERO
 			player.global_position = player.global_position.move_toward(target, 0.03)
 			await physics_frame
 			if main.cleared or player.global_position.distance_to(target) < 0.01:
 				break
-		if target.x < 1.0:
-			_check(not main.cleared and main.region == "hall", "ドアから玄関ホールに出ただけではクリアにならない")
-	_check(main.cleared and main.clear_route == "shortcut"
-			and (main.hud._clear_menu.get_node("Center/Box").get_child(0) as Label).text == "裏技ルートで帰還",
-			"ホールから自室へ入ると「裏技ルートで帰還」でクリア")
+	await walk.call(Vector3(0.0, 0.05, 1.85))
+	_check(not main.cleared and main.region == "hall", "ドアから玄関ホールに出ただけではクリアにならない")
+	await walk.call(Vector3(1.5, 0.05, 1.85))
+	_check(not main.cleared and main.region == "room", "ホールから自室へ入ってもクリアにならない")
+	await walk.call(Vector3(0.0, 0.05, 1.85))
+	_check(not main.cleared and main.region == "hall" and not main.room.front_door.is_open, "ホールへ戻る。玄関ドアは閉まっている")
+	# 玄関ドアを狙って開ける
+	player.rotation.y = PI * 0.5   # -x（左の壁）を向く
+	player._pitch = 0.0
+	player.camera.rotation.x = 0.0
+	player.global_position = Vector3(-0.3, 0.05, 1.85)
+	for i in 4:
+		await physics_frame
+	await _frames(2)
+	var fd_target = player.get_focused(true)
+	_check(fd_target != null and String(fd_target.get_meta("interact_id", "")) == "front_door"
+			and main._prompt_for(fd_target) == main.PROMPTS["front_door_open"], "玄関ドアを狙うと「玄関のドアを開ける」")
+	player.try_interact()
+	await _seconds(1.1)
+	_check(main.room.front_door.is_open and not main.cleared, "玄関ドアが開く。開けただけではクリアにならない")
+	await walk.call(Vector3(-1.7, 0.05, 1.85))
+	_check(main.cleared and main.clear_route == "shortcut" and main.region == "corridor"
+			and (main.hud._clear_menu.get_node("Center/Box").get_child(0) as Label).text == "裏技ルートで脱出",
+			"玄関ドアから廊下へ出ると「裏技ルートで脱出」でクリア")
 
 	# --- 再プレイ
 	main._retry()

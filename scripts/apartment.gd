@@ -32,6 +32,8 @@ const ROOM := AABB(Vector3(1.0, 0.0, -1.2), Vector3(3.0, 2.4, 3.6))
 const HALL := AABB(Vector3(-0.9, 0.0, 1.3), Vector3(1.8, 2.2, 1.1))
 const DOORWAY_Z := Vector2(1.5, 2.2)
 const DOORWAY_H := 2.0
+const FRONT_DOOR_Z := Vector2(1.5, 2.2)   # 玄関ドア（ホールの左の壁）の開口
+const FRONT_DOOR_H := 2.0
 const WALL_T := 0.1
 const WINDOW_X := Vector2(1.8, 3.2)
 const WINDOW_TOP := 2.0
@@ -95,7 +97,10 @@ func _build_hall() -> void:
 	var d := z1 - z0
 	_solid(Vector3(2.0, WALL_T, d), Vector3(0.0, -WALL_T * 0.5, cz), floor_m)
 	_solid(Vector3(2.0, WALL_T, d), Vector3(0.0, HALL.end.y + WALL_T * 0.5, cz), ceil_m)
-	_solid(Vector3(WALL_T, HALL.end.y, d), Vector3(-0.95, HALL.end.y * 0.5, cz), wall)          # 左
+	# 左の壁（廊下との境）。玄関ドアの開口 z 1.5〜2.2、高さ 2.0 を空ける（ドアは front_door.gd）
+	_solid(Vector3(WALL_T, HALL.end.y, FRONT_DOOR_Z.x - z0), Vector3(-0.95, HALL.end.y * 0.5, (z0 + FRONT_DOOR_Z.x) * 0.5), wall)
+	_solid(Vector3(WALL_T, HALL.end.y, z1 - FRONT_DOOR_Z.y), Vector3(-0.95, HALL.end.y * 0.5, (FRONT_DOOR_Z.y + z1) * 0.5), wall)
+	_solid(Vector3(WALL_T, HALL.end.y - FRONT_DOOR_H, FRONT_DOOR_Z.y - FRONT_DOOR_Z.x), Vector3(-0.95, (FRONT_DOOR_H + HALL.end.y) * 0.5, (FRONT_DOOR_Z.x + FRONT_DOOR_Z.y) * 0.5), wall)
 	_solid(Vector3(2.0, HALL.end.y, WALL_T), Vector3(0.0, HALL.end.y * 0.5, z1 + WALL_T * 0.5), wall)   # 突き当たり
 	# 右の壁（自室との境）。出入口 z 1.5〜2.2、高さ 2.0 を空ける
 	var rx := 0.95
@@ -109,14 +114,16 @@ func _build_movie_posters() -> void:
 	var root := Node3D.new()
 	root.name = "MoviePosters"
 	add_child(root)
+	# 上段4枚は突き当たりの壁（-z を向く）。下段の4枚は、コルクボードに場所を譲って浴室ドアの左右の壁（+z を向く）へ
 	var xs := [0.6, 0.2, -0.2, -0.6]   # ホールの中から見て左（+x）から 01, 02, …
-	var ys := [1.55, 1.05]
-	for i in 8:
-		var pos := Vector3(xs[i % 4], ys[i / 4], HALL.end.z - 0.003)
-		_sign(root, "movie_poster_%02d" % (i + 1), pos, 0.42, Vector3.FORWARD)
+	for i in 4:
+		_sign(root, "movie_poster_%02d" % (i + 1), Vector3(xs[i], 1.55, HALL.end.z - 0.003), 0.42, Vector3.FORWARD)
+	# [番号, x, y]：右の壁面（x 0.4〜0.9）に 06 と 05（砂時計の惑星）、左（x -0.9〜-0.4）に 07 と 08
+	for e in [[6, 0.64, 1.55], [5, 0.64, 1.05], [7, -0.64, 1.55], [8, -0.64, 1.05]]:
+		_sign(root, "movie_poster_%02d" % e[0], Vector3(e[1], e[2], HALL.position.z + 0.003), 0.42, Vector3.BACK)
 
 
-## 玄関ホールの左の壁（x=-0.9、+x を向く）のコルクボード。レシート・半券・メモなど紙もの12枚を少し傾けてピンで留める。見た目だけ。
+## 突き当たりの壁のコルクボード。レシート・半券・メモなど紙もの12枚を少し傾けてピンで留める。見た目だけ。
 ## コルクボードの紙は、画鋲1本で留めた紙のように、ごくわずかに揺れる（換気の空気の動き）。見た目だけ。
 var _swaying: Array = []
 var _sway_t := 0.0
@@ -128,24 +135,25 @@ func _process(delta: float) -> void:
 		var mi: MeshInstance3D = e[0]
 		var k: int = e[2]
 		var a: float = float(e[1]) + 0.7 * sin(_sway_t * (0.5 + 0.07 * k) + k * 1.7) + 0.3 * sin(_sway_t * (1.3 + 0.11 * k))
-		mi.rotation.x = deg_to_rad(a)
+		mi.rotation.z = deg_to_rad(a)
 
 
 func _build_corkboard() -> void:
+	# 突き当たりの壁（z=2.4、部屋側 -z を向く）の下段、ポスターの下の高さ。ローカル +z がホール側、+x は壁に向かって左
 	var root := Node3D.new()
 	root.name = "Corkboard"
+	root.position = Vector3(0.0, 1.04, HALL.end.z)
+	root.rotation.y = PI
 	add_child(root)
-	var wx := HALL.position.x + 0.005   # 壁の内側の面 -0.9 の少し手前
-	var board_c := Vector3(wx + 0.01, 1.42, 1.85)
 	var bw := 0.86
-	var bh := 0.6
-	MeshKit.box(root, Vector3(0.02, bh, bw), board_c, MeshKit.mat("cork", Color(0.62, 0.45, 0.28), 0.95), "Board")
+	var bh := 0.58
+	MeshKit.box(root, Vector3(bw, bh, 0.02), Vector3(0, 0, 0.01), MeshKit.mat("cork", Color(0.62, 0.45, 0.28), 0.95), "Board")
 	var frame := MeshKit.mat("cork_frame", Color(0.4, 0.28, 0.18), 0.7)
-	for dz in [-bw * 0.5, bw * 0.5]:
-		MeshKit.box(root, Vector3(0.03, bh + 0.03, 0.02), board_c + Vector3(0.005, 0, dz), frame)
+	for dx in [-bw * 0.5, bw * 0.5]:
+		MeshKit.box(root, Vector3(0.02, bh + 0.03, 0.03), Vector3(dx, 0, 0.015), frame)
 	for dy in [-bh * 0.5, bh * 0.5]:
-		MeshKit.box(root, Vector3(0.03, 0.02, bw + 0.03), board_c + Vector3(0.005, dy, 0), frame)
-	# [番号, 板の中での位置（z, y。中心からの m）, 高さ, 傾き°]
+		MeshKit.box(root, Vector3(bw + 0.03, 0.02, 0.03), Vector3(0, dy, 0.015), frame)
+	# [番号, 板の中での位置（x, y。中心からの m）, 高さ, 傾き°]
 	var notes := [
 		[1, -0.33, 0.12, 0.17, -4.0], [2, -0.08, 0.18, 0.13, 3.0], [3, 0.24, 0.13, 0.17, 6.0], [4, 0.36, -0.06, 0.15, -3.0],
 		[5, -0.31, -0.11, 0.11, 5.0], [6, -0.16, -0.06, 0.16, -8.0], [7, 0.08, -0.02, 0.12, 2.0], [8, 0.27, -0.2, 0.1, 10.0],
@@ -166,10 +174,10 @@ func _build_corkboard() -> void:
 		mi.name = "PaperNote%02d" % n[0]
 		mi.mesh = q
 		mi.material_override = m
-		mi.position = board_c + Vector3(0.0115 + i * 0.0006, n[2], n[1])   # 重なりのちらつきを避けて少しずつ手前へ
-		mi.rotation = Vector3(deg_to_rad(n[4]), PI * 0.5, 0)   # 表（+z）を +x（ホール側）へ
+		mi.position = Vector3(n[1], n[2], 0.0215 + i * 0.0006)   # 重なりのちらつきを避けて少しずつ手前へ
+		mi.rotation.z = deg_to_rad(n[4])
 		root.add_child(mi)
-		MeshKit.sphere(root, 0.006, mi.position + Vector3(0.004, h * 0.42, 0), pin)
+		MeshKit.sphere(root, 0.006, mi.position + Vector3(0, h * 0.42, 0.004), pin)
 		_swaying.append([mi, n[4], i])   # [紙, 元の傾き°, 位相の種]
 
 
@@ -882,7 +890,7 @@ func _build_hall_slippers() -> void:
 
 
 ## 生活小物の紙（LIFE-12）：life_paper_02（砂時計の惑星の半券）と 07（石好きの会の会員証）。
-##   02 … 玄関ホールの突き当たり、映画のポスターの下（x 0.6、高さ 0.70m）に画鋲で留めた半券
+##   02 … 玄関ホールの浴室ドアの右、映画ポスター「砂時計の惑星」の下（x 0.64、高さ 0.70m）に画鋲で留めた半券
 ##   07 … 机の天板の右端、標本トレーの手前（x 1.58、z -0.27）に平らに置いた会員証（標本トレーは x 1.40〜1.52）
 ## どちらも「調べる」だけの飾り（取得・暗証番号・脱出条件には使わない）。照準の判定は画像の大きさの薄い箱1つ。
 ## 03・05・08・10 は、シートの絵が指定の文章と合わないため置いていない（保管）。
@@ -892,8 +900,8 @@ func _build_life_papers() -> void:
 	add_child(root)
 	var pin := MeshKit.mat("pin", Color(0.85, 0.2, 0.2), 0.4)
 	# 02：壁（突き当たり、-z を向く）
-	var stub := _life_paper(root, 2, 0.16, Vector3(0.6, 0.70, HALL.end.z - 0.003), Vector3.FORWARD, 4.0, "life_paper_02")
-	MeshKit.sphere(root, 0.006, stub.position + Vector3(-0.004, 0.05, -0.005), pin)
+	var stub := _life_paper(root, 2, 0.16, Vector3(0.64, 0.70, HALL.position.z + 0.003), Vector3.BACK, 4.0, "life_paper_02")
+	MeshKit.sphere(root, 0.006, stub.position + Vector3(0.004, 0.05, 0.005), pin)
 	# 07：机の上（+y を向く）。長辺を z 方向に
 	_life_paper(root, 7, 0.11, Vector3(ROOM.position.x + 0.14 + 0.44, 0.735 + 0.002, -0.27), Vector3.UP, 90.0 + 12.0, "life_paper_07")
 

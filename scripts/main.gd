@@ -1,8 +1,9 @@
 extends Node3D
 ## ゲーム進行・持ち物・一時停止・クリア判定を管理する。
-## クリア（自室へ帰る）は2通り。通った経路（区画の移り変わり）で判定し、位置だけでは判定しない：
-##   正規ルート … 浴槽 → 換気口 → 換気経路 → ベランダへ降りる → 窓から自室へ（「正規ルートで帰還」）
-##   裏技ルート … ドライバーでドアを直す → 玄関ホール → 自室へ（「裏技ルートで帰還」）
+## クリア（部屋から脱出する）は、玄関ドアを開けて外の共用廊下（5階）へ出たとき。浴室から自室・玄関ホールへ出ただけでは脱出にならない。
+## 通った区画の移り変わりで判定し、位置だけでは判定しない（ホールから廊下へ入った瞬間）。経路は浴室から出た方法で2通り：
+##   正規ルート … 浴槽 → 換気口 → 換気経路 → ベランダへ降りる → 窓から自室 → 玄関ホール → 玄関ドア → 廊下（「正規ルートで脱出」）
+##   裏技ルート … ドライバーでドアを直す → 玄関ホール → 玄関ドア → 廊下（「裏技ルートで脱出」）
 ## 操作：左クリック＝調べる・開閉・拾う／F＝選んだ持ち物を照準の対象に使う／1・2・ホイール＝持ち物を選ぶ／
 ##       Q＝選んだ持ち物を拡大して見る／E＝座る・浴槽に出入り／C＝しゃがむ
 ## 再プレイはシーンを読み込み直すので、ドライバー・ドア・所持品はすべて初期状態に戻る。
@@ -12,9 +13,10 @@ const PlayerScript := preload("res://scripts/player.gd")
 const HudScript := preload("res://scripts/hud.gd")
 const ExteriorScript := preload("res://scripts/exterior.gd")
 const ApartmentScript := preload("res://scripts/apartment.gd")
+const CorridorScript := preload("res://scripts/corridor.gd")
 
 const MESSAGES := {
-	"start": "……気がつくと、ユニットバスに閉じ込められていた。自分の部屋に戻らないと。",
+	"start": "……気がつくと、ユニットバスに閉じ込められていた。ここから出て、部屋の外へ出なければ。",
 	"toilet": "普通の便器だ。水は流れるが、ここから出られるわけではない。",
 	"bathtub": "空っぽの浴槽。乾いていて、何も入っていない。",
 	"bathtub_water": "浴槽に水がたまっている。",
@@ -113,6 +115,7 @@ const PROMPTS := {
 	"shower_on": "左クリック：シャワーを出す",
 	"shower_off": "左クリック：シャワーを止める",
 	"curtain_open": "左クリック：カーテンを開ける",
+	"front_door_open": "左クリック：玄関のドアを開ける",
 }
 
 ## 持ち物（拾える物）。最大2つ。1・2 キーは取った順
@@ -135,7 +138,7 @@ const ACTION_PROMPTS := {
 
 const TUB_TARGETS := ["bathtub", "bath_plug", "bath_faucet", "tub_note"]   # 入浴剤を使える照準先（浴槽のどこか）
 
-const CLEAR_TITLES := {"legit": "正規ルートで帰還", "shortcut": "裏技ルートで帰還"}
+const CLEAR_TITLES := {"legit": "正規ルートで脱出", "shortcut": "裏技ルートで脱出"}
 # 換気経路：入口で浴槽へ戻れる範囲（換気口の真上からの水平距離）、出口からベランダへ降りる経由点と着地候補
 const DUCT_BACK_RANGE := 0.75
 const DUCT_YAW := -PI * 0.5   # 入ったら +x（自室の上の方）を向く
@@ -168,7 +171,7 @@ var _item_models := {}              # 拡大表示用の3Dモデル（拾った�
 var powder_used := false           # ユブロマンを使った（空の容器は所持品に残る）
 var route_duct := false            # 換気経路を通ってベランダへ降りた
 var clear_route := ""              # "legit" / "shortcut"（クリアした経路）
-var region := ""                   # 今いる区画：bath / hall / room / duct / balcony
+var region := ""                   # 今いる区画：bath / hall / room / duct / balcony / corridor
 var _last_region := ""
 var door_open := false
 var cleared := false
@@ -547,17 +550,16 @@ func _physics_process(_delta: float) -> void:
 	region = _region_of(player.global_position)
 	if region.is_empty() or region == _last_region:
 		return
-	# 自室に入った瞬間に、直前の区画と通ってきた経路で判定する
-	if region == "room":
-		if _last_region == "hall" and door_open:
-			_clear("shortcut")
-		elif _last_region == "balcony" and route_duct:
-			_clear("legit")
+	# 玄関ドアから廊下へ出た瞬間に、通ってきた経路で判定する（自室・ホールに入っただけではクリアしない）
+	if region == "corridor" and _last_region == "hall":
+		_clear("legit" if route_duct else "shortcut")
 	_last_region = region
 
 
 ## 足元の位置の区画。敷居など境目の上では空（直前の区画を保つ）。
 func _region_of(p: Vector3) -> String:
+	if CorridorScript.in_corridor(p):
+		return "corridor"
 	if player.pose == PlayerScript.Pose.DUCT or ExteriorScript.in_duct(p):
 		return "duct"
 	if ApartmentScript.in_room(p):

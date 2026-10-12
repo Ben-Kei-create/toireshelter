@@ -23,6 +23,8 @@ const ExteriorScript := preload("res://scripts/exterior.gd")
 const BathRemoteScript := preload("res://scripts/bath_remote.gd")
 const ToiletPanelScript := preload("res://scripts/toilet_panel.gd")
 const ShowerCurtainScript := preload("res://scripts/shower_curtain.gd")
+const FrontDoorScript := preload("res://scripts/front_door.gd")
+const CorridorScript := preload("res://scripts/corridor.gd")
 const BathWearScript := preload("res://scripts/bath_wear.gd")
 const AmbientSoundScript := preload("res://scripts/ambient_sound.gd")
 
@@ -70,6 +72,8 @@ var door_body: StaticBody3D
 var driver_node: Node3D
 var apartment: ApartmentScript
 var exterior: ExteriorScript
+var front_door: FrontDoorScript
+var corridor: CorridorScript
 var vent_cover: Node3D
 var bath_remote: BathRemoteScript
 var toilet_panel: ToiletPanelScript
@@ -96,6 +100,13 @@ func _ready() -> void:
 	exterior = ExteriorScript.new()
 	exterior.name = "Exterior"
 	add_child(exterior)
+	# 玄関ドア（玄関ホールの左の壁）と、その外の5階の共用廊下・下北沢の街並み
+	front_door = FrontDoorScript.new()
+	front_door.name = "FrontDoor"
+	add_child(front_door)
+	corridor = CorridorScript.new()
+	corridor.name = "Corridor"
+	add_child(corridor)
 	_build_bathtub()
 	_build_toilet()
 	_build_sink_and_mirror()
@@ -154,6 +165,9 @@ func open_door() -> void:
 	var tween := create_tween()
 	tween.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
 	tween.tween_property(door_pivot, "rotation:y", deg_to_rad(DOOR_OPEN_DEG), 1.2)
+	# 開ききったら扉の当たり判定をなくす。開いた扉はホールの左側（玄関ドアの側）を体の幅で通れなくするため、
+	# 扉をすり抜けられるようにしている（見た目の扉は残る）
+	tween.tween_callback(func() -> void: door_body.collision_layer = 0)
 
 
 # ---------------------------------------------------------------- 環境・光
