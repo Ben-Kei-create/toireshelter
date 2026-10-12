@@ -25,6 +25,8 @@ const ToiletPanelScript := preload("res://scripts/toilet_panel.gd")
 const ShowerCurtainScript := preload("res://scripts/shower_curtain.gd")
 const FrontDoorScript := preload("res://scripts/front_door.gd")
 const CorridorScript := preload("res://scripts/corridor.gd")
+const SkyClockScript := preload("res://scripts/sky_clock.gd")
+const LightSwitchScript := preload("res://scripts/light_switch.gd")
 const BathWearScript := preload("res://scripts/bath_wear.gd")
 const AmbientSoundScript := preload("res://scripts/ambient_sound.gd")
 
@@ -73,6 +75,19 @@ var driver_node: Node3D
 var apartment: ApartmentScript
 var exterior: ExteriorScript
 var front_door: FrontDoorScript
+var sky_clock: SkyClockScript
+var light_switch: Node3D
+# トイレの電球：自室のスイッチで入り切りする。消してからつけ直す回数が PURPLE_AFTER に達すると紫色になる（そのまま）
+const BULB_POS := Vector3(0.15, 2.17, 0.35)
+const BATH_LIGHT_ENERGY := 0.55
+const BATH_LIGHT_COLOR := Color(1.0, 0.89, 0.76)
+const PURPLE_LIGHT_COLOR := Color(0.62, 0.3, 1.0)
+const PURPLE_AFTER := 4
+var bath_light: OmniLight3D
+var bath_light_on := true
+var bath_light_cycles := 0     # 消してからつけ直した回数
+var bath_purple := false
+var _bulb_mat: StandardMaterial3D
 var corridor: CorridorScript
 var vent_cover: Node3D
 var bath_remote: BathRemoteScript
@@ -97,6 +112,11 @@ func _ready() -> void:
 	apartment = ApartmentScript.new()
 	apartment.name = "Apartment"
 	add_child(apartment)
+	# 浴室の電気のスイッチ（自室の壁。浴室の中にはない）
+	light_switch = LightSwitchScript.new()
+	light_switch.name = "BathLightSwitch"
+	light_switch.room = self
+	add_child(light_switch)
 	exterior = ExteriorScript.new()
 	exterior.name = "Exterior"
 	add_child(exterior)
@@ -107,6 +127,7 @@ func _ready() -> void:
 	corridor = CorridorScript.new()
 	corridor.name = "Corridor"
 	add_child(corridor)
+	_build_bath_bulb()
 	_build_bathtub()
 	_build_toilet()
 	_build_sink_and_mirror()
@@ -131,6 +152,60 @@ func _ready() -> void:
 	var ambient := AmbientSoundScript.new()   # 換気扇・しずく・遠くの路地（コードで作った小さな環境音）
 	ambient.name = "AmbientSound"
 	add_child(ambient)
+
+
+# ---------------------------------------------------------------- トイレの電球
+
+func _build_bath_bulb() -> void:
+	# 天井の電球（見た目）：丸い台と、光る球。消えているときは乳白色
+	var fixture := Node3D.new()
+	fixture.name = "BathBulb"
+	fixture.position = BULB_POS
+	add_child(fixture)
+	MeshKit.cylinder(fixture, 0.05, 0.02, Vector3(0, 0.01, 0), _mat("bulb_base", Color(0.85, 0.85, 0.83), 0.5), "Socket")
+	_bulb_mat = StandardMaterial3D.new()
+	_bulb_mat.albedo_color = Color(1.0, 0.95, 0.8)
+	_bulb_mat.emission_enabled = true
+	_apply_bath_light()
+	var bulb := MeshKit.sphere(fixture, 0.04, Vector3(0, -0.03, 0), _bulb_mat)
+	bulb.name = "Bulb"
+	bulb.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+
+
+func _apply_bath_light() -> void:
+	var col := PURPLE_LIGHT_COLOR if bath_purple else BATH_LIGHT_COLOR
+	bath_light.light_color = col
+	bath_light.light_energy = (0.9 if bath_purple else BATH_LIGHT_ENERGY) if bath_light_on else 0.0
+	_bulb_mat.emission = col
+	_bulb_mat.emission_energy_multiplier = 3.0 if bath_light_on else 0.0
+	_bulb_mat.albedo_color = Color(0.75, 0.55, 1.0) if (bath_purple and bath_light_on) else (Color(1.0, 0.95, 0.8) if bath_light_on else Color(0.8, 0.8, 0.78))
+
+
+## 自室のスイッチから呼ばれる。電気を入り切りして、表示する文章のキーを返す。
+## 消してからつけ直すのを PURPLE_AFTER 回くり返すと、紫色になる（そのあとはずっと紫）。
+func set_bath_light(on: bool) -> String:
+	if on == bath_light_on:
+		return ""
+	bath_light_on = on
+	var key := "bath_light_off"
+	if on:
+		bath_light_cycles += 1
+		key = "bath_light_on"
+		if bath_light_cycles >= PURPLE_AFTER and not bath_purple:
+			bath_purple = true
+			key = "bath_light_purple"
+		elif bath_purple:
+			key = "bath_light_on_purple"
+	_apply_bath_light()
+	if on and key == "bath_light_purple":
+		# ちらつきながら紫に変わる
+		var tw := create_tween()
+		for i in 3:
+			tw.tween_callback(func() -> void: bath_light.light_energy = 0.0)
+			tw.tween_interval(0.07)
+			tw.tween_callback(func() -> void: bath_light.light_energy = 0.9)
+			tw.tween_interval(0.09)
+	return key
 
 
 # ---------------------------------------------------------------- 公開API
@@ -175,7 +250,7 @@ func open_door() -> void:
 func _build_environment() -> void:
 	var env := Environment.new()
 	env.background_mode = Environment.BG_COLOR
-	env.background_color = Color(0.32, 0.36, 0.44)   # 外の空（夕方の曇り空）。浴室の中からは見えない
+	env.background_color = Color(0.32, 0.36, 0.44)   # sky_clock が空の絵に切り替える（絵が読めなかったときの色）
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	# 電球色（2700〜3000K 相当）で少し薄暗いユニットバス。環境光も暖色にして、影が真っ黒にならないようにする
 	env.ambient_light_color = Color(0.8, 0.77, 0.72)
@@ -187,11 +262,17 @@ func _build_environment() -> void:
 	we.name = "WorldEnvironment"
 	we.environment = env
 	add_child(we)
+	# プレイ時間による空模様（昼 → 夕焼け → 夕暮れ）。時間は main.gd が渡す
+	sky_clock = SkyClockScript.new()
+	sky_clock.name = "SkyClock"
+	add_child(sky_clock)
+	sky_clock.setup(env)
 
 	var room_light := OmniLight3D.new()
+	bath_light = room_light
 	room_light.name = "RoomLight"
 	# 少し入口寄りに置き、設備の手前側の面を照らして奥・下に影を落とす（影はこの1灯だけ）
-	room_light.position = Vector3(0.15, 2.05, 0.35)
+	room_light.position = Vector3(0.15, 2.05, 0.35)   # 電球（BULB_POS）の少し下
 	room_light.light_color = Color(1.0, 0.89, 0.76)   # 電球色（黄色を乗せすぎない）
 	room_light.light_energy = 0.55
 	room_light.omni_range = 4.0

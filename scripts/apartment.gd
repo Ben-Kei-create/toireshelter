@@ -11,6 +11,9 @@ extends Node3D
 
 const MeshKit := preload("res://scripts/mesh_kit.gd")
 const BooksScript := preload("res://scripts/books.gd")
+const KotatsuScript := preload("res://scripts/kotatsu.gd")
+const AirconScript := preload("res://scripts/aircon.gd")
+const FanScript := preload("res://scripts/fan.gd")
 const UfoCatcherScript := preload("res://scripts/ufo_catcher.gd")
 
 # 素材（docs/assets.md の ASSETS-30）
@@ -45,7 +48,7 @@ const WINDOW_TIME := 0.5
 var window_open := false
 var window_busy := false
 var window_panel: Node3D   # 外側のレールの引き違い窓（開けると右へ）
-var curtain: Node3D        # 窓の内側のカーテン。閉じているとベランダから部屋は見えず、窓を開けると一緒に右へ寄る
+var curtain: Node3D        # 窓の内側の遮光カーテン。閉じているとベランダから部屋は見えない。窓とは別に、部屋の中からクリックで開け閉めする
 var _rng := RandomNumberGenerator.new()
 var _body: StaticBody3D
 
@@ -77,6 +80,7 @@ func _ready() -> void:
 	_build_tv_corner()
 	_build_life_papers()
 	_build_ufo_catcher()
+	_build_living()
 	_build_hall_slippers()
 	_build_lights()
 
@@ -129,12 +133,24 @@ func _build_movie_posters() -> void:
 ## 突き当たりの壁のコルクボード。レシート・半券・メモなど紙もの12枚を少し傾けてピンで留める。見た目だけ。
 ## コルクボードの紙は、画鋲1本で留めた紙のように、ごくわずかに揺れる（換気の空気の動き）。見た目だけ。
 var books: Node
+var kotatsu: Node3D
+var aircon: Node3D
+var fan: Node3D
+var curtain_closed := true      # 遮光カーテン（部屋の中から開け閉めする。最初は閉まっている）
+var curtain_busy := false
+var window_light: SpotLight3D   # 窓から差す光（空の時間・カーテンの開きで強さが変わる）
+var _curtain_shape: BoxShape3D
 var ufo_catcher: Node3D
 var _swaying: Array = []
 var _sway_t := 0.0
 
 
 func _process(delta: float) -> void:
+	_update_curtain_shape()
+	var clock = get_parent().get("sky_clock") if get_parent() else null
+	if clock and window_light:
+		window_light.light_color = clock.window_color
+		window_light.light_energy = 1.6 * clock.daylight * (0.08 + 0.92 * curtain_openness())
 	_sway_t += delta
 	for e in _swaying:
 		var mi: MeshInstance3D = e[0]
@@ -264,6 +280,23 @@ func _build_window() -> void:
 	for k in 7:   # ひだ
 		var m := MeshKit.box(curtain, Vector3(cw / 7.0, 2.05, 0.02), Vector3(-cw / 7.0 * (k + 0.5), 2.05 * 0.5, 0.012 if k % 2 == 0 else -0.004), cloth)
 		m.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+	# カーテンの調べる判定（部屋の側。開け閉めで横幅が変わる）
+	var carea := MeshKit.interact_area(self, "CurtainArea", "curtain", self)
+	_curtain_shape = BoxShape3D.new()
+	var cs := CollisionShape3D.new()
+	cs.name = "Shape"
+	cs.shape = _curtain_shape
+	carea.add_child(cs)
+	_update_curtain_shape()
+	# 窓から差す光：窓の内側から部屋の中へ向けた集光灯（影なし。空の色・時間・カーテンの開きで変わる）
+	window_light = SpotLight3D.new()
+	window_light.name = "WindowLight"
+	window_light.position = Vector3(2.5, 2.1, ROOM.position.z + 0.15)
+	window_light.spot_angle = 48.0
+	window_light.spot_range = 5.0
+	window_light.light_energy = 0.0
+	add_child(window_light)
+	window_light.look_at_from_position(window_light.position, Vector3(2.5, 0.2, 1.0), Vector3.UP)
 	# レール（床の溝）
 	MeshKit.box(self, Vector3(WINDOW_X.y - WINDOW_X.x, 0.01, WALL_T), Vector3((WINDOW_X.x + WINDOW_X.y) * 0.5, 0.005, bz), frame, "Rail")
 
@@ -287,19 +320,48 @@ func toggle_window() -> void:
 	var tween := create_tween()
 	tween.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 	tween.tween_property(window_panel, "position:x", start_x + (WINDOW_SLIDE if window_open else 0.0), WINDOW_TIME)
-	tween.parallel().tween_property(curtain, "scale:x", 0.18 if window_open else 1.0, WINDOW_TIME)
 	tween.tween_callback(func() -> void: window_busy = false)
 
 
-func get_prompt(_id: String) -> String:
+func get_prompt(id: String) -> String:
+	if id == "curtain":
+		return "" if curtain_busy else ("curtain_open" if curtain_closed else "curtain_close")
 	if window_busy:
 		return ""
 	return "window_close" if window_open else "window_open"
 
 
-func interact(_id: String) -> String:
+func interact(id: String) -> String:
+	if id == "curtain":
+		toggle_curtain()
+		return ""
 	toggle_window()
 	return ""
+
+
+## 遮光カーテンの開け閉め（部屋の中から）。閉まっていると、窓から差す光がほぼ消える。
+func toggle_curtain() -> void:
+	if curtain_busy:
+		return
+	curtain_busy = true
+	curtain_closed = not curtain_closed
+	var tween := create_tween()
+	tween.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	tween.tween_property(curtain, "scale:x", 1.0 if curtain_closed else 0.18, 0.9)
+	tween.tween_callback(func() -> void: curtain_busy = false)
+
+
+func _update_curtain_shape() -> void:
+	var cw := (WINDOW_X.y - WINDOW_X.x + 0.1) * curtain.scale.x
+	_curtain_shape.size = Vector3(maxf(cw, 0.05), 2.05, 0.08)
+	(_curtain_shape as Shape3D).emit_changed()
+	var cs: CollisionShape3D = get_node("CurtainArea/Shape")
+	cs.position = Vector3(curtain.position.x - cw * 0.5, 1.025, curtain.position.z)
+
+
+## カーテンの開き具合（0＝閉まっている、1＝開いている）。
+func curtain_openness() -> float:
+	return clampf((1.0 - curtain.scale.x) / 0.82, 0.0, 1.0)
 
 
 # ---------------------------------------------------------------- 本棚（右の壁一面）
@@ -952,6 +1014,51 @@ func _life_paper(parent: Node3D, n: int, width: float, pos: Vector3, normal: Vec
 	area.basis = mi.basis
 	area.position = pos + nn * 0.01
 	return mi
+
+
+## こたつ・天井のエアコン・扇風機・小さな勉強机（装飾と動きのみ。kotatsu.gd・aircon.gd・fan.gd）。
+##   こたつ   … 部屋の真ん中（x 2.6、z 0.78、布団 1.1m 四方）。座布団は北と西。西側（カセットの台・勉強机）との間に体が通れる道（幅 0.15m の余裕）を残す
+##   エアコン … 天井の真ん中（こたつの真上）。扇風機 … 窓の右の床（x 3.0、z -0.85）
+##   勉強机   … 左の壁ぎわ、玄関ホールへの出入口の北（x 1.0〜1.4、z 1.1〜1.5、高さ 0.6m の小さな机と、机の下に入れた小さな椅子）
+## 本棚（x 3.7〜）・クレーンゲーム（x 3.05〜）・机・窓・出入口の通路をふさがない位置。
+func _build_living() -> void:
+	kotatsu = KotatsuScript.new()
+	kotatsu.name = "Kotatsu"
+	add_child(kotatsu)
+	aircon = AirconScript.new()
+	aircon.name = "Aircon"
+	aircon.position = Vector3(KotatsuScript.CENTER.x, ROOM.end.y, KotatsuScript.CENTER.z)
+	add_child(aircon)
+	fan = FanScript.new()
+	fan.name = "Fan"
+	fan.position = Vector3(3.0, 0.0, -0.85)
+	add_child(fan)
+	# 小さな勉強机：左の壁に沿わせる。天板 0.4(x)×0.4(z)、高さ 0.6m。上に小さなスタンド・ノート・鉛筆立て
+	var desk := Node3D.new()
+	desk.name = "StudyDesk"
+	add_child(desk)
+	var wood := MeshKit.mat("study_wood", Color(0.78, 0.62, 0.42), 0.6)
+	var x0 := ROOM.position.x + 0.01
+	MeshKit.box(desk, Vector3(0.4, 0.03, 0.4), Vector3(x0 + 0.2, 0.585, 1.3), wood, "Top")
+	for p in [Vector2(0.03, 1.12), Vector2(0.37, 1.12), Vector2(0.03, 1.48), Vector2(0.37, 1.48)]:
+		MeshKit.box(desk, Vector3(0.03, 0.57, 0.03), Vector3(x0 + p.x, 0.285, p.y), wood, "Leg")
+	MeshKit.box(desk, Vector3(0.34, 0.1, 0.012), Vector3(x0 + 0.2, 0.5, 1.115), wood, "Apron")
+	MeshKit.shape_box(_body, Vector3(0.4, 0.6, 0.4), Vector3(x0 + 0.2, 0.3, 1.3))
+	var lamp_m := MeshKit.mat("study_lamp", Color(0.9, 0.45, 0.4), 0.5)
+	MeshKit.cylinder(desk, 0.05, 0.015, Vector3(x0 + 0.08, 0.608, 1.18), lamp_m, "LampBase")
+	MeshKit.cylinder(desk, 0.008, 0.2, Vector3(x0 + 0.08, 0.71, 1.18), lamp_m, "LampArm")
+	MeshKit.box(desk, Vector3(0.1, 0.04, 0.08), Vector3(x0 + 0.08, 0.82, 1.2), lamp_m, "LampShade")
+	MeshKit.box(desk, Vector3(0.16, 0.012, 0.21), Vector3(x0 + 0.24, 0.606, 1.34), MeshKit.mat("study_note", Color(0.92, 0.9, 0.82), 0.9), "Notebook")
+	MeshKit.cylinder(desk, 0.03, 0.08, Vector3(x0 + 0.33, 0.64, 1.18), MeshKit.mat("study_cup", Color(0.4, 0.6, 0.7), 0.5), "PencilCup")
+	# 小さな椅子（座面 0.32m 角、高さ 0.32m）。机の手前（部屋側）
+	var stool := Node3D.new()
+	stool.name = "StudyStool"
+	stool.position = Vector3(x0 + 0.32, 0.0, 1.3)
+	desk.add_child(stool)
+	MeshKit.box(stool, Vector3(0.28, 0.03, 0.28), Vector3(0, 0.3, 0), MeshKit.mat("study_stool", Color(0.4, 0.55, 0.5), 0.7), "Seat")
+	for p in [Vector2(-0.11, -0.11), Vector2(0.11, -0.11), Vector2(-0.11, 0.11), Vector2(0.11, 0.11)]:
+		MeshKit.box(stool, Vector3(0.025, 0.285, 0.025), Vector3(p.x, 0.1425, p.y), wood, "Leg")
+	MeshKit.shape_box(_body, Vector3(0.28, 0.32, 0.28), stool.position + Vector3(0, 0.16, 0))
 
 
 ## 超簡易のクレーンゲーム（ufo_catcher.gd）。部屋の右奥、本棚の手前（x 3.3、z 0.0、幅0.5×奥行き0.5。z -0.25〜0.25）。

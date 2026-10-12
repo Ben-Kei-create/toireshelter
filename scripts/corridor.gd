@@ -265,11 +265,36 @@ func _build_town() -> void:
 			var a: Vector3 = tops[i] + Vector3(dx * 0.4, 0, 0)
 			var b: Vector3 = tops[i + 1] + Vector3(dx * 0.4, 0, 0)
 			MeshKit.pipe(town, [a, (a + b) * 0.5 + Vector3(0, -0.5, 0), b], 0.006, wire)
+	# 街だけを照らす太陽（光の届く層をマスクで 2 番に限る。廊下や部屋の中は照らさない）。空の時間で色と強さが変わる
+	for c in town.get_children():
+		if c is VisualInstance3D:
+			(c as VisualInstance3D).layers = 3
+	var sun := DirectionalLight3D.new()
+	sun.name = "TownSun"
+	sun.light_cull_mask = 2
+	sun.shadow_enabled = false
+	sun.transform.basis = Basis.looking_at(Vector3(-1.0, -0.35, 0.25), Vector3.UP)
+	add_child(sun)
+	var sun_clock = get_parent().get("sky_clock") if get_parent() else null
+	if sun_clock:
+		sun_clock.weights_changed.connect(func(_d: float, _s: float, _k: float) -> void:
+			sun.light_color = sun_clock.window_color
+			sun.light_energy = 0.9 * sun_clock.daylight + 0.15)
+		sun_clock.set_time(sun_clock.time)
 	# 異世界の月：遠くの空に大きく淡い（光るだけの円盤）
 	var moon_m := MeshKit.mat("town_moon", Color(0.95, 0.92, 0.8), 1.0)
 	moon_m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	moon_m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	var moon := MeshKit.sphere(town, 5.0, Vector3(-80.0, 24.0, 16.0), moon_m)
 	moon.name = "Moon"
+	# 月は夕暮れに向けて現れる（昼は見えない）。空の時間は sky_clock から
+	var clock = get_parent().get("sky_clock") if get_parent() else null
+	if clock:
+		clock.weights_changed.connect(func(_d: float, sunset: float, dusk: float) -> void:
+			var a := clampf(dusk + sunset * 0.3, 0.0, 1.0)
+			moon_m.albedo_color = Color(0.95, 0.92, 0.8, a)
+			moon.visible = a > 0.02)
+		clock.set_time(clock.time)
 
 
 ## 建物1棟：東面（+x、廊下を向く）に窓の格子を並べる。b = [東面の x, 中心 z, 幅 z, 屋根の y, 奥行き x]。

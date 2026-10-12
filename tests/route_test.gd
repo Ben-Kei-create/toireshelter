@@ -139,7 +139,7 @@ func _run() -> void:
 	_check(_id(wh) == "window" and main._prompt_for(wh) == main.PROMPTS["window_open"], "窓を狙うと「窓を開ける」")
 	player.try_interact()
 	await _seconds(0.7)
-	_check(room.apartment.window_open and room.apartment.curtain.scale.x < 0.3, "窓が開き、カーテンも寄る")
+	_check(room.apartment.window_open and room.apartment.curtain_closed and room.apartment.curtain.scale.x > 0.99, "窓が開いても、遮光カーテンは別に閉まったまま（部屋の中から開け閉めする）")
 	# 自室へ歩いて入る → 正規クリア
 	player.rotation.y = PI
 	player._pitch = 0.0

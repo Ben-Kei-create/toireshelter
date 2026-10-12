@@ -13,6 +13,7 @@ const PlayerScript := preload("res://scripts/player.gd")
 const HudScript := preload("res://scripts/hud.gd")
 const ExteriorScript := preload("res://scripts/exterior.gd")
 const ApartmentScript := preload("res://scripts/apartment.gd")
+const KotatsuScript := preload("res://scripts/kotatsu.gd")
 const BooksScript := preload("res://scripts/books.gd")
 const CorridorScript := preload("res://scripts/corridor.gd")
 
@@ -74,6 +75,16 @@ const MESSAGES := {
 	"cannot_use": "ここでは使えない。",
 	"tub_note": "小さな紙が貼ってある。『ここまで来たか。』",
 	"towel_scratch": "タオルの裏に傷がある。前からあっただろうか。",
+	"bath_light_off": "カチッ。トイレの電気を消した。",
+	"bath_light_on": "カチッ。トイレの電気をつけた。",
+	"bath_light_purple": "カチッ……電球がちらついて、トイレが紫色の光に包まれた。",
+	"bath_light_on_purple": "カチッ。トイレが紫色にともった。",
+	"aircon_on": "ピッ。エアコンがついた。羽が開いて、風がゆるく降りてくる。",
+	"aircon_off": "ピッ。エアコンを止めた。",
+	"fan_on": "扇風機がまわり出した。首がゆっくり振れる。",
+	"fan_off": "扇風機を止めた。",
+	"kotatsu_look": "こたつだ。座布団がある。……あったかそう。",
+	"kotatsu_inside": "こたつの中は、赤くてあたたかい。",
 	"ufo_miss": "アームが降りて……景品をつかみそこねた。",
 	"ufo_win": "景品をつかんだ。取り出し口に落ちた。持ち帰れはしないらしい。",
 	"ufo_empty": "景品は、もうない。",
@@ -119,8 +130,15 @@ const PROMPTS := {
 	"shower_on": "左クリック：シャワーを出す",
 	"shower_off": "左クリック：シャワーを止める",
 	"curtain_open": "左クリック：カーテンを開ける",
+	"kotatsu_enter": "左クリック：こたつに入る",
 	"front_door_open": "左クリック：玄関のドアを開ける",
 	"book_read": "左クリック：本を読む",
+	"bath_light_off": "左クリック：トイレの電気を消す",
+	"bath_light_on": "左クリック：トイレの電気をつける",
+	"aircon_on": "左クリック：エアコンをつける",
+	"aircon_off": "左クリック：エアコンを止める",
+	"fan_on": "左クリック：扇風機をつける",
+	"fan_off": "左クリック：扇風機を止める",
 	"ufo_play": "左クリック：アームを動かす",
 }
 
@@ -140,6 +158,9 @@ const ACTION_PROMPTS := {
 	"vent_enter": "E：換気口へ入る",
 	"duct_back": "E：浴室へ戻る",
 	"balcony_down": "E：ベランダへ降りる",
+	"kotatsu_sit": "E：こたつに座る",
+	"kotatsu_stand": "E：立つ",
+	"kotatsu_out": "E：こたつから出る",
 }
 
 const TUB_TARGETS := ["bathtub", "bath_plug", "bath_faucet", "tub_note"]   # 入浴剤を使える照準先（浴槽のどこか）
@@ -182,6 +203,8 @@ var _last_region := ""
 var door_open := false
 var cleared := false
 var paused := false
+var play_time := 0.0               # 一時停止中を除くプレイ時間（秒）。空模様に使う
+var kotatsu_seat := 0              # 座っている（入っている）こたつの座布団（KotatsuScript.SEATS の番号）
 var reading := false               # 本を読む画面が開いている
 var _reader_pages: Array = []
 var _reader_page := 0
@@ -231,6 +254,9 @@ func _ready() -> void:
 
 
 func _process(_delta: float) -> void:
+	if not paused and not cleared:
+		play_time += _delta
+		room.sky_clock.set_time(play_time)
 	if paused or cleared or reading:
 		hud.set_prompt("")
 		return
@@ -342,6 +368,10 @@ func _action_for(target: Object) -> String:
 			return "tub_exit"
 		PlayerScript.Pose.TRANSITION:
 			return ""
+		PlayerScript.Pose.KOTATSU_SEAT:
+			return "kotatsu_stand"
+		PlayerScript.Pose.KOTATSU_IN:
+			return "kotatsu_out"
 		PlayerScript.Pose.DUCT:
 			var p := player.global_position
 			if Vector2(p.x - VENT_MOUTH.x, p.z - VENT_MOUTH.z).length() < DUCT_BACK_RANGE:
@@ -352,6 +382,8 @@ func _action_for(target: Object) -> String:
 	if target == null:
 		return ""
 	var id := String(target.get_meta("interact_id", ""))
+	if id == "kotatsu" and player.pose == PlayerScript.Pose.WALK:
+		return "kotatsu_sit"
 	if id in ["toilet", "toilet_seat", "toilet_lid"] and room.toilet.can_sit():
 		return "sit"
 	if id in ["bathtub", "bath_plug"]:
@@ -366,6 +398,16 @@ func do_action() -> void:
 		"sit":
 			room.toilet.occupied = true
 			player.enter_fixed(PlayerScript.Pose.SEATED, SEAT_FEET, SEAT_YAW, SEAT_EYE)
+		"kotatsu_sit":
+			kotatsu_seat = KotatsuScript.nearest_seat(player.global_position)
+			var seat: Dictionary = KotatsuScript.SEATS[kotatsu_seat]
+			player.enter_fixed(PlayerScript.Pose.KOTATSU_SEAT, seat.feet, seat.yaw, KotatsuScript.EYE_SEATED)
+		"kotatsu_stand":
+			if not player.leave_fixed(KotatsuScript.SEATS[kotatsu_seat].exits):
+				hud.show_message(MESSAGES["no_way_out"])
+		"kotatsu_out":
+			var seat2: Dictionary = KotatsuScript.SEATS[kotatsu_seat]
+			player.move_to(PlayerScript.Pose.KOTATSU_SEAT, seat2.feet, seat2.yaw, KotatsuScript.EYE_SEATED)
 		"stand_up":
 			if player.leave_fixed(SEAT_EXITS):
 				room.toilet.occupied = false
@@ -414,6 +456,8 @@ func _prompt_for(target: Object) -> String:
 			return PROMPT_PICKUP
 		"door":
 			return PROMPT_EXAMINE
+		"kotatsu":
+			return PROMPTS["kotatsu_enter"] if player.pose == PlayerScript.Pose.KOTATSU_SEAT else PROMPT_EXAMINE
 		_:
 			return PROMPT_EXAMINE
 
@@ -457,6 +501,16 @@ func _on_interact_requested(target: Object) -> void:
 			room.take_bath_powder()
 			add_item("bath_powder")
 			hud.show_message(MESSAGES["bath_powder_pickup"])
+		"kotatsu":
+			match player.pose:
+				PlayerScript.Pose.KOTATSU_SEAT:
+					var seat3: Dictionary = KotatsuScript.SEATS[kotatsu_seat]
+					player.move_to(PlayerScript.Pose.KOTATSU_IN, seat3.inside, seat3.yaw, KotatsuScript.EYE_INSIDE)
+					hud.show_message(MESSAGES["kotatsu_inside"])
+				PlayerScript.Pose.KOTATSU_IN:
+					hud.show_message(MESSAGES["kotatsu_inside"])
+				_:
+					hud.show_message(MESSAGES["kotatsu_look"])
 		"door":
 			if door_open:
 				return
