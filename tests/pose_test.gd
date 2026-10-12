@@ -35,6 +35,20 @@ func _run() -> void:
 	var crouch_dist := await _walk(player, 0.5)
 	_check(crouch_dist < walk_dist * 0.6 and crouch_dist > 0.1, "しゃがむと移動が遅い（0.5秒で %.2fm → %.2fm）" % [walk_dist, crouch_dist])
 
+	# 実際のキー入力経路：C の押下・解放を2回送って WALK → CROUCH → WALK
+	player.toggle_crouch()   # いったん立つ
+	await _seconds(0.6)
+	_check(player.pose == Pose.WALK, "（準備）立っている")
+	await _press_key(KEY_C)
+	_check(player.pose == Pose.CROUCH, "C キーの押下・解放1回目でしゃがむ")
+	await _seconds(0.6)
+	await _press_key(KEY_C)
+	_check(player.pose == Pose.WALK and is_equal_approx(cap.height, player.BODY_HEIGHT), "C キーの押下・解放2回目で立つ")
+	await _seconds(0.6)
+	await _press_key(KEY_C)
+	_check(player.pose == Pose.CROUCH, "（準備）もう一度しゃがむ")
+	await _seconds(0.6)
+
 	# 目の高さは滑らかに変わる（途中の高さを通る）
 	player.toggle_crouch()
 	await _physics(2)
@@ -51,10 +65,7 @@ func _run() -> void:
 	player.global_position = under_sink
 	await _physics(5)
 	main.hud._message_label.text = ""
-	var ev := InputEventAction.new()
-	ev.action = "crouch"
-	ev.pressed = true
-	player._unhandled_input(ev)
+	await _press_key(KEY_C)
 	_check(player.pose == Pose.CROUCH and is_equal_approx(cap.height, player.CROUCH_BODY_HEIGHT)
 			and main.hud._message_label.text == main.MESSAGES["no_headroom"],
 			"洗面台の下では立ち上がらず、「頭上が狭い」と表示")
@@ -313,6 +324,18 @@ func _cam_clear(player: Node3D, blockers: Dictionary) -> bool:
 			print("    カメラが %s の中：%s" % [k, cam])
 			return false
 	return true
+
+
+## 実際のキー入力（押下と解放）を送る。Input → ビューポート → _unhandled_input の経路を通る。
+func _press_key(key: Key) -> void:
+	for pressed in [true, false]:
+		var ev := InputEventKey.new()
+		ev.physical_keycode = key
+		ev.keycode = key
+		ev.pressed = pressed
+		Input.parse_input_event(ev)
+		await process_frame
+		await process_frame
 
 
 ## move_forward を duration 秒押して、水平に進んだ距離を返す。

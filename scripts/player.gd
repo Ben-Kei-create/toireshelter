@@ -91,10 +91,11 @@ func _unhandled_input(event: InputEvent) -> void:
 		try_interact()
 	elif event.is_action_pressed("crouch"):
 		get_viewport().set_input_as_handled()
-		if pose == Pose.CROUCH and not toggle_crouch():
-			crouch_blocked.emit()
-		elif pose == Pose.WALK:
-			toggle_crouch()
+		# 入力を受けた時点の姿勢で分岐し、1回の入力につき toggle_crouch() を1回だけ呼ぶ
+		var was := pose
+		if was == Pose.WALK or was == Pose.CROUCH:
+			if not toggle_crouch() and was == Pose.CROUCH:
+				crouch_blocked.emit()
 
 
 func _process(delta: float) -> void:
