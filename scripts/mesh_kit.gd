@@ -146,6 +146,20 @@ static func tiled_mat(key: String, tex: Texture2D, tile_m: float, tint := Color.
 	return m
 
 
+## 隠し場所の小さな紙（仮の無地）。影の中でも紙だと分かるよう、ごく弱く自己発光させる。
+static func note_mat() -> StandardMaterial3D:
+	if _mat_cache.has("note_paper"):
+		return _mat_cache["note_paper"]
+	var m := StandardMaterial3D.new()
+	m.albedo_color = Color(0.95, 0.93, 0.86)
+	m.roughness = 0.9
+	m.emission_enabled = true
+	m.emission = Color(0.95, 0.93, 0.86)
+	m.emission_energy_multiplier = 0.3
+	_mat_cache["note_paper"] = m
+	return m
+
+
 ## 水面用の半透明マテリアル（共有）。
 static func water_surface_mat() -> StandardMaterial3D:
 	if _mat_cache.has("water_surface"):

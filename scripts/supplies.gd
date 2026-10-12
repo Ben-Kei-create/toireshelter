@@ -1,12 +1,19 @@
 extends Node3D
-## トイレまわりの生活用品（TASK-06）。座標は部屋と同じ（この節点は原点に置く）。すべて調べられるが、取得はできない。
+## トイレまわりの生活用品（TASK-06／TASK-09）。座標は部屋と同じ（この節点は原点に置く）。
+## 取得できるのは棚の予備ロールだけ（TASK-09）。ほかは調べるだけ。
 ##
-##   PaperHolder   … 左の壁 z=+0.30・高さ0.70。座った人の右手側。使用中のロールと垂れた紙
+##   PaperHolder   … 左の壁 z=+0.30・高さ0.70。座った人の右手側。初期状態は芯だけ・カバー閉。
+##                   CoverPivot（カバー、蝶番は台座の上端）をクリックで開閉。カバーが開いていて予備ロールを
+##                   選んでいるとき、F で交換：芯を外して収納台の脇の小皿（CoreDish）に置き、新しいロールを付ける
 ##   SupplyShelf   … タンクの上の壁の棚（上面 y=1.35、長さ 0.40m）。手前から見て左から入浴剤（room.gd の BathPowder、
 ##                   直径0.104）・洗剤（Cleaner、幅0.085）・包装された予備ロール（SpareRoll、直径0.116）を 2〜3cm 間隔で並べる
 ##   CleaningStand … 手前左の床の隅。ラバーカップ（Plunger）とトイレブラシ（Brush）を、
 ##                   持ち手を垂直に、台の前端から同じ距離・同じ間隔で並べる
 ##   VentSticker   … 天井の換気口の横に下向きに貼った点検シール（操作距離 2.4m）
+##   ShelfNote     … 棚板の裏（下向き）の小さな紙。棚板には当たり判定があり、上（立った目線）からは遮られる。
+##                   座る・しゃがむと目線が棚板より下になり、見上げると見える
+##   TankNote      … タンクの真下の壁の小さな紙。立つとタンクに、正面からは便器に遮られ、
+##                   しゃがんで便器の入口側から覗くと見える
 ##
 ## 当たり判定：細い物には付けない。床の収納台だけ、体がめり込まないよう単純な箱を1つ付け、
 ## 調べる判定（interact）はその箱より少し大きくして、照準が先に当たるようにしてある。
@@ -32,16 +39,35 @@ const ITEM_Z := [0.995, 1.125]          # 台の両端から 0.065、間隔 0.13
 const STICKER_CENTER := Vector3(-0.53, 2.2, -1.02)
 const STICKER_SIZE := Vector2(0.10, 0.0625)
 const STICKER_RANGE := 2.4
+const ROLL_R := 0.055
+const ROLL_X := 0.012 + ROLL_R + 0.006   # ホルダーの台座からロールの中心まで
+const COVER_OPEN_DEG := 75.0
+const COVER_TIME := 0.3
+const INSTALL_TIME := 0.6
+const DISH_POS := Vector3(-0.8, 0.0, 0.86)
+const SHELF_NOTE_POS := Vector3(-0.83, 1.332, 0.0)
+const TANK_NOTE_POS := Vector3(-0.899, 0.42, -0.04)
 
 var plunger: Node3D
 var brush: Node3D
+var cover_open := false
+var has_paper := false
+var holder_busy := false
+var spare_roll_taken := false
+var cover_pivot: Node3D
+var _holder_roll: Node3D
+var _holder_core: Node3D
+var _dish_core: Node3D
+var _spare_roll: Node3D
 
 
 func _ready() -> void:
 	_build_paper_holder()
 	_build_shelf()
 	_build_stand()
+	_build_dish()
 	_build_sticker()
+	_build_notes()
 
 
 func _build_paper_holder() -> void:
@@ -51,20 +77,92 @@ func _build_paper_holder() -> void:
 	add_child(root)
 	var metal := MeshKit.mat("metal", Color(0.75, 0.75, 0.78), 0.25, 0.8)
 	var paper := MeshKit.mat("paper", Color(0.97, 0.97, 0.95), 0.95)
-	var r := 0.055
-	var roll_x := 0.012 + r + 0.006   # 壁の台座＋すき間
+	var core_mat := MeshKit.mat("paper_core", Color(0.7, 0.6, 0.48), 0.9)
 	MeshKit.box(root, Vector3(0.012, 0.08, 0.15), Vector3(0.006, 0.0, 0.0), metal, "Plate")
 	for zz in [-0.062, 0.062]:
-		MeshKit.box(root, Vector3(roll_x + 0.012, 0.012, 0.008), Vector3((roll_x + 0.012) * 0.5, 0.0, zz), metal)
-	var cover := MeshKit.box(root, Vector3(roll_x + r * 0.7, 0.003, 0.13), Vector3((roll_x + r * 0.7) * 0.5, r + 0.012, 0.0), metal, "Cover")
-	cover.rotation.z = deg_to_rad(-8.0)
-	var roll := MeshKit.cylinder(root, r, 0.105, Vector3(roll_x, 0.0, 0.0), paper, "Roll", -1.0, 24)
-	roll.rotation.x = deg_to_rad(90.0)
-	MeshKit.cylinder(roll, 0.02, 0.106, Vector3.ZERO, MeshKit.mat("paper_core", Color(0.7, 0.6, 0.48), 0.9), "Core")
-	# ロールの手前（部屋側）から垂れた紙
-	MeshKit.box(root, Vector3(0.0015, 0.12, 0.103), Vector3(roll_x + r - 0.001, -0.06, 0.0), paper, "Sheet")
-	var area := MeshKit.interact_area(root, "HolderArea", "paper_holder")
-	MeshKit.shape_box(area, Vector3(roll_x + r + 0.01, 0.2, 0.15), Vector3((roll_x + r + 0.01) * 0.5, -0.04, 0.0))
+		MeshKit.box(root, Vector3(ROLL_X + 0.012, 0.012, 0.008), Vector3((ROLL_X + 0.012) * 0.5, 0.0, zz), metal)
+	# カバー：蝶番は台座の上端（z 方向の軸）。閉じると少し下向き、開けると跳ね上がる
+	cover_pivot = Node3D.new()
+	cover_pivot.name = "CoverPivot"
+	cover_pivot.position = Vector3(0.012, ROLL_R + 0.012, 0.0)
+	cover_pivot.rotation.z = deg_to_rad(-8.0)
+	root.add_child(cover_pivot)
+	var cl := ROLL_X + ROLL_R * 0.7 - 0.012
+	MeshKit.box(cover_pivot, Vector3(cl, 0.003, 0.13), Vector3(cl * 0.5, 0.0, 0.0), metal, "Cover")
+	var cover_area := MeshKit.interact_area(cover_pivot, "CoverArea", "paper_cover", self)
+	MeshKit.shape_box(cover_area, Vector3(cl, 0.012, 0.135), Vector3(cl * 0.5, 0.003, 0.0))
+	# 初期状態は芯だけ
+	_holder_core = MeshKit.cylinder(root, 0.02, 0.105, Vector3(ROLL_X, 0.0, 0.0), core_mat, "CoreOnly", -1.0, 16)
+	_holder_core.rotation.x = deg_to_rad(90.0)
+	# 交換後のロール（白い紙＋芯＋垂れた紙）。はじめは隠しておく
+	_holder_roll = Node3D.new()
+	_holder_roll.name = "Roll"
+	_holder_roll.position = Vector3(ROLL_X, 0.0, 0.0)
+	_holder_roll.visible = false
+	root.add_child(_holder_roll)
+	var body := MeshKit.cylinder(_holder_roll, ROLL_R, 0.105, Vector3.ZERO, paper, "Paper", -1.0, 24)
+	body.rotation.x = deg_to_rad(90.0)
+	var inner := MeshKit.cylinder(_holder_roll, 0.02, 0.106, Vector3.ZERO, core_mat, "Core")
+	inner.rotation.x = deg_to_rad(90.0)
+	MeshKit.box(_holder_roll, Vector3(0.0015, 0.12, 0.103), Vector3(ROLL_R - 0.001, -0.06, 0.0), paper, "Sheet")
+	var area := MeshKit.interact_area(root, "HolderArea", "paper_holder", self)
+	MeshKit.shape_box(area, Vector3(ROLL_X + ROLL_R + 0.01, 0.13, 0.13), Vector3((ROLL_X + ROLL_R + 0.01) * 0.5, -0.01, 0.0))
+
+
+func _build_dish() -> void:
+	# 収納台の脇（ホルダー寄り）の床の小皿。交換で外した芯をここに置く
+	var dish := Node3D.new()
+	dish.name = "CoreDish"
+	dish.position = DISH_POS
+	add_child(dish)
+	MeshKit.cylinder(dish, 0.055, 0.012, Vector3(0, 0.006, 0), MeshKit.mat("dish", Color(0.86, 0.86, 0.84), 0.4), "Plate", 0.06)
+	_dish_core = MeshKit.cylinder(dish, 0.02, 0.105, Vector3(0, 0.012 + 0.02, 0), MeshKit.mat("paper_core", Color(0.7, 0.6, 0.48), 0.9), "Core", -1.0, 16)
+	_dish_core.rotation.x = deg_to_rad(90.0)
+	_dish_core.visible = false
+
+
+## カバーを開ける／閉める。
+func toggle_cover() -> void:
+	if holder_busy:
+		return
+	holder_busy = true
+	cover_open = not cover_open
+	var tween := create_tween()
+	tween.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	tween.tween_property(cover_pivot, "rotation:z", deg_to_rad(COVER_OPEN_DEG if cover_open else -8.0), COVER_TIME)
+	tween.tween_callback(func() -> void: holder_busy = false)
+
+
+## 予備ロールを付ける。結果："ok"（演出開始。呼び出し側が予備ロールを消費する）／"cover_closed"／"busy"／"full"。
+func install_roll() -> String:
+	if holder_busy:
+		return "busy"
+	if has_paper:
+		return "full"
+	if not cover_open:
+		return "cover_closed"
+	holder_busy = true
+	has_paper = true
+	var tween := create_tween()
+	tween.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	# 芯を手前へ外して消し、小皿に置く → 新しいロールを付ける
+	tween.tween_property(_holder_core, "position:x", ROLL_X + 0.08, INSTALL_TIME * 0.4)
+	tween.tween_callback(func() -> void:
+		_holder_core.visible = false
+		_dish_core.visible = true
+		_holder_roll.visible = true
+		_holder_roll.scale = Vector3(0.3, 0.3, 0.3))
+	tween.tween_property(_holder_roll, "scale", Vector3.ONE, INSTALL_TIME * 0.6)
+	tween.tween_callback(func() -> void: holder_busy = false)
+	return "ok"
+
+
+## 棚の予備ロールを取る（見た目と照準判定を消す）。
+func take_spare_roll() -> void:
+	spare_roll_taken = true
+	_spare_roll.visible = false
+	var area: Area3D = _spare_roll.get_node("SpareRollArea")
+	area.collision_layer = 0
 
 
 func _build_shelf() -> void:
@@ -76,11 +174,19 @@ func _build_shelf() -> void:
 	var zc := (SHELF_Z.x + SHELF_Z.y) * 0.5
 	var zl := SHELF_Z.y - SHELF_Z.x
 	MeshKit.box(shelf, Vector3(SHELF_DEPTH, t, zl), Vector3(WALL_X + SHELF_DEPTH * 0.5, SHELF_TOP - t * 0.5, zc), white, "Board")
+	# 棚板の当たり判定（体は届かない高さ。上から棚板の裏の紙を狙う照準を遮るため）
+	var board_body := StaticBody3D.new()
+	board_body.name = "BoardCollision"
+	board_body.collision_layer = MeshKit.LAYER_WORLD
+	board_body.collision_mask = 0
+	shelf.add_child(board_body)
+	MeshKit.shape_box(board_body, Vector3(SHELF_DEPTH, t, zl), Vector3(WALL_X + SHELF_DEPTH * 0.5, SHELF_TOP - t * 0.5, zc))
 	for zz in [SHELF_Z.x + 0.03, SHELF_Z.y - 0.03]:
 		MeshKit.box(shelf, Vector3(0.1, 0.07, 0.012), Vector3(WALL_X + 0.05, SHELF_TOP - t - 0.035, zz), white)
 
 	# 包装された予備ロール：側面に包装の画像を一周巻く。文字のある中央を +x（部屋側）、継ぎ目を壁側に
 	var roll := Node3D.new()
+	_spare_roll = roll
 	roll.name = "SpareRoll"
 	roll.position = Vector3(WALL_X + SHELF_DEPTH * 0.5, SHELF_TOP, ROLL_Z)
 	shelf.add_child(roll)
@@ -174,3 +280,47 @@ func _build_sticker() -> void:
 	var area := MeshKit.interact_area(self, "VentStickerArea", "vent_sticker")
 	area.set_meta("interact_range", STICKER_RANGE)
 	MeshKit.shape_box(area, Vector3(STICKER_SIZE.x, 0.006, STICKER_SIZE.y), STICKER_CENTER - Vector3(0, 0.003, 0))
+
+
+func _build_notes() -> void:
+	# 隠し場所の小さな紙（仮の見た目：無地の紙）。取得はできない。謎の進行には結び付けない
+	var paper := MeshKit.note_mat()
+	# 棚板の裏：下向き
+	var shelf_note := _note(paper, "ShelfNote", "shelf_note", Vector2(0.07, 0.05), SHELF_NOTE_POS - Vector3(0, 0.0012, 0))
+	shelf_note.rotation.x = deg_to_rad(90.0)
+	var sa := MeshKit.interact_area(self, "ShelfNoteArea", "shelf_note")
+	MeshKit.shape_box(sa, Vector3(0.07, 0.004, 0.05), SHELF_NOTE_POS - Vector3(0, 0.002, 0))
+	# タンクの真下の壁：部屋側（+x）向き
+	var tank_note := _note(paper, "TankNote", "tank_note", Vector2(0.07, 0.05), TANK_NOTE_POS + Vector3(0.0012, 0, 0))
+	tank_note.rotation.y = deg_to_rad(90.0)
+	var ta := MeshKit.interact_area(self, "TankNoteArea", "tank_note")
+	MeshKit.shape_box(ta, Vector3(0.004, 0.05, 0.07), TANK_NOTE_POS + Vector3(0.002, 0, 0))
+
+
+func _note(mat: Material, node_name: String, _id: String, size: Vector2, pos: Vector3) -> MeshInstance3D:
+	var quad := QuadMesh.new()
+	quad.size = size
+	var mi := MeshInstance3D.new()
+	mi.name = node_name
+	mi.mesh = quad
+	mi.material_override = mat
+	mi.position = pos
+	add_child(mi)
+	return mi
+
+
+# ---------------------------------------------------------------- main.gd から呼ばれる（ペーパーホルダー）
+
+func get_prompt(id: String) -> String:
+	if id == "paper_cover":
+		if holder_busy:
+			return ""
+		return "cover_close" if cover_open else "cover_open"
+	return "examine"
+
+
+func interact(id: String) -> String:
+	if id == "paper_cover":
+		toggle_cover()
+		return ""
+	return "paper_holder" if has_paper else "paper_holder_empty"

@@ -1,5 +1,5 @@
 extends CanvasLayer
-## 画面表示：照準・案内・メッセージ・所持品・一時停止メニュー・クリア画面。
+## 画面表示：照準・案内・メッセージ・所持品欄・持ち物の拡大表示・一時停止メニュー・クリア画面。
 
 signal resume_pressed
 signal quit_pressed
@@ -16,7 +16,14 @@ var _prompt_panel: PanelContainer
 var _message_panel: PanelContainer
 var _prompt_label: Label
 var _message_label: Label
-var _inventory_label: Label
+var _inventory_bar: HBoxContainer
+var _slot_labels: Array[Label] = []
+var _slot_panels: Array[PanelContainer] = []
+var _zoom: Control
+var _zoom_viewport: SubViewport
+var _zoom_pivot: Node3D
+var _zoom_name: Label
+var _zoom_desc: Label
 var _hint_label: Label
 var _pause_menu: Control
 var _clear_menu: Control
@@ -35,11 +42,12 @@ func _ready() -> void:
 	add_child(_root)
 
 	# 配置（1280x720 基準、上から）：
-	#   所持品 … 左上
 	#   照準   … 画面中央
 	#   操作   … 照準の 28px 下（中央）
-	#   説明文 … 下端から 52px 上を底辺として上に伸びる（最大2〜3行）
-	#   操作案内 … 最下段（下端から 12〜40px）
+	#   説明文 … 下端から 92px 上を底辺として上に伸びる（最大2〜3行）
+	#   所持品欄 … 右下（下端から 16〜68px、スロット2つ）
+	#   操作案内 … 最下段の左（下端から 12〜40px）。所持品欄と重ならない長さ
+	#   拡大表示 … 画面中央（Q で開閉）
 	_build_crosshair()
 	_prompt_label = _make_label(20, HORIZONTAL_ALIGNMENT_CENTER)
 	_prompt_label.name = "PromptLabel"
@@ -53,24 +61,22 @@ func _ready() -> void:
 	_message_label.name = "MessageLabel"
 	_message_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_message_panel = _make_panel("Message", _message_label, 0.65)
-	_place(_message_panel, 0.08, 1.0, 0.92, 1.0, 0.0, -52.0, 0.0, -52.0)
+	_place(_message_panel, 0.08, 1.0, 0.92, 1.0, 0.0, -92.0, 0.0, -92.0)
 	_message_panel.grow_vertical = Control.GROW_DIRECTION_BEGIN
 	_message_panel.visible = false
 
-	_inventory_label = _make_label(20, HORIZONTAL_ALIGNMENT_LEFT)
-	_inventory_label.name = "InventoryLabel"
-	var inventory_panel := _make_panel("Inventory", _inventory_label, 0.55)
-	_place(inventory_panel, 0.0, 0.0, 0.0, 0.0, 20.0, 18.0, 20.0, 18.0)
-	set_inventory("")
+	_build_inventory_bar()
+	_build_zoom()
 
 	_hint_label = _make_label(17, HORIZONTAL_ALIGNMENT_LEFT)
 	_hint_label.name = "Hint"
-	_hint_label.text = "WASD：移動　マウス：見回す　左クリック：調べる　C：しゃがむ　E：座る・入る　Esc：一時停止"
+	_hint_label.text = "WASD：移動　クリック：調べる　F：使う　1/2・ホイール：選ぶ　Q：拡大　C：しゃがむ　E：座る・入る　Esc：停止"
 	_hint_label.add_theme_color_override("font_color", Color(1, 1, 1, 0.85))
 	_hint_label.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.8))
 	_hint_label.add_theme_constant_override("shadow_offset_x", 1)
 	_hint_label.add_theme_constant_override("shadow_offset_y", 1)
-	_place(_hint_label, 0.0, 1.0, 1.0, 1.0, 24.0, -40.0, 0.0, -12.0)
+	_hint_label.add_theme_font_size_override("font_size", 15)
+	_place(_hint_label, 0.0, 1.0, 1.0, 1.0, 24.0, -40.0, -260.0, -12.0)
 
 	_pause_menu = _make_menu("PauseMenu", "一時停止")
 	_resume_button = _add_button(_pause_menu, "再開", func() -> void: resume_pressed.emit())
@@ -84,6 +90,8 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
+	if _zoom.visible:
+		_zoom_pivot.rotation.y += delta * 0.8
 	if _message_time_left > 0.0:
 		_message_time_left -= delta
 		if _message_time_left <= 0.0:
@@ -108,11 +116,37 @@ func set_prompt(text: String) -> void:
 		_prompt_panel.visible = not text.is_empty()
 
 
-func set_inventory(item_name: String) -> void:
-	if item_name.is_empty():
-		_inventory_label.text = "所持品：なし"
-	else:
-		_inventory_label.text = "所持品：" + item_name
+## 所持品欄を更新する。names：持っている物の名前（最大2つ、順に 1・2 キー）、selected：選択中の番号（なければ -1）。
+func set_inventory(names: Array, selected: int) -> void:
+	for i in _slot_labels.size():
+		var has := i < names.size()
+		_slot_labels[i].text = "%d  %s" % [i + 1, names[i] if has else "―"]
+		_slot_labels[i].modulate = Color(1, 1, 1, 1.0 if has else 0.45)
+		var style := _slot_panels[i].get_theme_stylebox("panel") as StyleBoxFlat
+		var on := has and i == selected
+		style.bg_color = Color(0.0, 0.0, 0.0, 0.72 if on else 0.45)
+		style.border_color = Color(1.0, 0.86, 0.55) if on else Color(1, 1, 1, 0.0)
+		style.set_border_width_all(2 if on else 0)
+
+
+## 持ち物の拡大表示。model：表示する3Dモデル（複製して使う）。null なら閉じる。
+func show_item_zoom(model: Node3D, item_name: String, desc: String) -> void:
+	for c in _zoom_pivot.get_children():
+		c.queue_free()
+	if model == null:
+		_zoom.visible = false
+		return
+	var m := model.duplicate()
+	_zoom_pivot.add_child(m)
+	m.position = Vector3.ZERO
+	m.rotation = Vector3.ZERO
+	_zoom_name.text = item_name
+	_zoom_desc.text = desc
+	_zoom.visible = true
+
+
+func is_zoom_open() -> bool:
+	return _zoom.visible
 
 
 func show_pause(is_paused: bool) -> void:
@@ -126,11 +160,98 @@ func show_clear() -> void:
 	_message_panel.visible = false
 	_message_time_left = 0.0
 	_hint_label.visible = false
+	_zoom.visible = false
 	_clear_menu.visible = true
 	_retry_button.grab_focus()
 
 
 # ---------------------------------------------------------------- 構築ヘルパー
+
+func _build_inventory_bar() -> void:
+	_inventory_bar = HBoxContainer.new()
+	_inventory_bar.name = "Inventory"
+	_inventory_bar.add_theme_constant_override("separation", 8)
+	_inventory_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_place(_inventory_bar, 1.0, 1.0, 1.0, 1.0, -20.0, -16.0, -20.0, -16.0)
+	_inventory_bar.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	_inventory_bar.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	var title := _make_label(15, HORIZONTAL_ALIGNMENT_RIGHT)
+	title.text = "所持品"
+	title.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.8))
+	title.add_theme_constant_override("shadow_offset_x", 1)
+	title.add_theme_constant_override("shadow_offset_y", 1)
+	_inventory_bar.add_child(title)
+	for i in 2:
+		var label := _make_label(17, HORIZONTAL_ALIGNMENT_LEFT)
+		label.name = "Slot%dLabel" % (i + 1)
+		var panel := _make_panel("Slot%d" % (i + 1), label, 0.45)
+		panel.custom_minimum_size = Vector2(118, 46)
+		var style := (panel.get_theme_stylebox("panel") as StyleBoxFlat).duplicate() as StyleBoxFlat
+		panel.add_theme_stylebox_override("panel", style)
+		_inventory_bar.add_child(panel)
+		_slot_labels.append(label)
+		_slot_panels.append(panel)
+	set_inventory([], -1)
+
+
+func _build_zoom() -> void:
+	# 中央のパネルに、別の3D空間（SubViewport）で持ち物をゆっくり回して見せる
+	var label_name := _make_label(22, HORIZONTAL_ALIGNMENT_CENTER)
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 6)
+	var container := SubViewportContainer.new()
+	container.stretch = true
+	container.custom_minimum_size = Vector2(420, 260)
+	_zoom_viewport = SubViewport.new()
+	_zoom_viewport.own_world_3d = true
+	_zoom_viewport.transparent_bg = true
+	container.add_child(_zoom_viewport)
+	var cam := Camera3D.new()
+	var cam_pos := Vector3(0, 0.06, 0.32)
+	cam.transform = Transform3D(Basis.looking_at(Vector3(0, 0.02, 0) - cam_pos), cam_pos)
+	cam.fov = 40.0
+	cam.near = 0.01
+	_zoom_viewport.add_child(cam)
+	var light := DirectionalLight3D.new()
+	light.rotation = Vector3(deg_to_rad(-40.0), deg_to_rad(30.0), 0.0)
+	light.light_color = Color(1.0, 0.92, 0.82)
+	_zoom_viewport.add_child(light)
+	var env := WorldEnvironment.new()
+	env.environment = Environment.new()
+	env.environment.background_mode = Environment.BG_CLEAR_COLOR
+	env.environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	env.environment.ambient_light_color = Color(0.8, 0.78, 0.74)
+	env.environment.ambient_light_energy = 0.6
+	_zoom_viewport.add_child(env)
+	_zoom_pivot = Node3D.new()
+	_zoom_pivot.name = "ZoomPivot"
+	_zoom_viewport.add_child(_zoom_pivot)
+	box.add_child(container)
+	_zoom_name = label_name
+	box.add_child(label_name)
+	_zoom_desc = _make_label(18, HORIZONTAL_ALIGNMENT_CENTER)
+	_zoom_desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_zoom_desc.custom_minimum_size = Vector2(420, 0)
+	box.add_child(_zoom_desc)
+	var close_hint := _make_label(15, HORIZONTAL_ALIGNMENT_CENTER)
+	close_hint.text = "Q：閉じる"
+	close_hint.modulate = Color(1, 1, 1, 0.7)
+	box.add_child(close_hint)
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.0, 0.0, 0.0, 0.72)
+	style.set_corner_radius_all(8)
+	style.set_content_margin_all(14)
+	var panel := PanelContainer.new()
+	panel.name = "ItemZoom"
+	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	panel.add_theme_stylebox_override("panel", style)
+	panel.add_child(box)
+	_place(panel, 0.5, 0.5, 0.5, 0.5, 0.0, -40.0, 0.0, -40.0)
+	panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	panel.grow_vertical = Control.GROW_DIRECTION_BOTH
+	_zoom = panel
+	_zoom.visible = false
+
 
 func _make_theme() -> Theme:
 	var font := SystemFont.new()

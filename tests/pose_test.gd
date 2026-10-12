@@ -115,7 +115,7 @@ func _run() -> void:
 	main.hud._message_label.text = ""
 	_aim(player, room.get_node("Supplies/PaperHolder").global_position + Vector3(0.12, -0.08, 0.0))   # ロールの手前下（レバーの陰にならない所）
 	player.try_interact()
-	_check(main.hud._message_label.text == main.MESSAGES["paper_holder"], "座ったまま見回してペーパーホルダーを調べられる")
+	_check(main.hud._message_label.text == main.MESSAGES["paper_holder_empty"], "座ったまま見回してペーパーホルダーを調べられる")
 	_aim(player, toilet.lever_pivot.to_global(Vector3(0.025, 0, 0.03)))
 	var lever_hit = player.get_focused(true)
 	_check(_id(lever_hit) == "flush_lever" and main._prompt_for(lever_hit) == main.PROMPTS["flush"], "座ったままレバーに照準が届く「水を流す」")

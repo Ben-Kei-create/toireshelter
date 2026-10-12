@@ -23,6 +23,8 @@ const WATER_MAX_Y := 0.50                  # 満水時の水面（縁 0.55 よ�
 const DRAIN_POS := Vector3(0.62, BOTTOM_Y, 0.0)
 const PLUG_OUT_POS := Vector3(0.71, BOTTOM_Y, -0.17)
 const CHAIN_ANCHOR := Vector3(0.62, 0.42, -HALF.z + WALL + 0.004)   # 奥の内壁のあふれ口
+const NOTE_SIZE := Vector2(0.07, 0.035)
+const NOTE_POS := Vector3(-0.25, 0.524, HALF.z - WALL)   # 手前の縁の裏（内側の面）。満水 0.50 より上、縁 0.55 より下
 const PLUG_RADIUS := 0.024
 const PLUG_HEIGHT := 0.016
 
@@ -44,6 +46,7 @@ func _ready() -> void:
 	_build_drain(visual)
 	_build_plug()
 	_build_faucet()
+	_build_note()
 
 	_water = MeshInstance3D.new()
 	_water.name = "Water"
@@ -127,6 +130,22 @@ func _build_shell(visual: Node3D) -> void:
 		MeshKit.shape_box(body, p[0], p[1])
 	# くぼみの底面だけ水色（底の箱の上面から 1mm 上。側面は壁に隠れる）
 	MeshKit.box(visual, Vector3(inner_x * 2.0, 0.002, (HALF.z - WALL) * 2.0), Vector3(0.0, BOTTOM_Y - 0.0005, 0.0), inner, "InnerBottom")
+
+
+func _build_note() -> void:
+	# 手前の縁の裏に貼った小さな紙（仮の見た目：無地）。内側を向いているので、通路からは縁に遮られて見えず、
+	# 浴槽に入って見回すと見える（姿勢で表示を切り替えず、位置と遮蔽物だけで見え方を作る）。取得はできない
+	var quad := QuadMesh.new()
+	quad.size = NOTE_SIZE
+	var note := MeshInstance3D.new()
+	note.name = "TubNote"
+	note.mesh = quad
+	note.material_override = MeshKit.note_mat()
+	note.position = NOTE_POS - Vector3(0, 0, 0.0012)
+	note.rotation.y = PI   # 表（+z）を浴槽の内側（-z）へ
+	add_child(note)
+	var area := MeshKit.interact_area(self, "TubNoteArea", "tub_note")
+	MeshKit.shape_box(area, Vector3(NOTE_SIZE.x, NOTE_SIZE.y, 0.004), NOTE_POS - Vector3(0, 0, 0.002))
 
 
 func _build_drain(visual: Node3D) -> void:

@@ -1,5 +1,7 @@
 extends Node3D
-## ゲーム進行（開始→探索→ドライバー取得→ドア修理→脱出）と一時停止を管理する。
+## ゲーム進行（開始→探索→ドライバー取得→ドア修理→脱出）・持ち物・一時停止を管理する。
+## 操作：左クリック＝調べる・開閉・拾う／F＝選んだ持ち物を照準の対象に使う／1・2・ホイール＝持ち物を選ぶ／
+##       Q＝選んだ持ち物を拡大して見る／E＝座る・浴槽に出入り／C＝しゃがむ
 ## 再プレイはシーンを読み込み直すので、ドライバー・ドア・所持品はすべて初期状態に戻る。
 
 const RoomScript := preload("res://scripts/room.gd")
@@ -27,6 +29,17 @@ const MESSAGES := {
 	"cotton_swabs": "綿棒。ぎっしり詰まっている。",
 	"driver": "ドライバーを手に入れた。",
 	"door_locked": "ドアノブが空回りする。開かない。",
+	"door_loose": "ドアノブのネジがゆるんでいる。ドライバーが使えそうだ。",
+	"spare_roll_pickup": "『明日もある』。予備ロールを手に入れた。",
+	"paper_holder_empty": "芯だけになっている。紙がない。",
+	"cover_closed": "先にカバーを開けよう。",
+	"paper_installed": "新しいロールに替えた。外した芯は小皿に置いた。",
+	"holder_full": "まだ紙が残っている。",
+	"cannot_use": "ここでは使えない。",
+	"tub_note": "小さな紙が貼ってある。『ここまで来たか。』",
+	"towel_scratch": "タオルの裏に傷がある。前からあっただろうか。",
+	"shelf_note": "棚の裏に小さな紙が貼ってある。『下からなら見える。』",
+	"tank_note": "タンクの下の壁に小さな紙。『しゃがむと、いろいろ見える。』",
 	"door_fixed": "ドライバーでドアノブのネジを締め直した。……ドアが開いた！",
 	"no_headroom": "頭上が狭くて、ここでは立ち上がれない。",
 	"no_way_out": "出る場所がふさがっている。",
@@ -48,6 +61,16 @@ const PROMPTS := {
 	"cabinet_open": "左クリック：鏡の扉を開ける",
 	"cabinet_close": "左クリック：鏡の扉を閉める",
 	"flush": "左クリック：水を流す",
+	"towel_slide": "左クリック：タオルをずらす",
+	"towel_back": "左クリック：タオルを戻す",
+	"cover_open": "左クリック：カバーを開ける",
+	"cover_close": "左クリック：カバーを閉める",
+}
+
+## 持ち物（拾える物）。最大2つ。1・2 キーは取った順
+const ITEMS := {
+	"driver": {"name": "ドライバー", "desc": "赤橙の柄のドライバー。先はプラス。"},
+	"spare_roll": {"name": "予備ロール", "desc": "包装されたトイレットペーパー。『明日もある』。"},
 }
 
 ## E キーで変わる姿勢の案内
@@ -75,7 +98,10 @@ const PROMPT_EXAMINE := "左クリック：調べる"
 const PROMPT_PICKUP := "左クリック：拾う"
 const PROMPT_REPAIR := "左クリック：ドライバーで直す"
 
-var has_driver := false
+var has_driver := false          # ドライバーを持っているか（使っても消費しない）
+var inventory: Array[String] = []   # 持ち物の id（取った順）
+var selected := -1                  # 選択中の番号（なければ -1）
+var _item_models := {}              # 拡大表示用の3Dモデル（拾ったときに複製）
 var door_open := false
 var cleared := false
 var paused := false
@@ -126,6 +152,9 @@ func _process(_delta: float) -> void:
 	var click := _prompt_for(focused)
 	if not click.is_empty():
 		parts.append(click)
+	var use := _use_prompt(focused)
+	if not use.is_empty():
+		parts.append(use)
 	var action := _action_for(focused)
 	if not action.is_empty():
 		parts.append(ACTION_PROMPTS[action])
@@ -138,6 +167,26 @@ func _unhandled_input(event: InputEvent) -> void:
 		if not paused and not cleared:
 			do_action()
 		return
+	if not paused and not cleared:
+		if event.is_action_pressed("use_item"):
+			get_viewport().set_input_as_handled()
+			use_selected()
+			return
+		if event.is_action_pressed("item_1"):
+			select_item(0)
+			return
+		if event.is_action_pressed("item_2"):
+			select_item(1)
+			return
+		if event.is_action_pressed("inspect_item"):
+			toggle_zoom()
+			return
+		if event is InputEventMouseButton and event.pressed and inventory.size() > 0:
+			var mb := event as InputEventMouseButton
+			if mb.button_index == MOUSE_BUTTON_WHEEL_UP or mb.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+				var step := -1 if mb.button_index == MOUSE_BUTTON_WHEEL_UP else 1
+				select_item(posmod((selected if selected >= 0 else 0) + step, inventory.size()))
+				return
 	if event.is_action_pressed("pause"):
 		get_viewport().set_input_as_handled()
 		if cleared:
@@ -202,10 +251,10 @@ func _prompt_for(target: Object) -> String:
 	match id:
 		"":
 			return ""
-		"driver":
+		"driver", "spare_roll":
 			return PROMPT_PICKUP
 		"door":
-			return PROMPT_REPAIR if has_driver else PROMPT_EXAMINE
+			return PROMPT_EXAMINE
 		_:
 			return PROMPT_EXAMINE
 
@@ -223,25 +272,138 @@ func _on_interact_requested(target: Object) -> void:
 		return
 	match id:
 		"sink", "vent", "poster", "bath_powder", \
-		"paper_holder", "spare_roll", "toilet_cleaner", "plunger", "toilet_brush", "vent_sticker", \
-		"face_wash", "toner", "cotton_swabs":
+		"toilet_cleaner", "plunger", "toilet_brush", "vent_sticker", \
+		"face_wash", "toner", "cotton_swabs", "tub_note", "towel_scratch", "shelf_note", "tank_note":
 			hud.show_message(MESSAGES[id])
 		"driver":
 			if has_driver:
 				return
 			has_driver = true
+			_item_models["driver"] = room.driver_node.get_node("Visual").duplicate()
 			room.remove_driver()
-			hud.set_inventory("ドライバー")
+			add_item("driver")
 			hud.show_message(MESSAGES["driver"])
+		"spare_roll":
+			if inventory.has("spare_roll") or room.supplies.spare_roll_taken:
+				return
+			_item_models["spare_roll"] = _model_without_areas(room.supplies.get_node("SupplyShelf/SpareRoll"))
+			room.supplies.take_spare_roll()
+			add_item("spare_roll")
+			hud.show_message(MESSAGES["spare_roll_pickup"])
 		"door":
 			if door_open:
 				return
-			if has_driver:
-				door_open = true
-				room.open_door()
-				hud.show_message(MESSAGES["door_fixed"])
-			else:
-				hud.show_message(MESSAGES["door_locked"])
+			hud.show_message(MESSAGES["door_loose"] if has_driver else MESSAGES["door_locked"])
+
+
+# ---------------------------------------------------------------- 持ち物
+
+## 持ち物に加える（同じ物は重複しない）。加えた物を選択する。
+func add_item(id: String) -> bool:
+	if inventory.has(id):
+		return false
+	inventory.append(id)
+	select_item(inventory.size() - 1)
+	return true
+
+
+func remove_item(id: String) -> void:
+	var i := inventory.find(id)
+	if i < 0:
+		return
+	inventory.remove_at(i)
+	if _item_models.has(id):
+		(_item_models[id] as Node).free()
+		_item_models.erase(id)
+	select_item(mini(selected, inventory.size() - 1))
+
+
+func select_item(i: int) -> void:
+	if i < 0 or i >= inventory.size():
+		selected = -1 if inventory.is_empty() else clampi(i, 0, inventory.size() - 1)
+	else:
+		selected = i
+	var names := []
+	for id in inventory:
+		names.append(ITEMS[id]["name"])
+	hud.set_inventory(names, selected)
+	if hud.is_zoom_open():
+		_show_zoom()
+
+
+func selected_item() -> String:
+	return inventory[selected] if selected >= 0 and selected < inventory.size() else ""
+
+
+## Q：選んだ持ち物を拡大して見る／閉じる。
+func toggle_zoom() -> void:
+	if hud.is_zoom_open() or selected_item().is_empty():
+		hud.show_item_zoom(null, "", "")
+	else:
+		_show_zoom()
+
+
+func _show_zoom() -> void:
+	var id := selected_item()
+	if id.is_empty():
+		hud.show_item_zoom(null, "", "")
+		return
+	hud.show_item_zoom(_item_models.get(id), ITEMS[id]["name"], ITEMS[id]["desc"])
+
+
+## F の案内（照準の対象に選んだ物が使えるときだけ）。
+func _use_prompt(target: Object) -> String:
+	var id := selected_item()
+	if id.is_empty() or target == null or player.pose == PlayerScript.Pose.TRANSITION:
+		return ""
+	var tid := String(target.get_meta("interact_id", ""))
+	if (id == "driver" and tid == "door" and not door_open) \
+			or (id == "spare_roll" and tid in ["paper_holder", "paper_cover"] and not room.supplies.has_paper):
+		return "F：%sを使う" % ITEMS[id]["name"]
+	return ""
+
+
+## F：選んだ持ち物を照準の対象に使う。失敗しても物は減らない。
+func use_selected() -> void:
+	if paused or cleared or player.pose == PlayerScript.Pose.TRANSITION:
+		return
+	var id := selected_item()
+	if id.is_empty():
+		return
+	var target := player.get_focused(true)
+	var tid := String(target.get_meta("interact_id", "")) if target else ""
+	if id == "driver" and tid == "door" and not door_open:
+		door_open = true
+		room.open_door()
+		hud.show_message(MESSAGES["door_fixed"])
+		return
+	if id == "spare_roll" and tid in ["paper_holder", "paper_cover"]:
+		match room.supplies.install_roll():
+			"ok":
+				remove_item("spare_roll")
+				hud.show_message(MESSAGES["paper_installed"])
+			"cover_closed":
+				hud.show_message(MESSAGES["cover_closed"])
+			"full":
+				hud.show_message(MESSAGES["holder_full"])
+		return
+	hud.show_message(MESSAGES["cannot_use"])
+
+
+func _exit_tree() -> void:
+	# 拡大表示用の複製モデルはツリーの外にあるので、自分で解放する
+	for m in _item_models.values():
+		if is_instance_valid(m):
+			(m as Node).free()
+	_item_models.clear()
+
+
+func _model_without_areas(node: Node3D) -> Node3D:
+	var m := node.duplicate() as Node3D
+	for a in m.find_children("*", "Area3D", true, false):
+		a.free()
+	m.visible = true
+	return m
 
 
 # ---------------------------------------------------------------- 脱出
@@ -263,6 +425,7 @@ func _retry() -> void:
 # ---------------------------------------------------------------- 一時停止
 
 func _pause() -> void:
+	hud.show_item_zoom(null, "", "")
 	paused = true
 	get_tree().paused = true
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
@@ -290,6 +453,10 @@ func _setup_input_map() -> void:
 	_add_key_action("pause", [KEY_ESCAPE])
 	_add_key_action("crouch", [KEY_C])
 	_add_key_action("action", [KEY_E])
+	_add_key_action("use_item", [KEY_F])
+	_add_key_action("item_1", [KEY_1])
+	_add_key_action("item_2", [KEY_2])
+	_add_key_action("inspect_item", [KEY_Q])
 	if not InputMap.has_action("interact"):
 		InputMap.add_action("interact")
 		var click := InputEventMouseButton.new()

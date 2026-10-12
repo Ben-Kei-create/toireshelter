@@ -17,6 +17,7 @@ const FaucetScript := preload("res://scripts/faucet.gd")
 const SuppliesScript := preload("res://scripts/supplies.gd")
 const SinkScript := preload("res://scripts/sink.gd")
 const MirrorCabinetScript := preload("res://scripts/mirror_cabinet.gd")
+const TowelScript := preload("res://scripts/towel.gd")
 
 const LAYER_WORLD := 1      # 壁・設備（プレイヤーがぶつかる）
 const LAYER_INTERACT := 2   # 拾える小物（ぶつからない、照準だけ当たる）
@@ -63,6 +64,7 @@ var bathtub: BathtubScript
 var sink: SinkScript
 var sink_faucet: FaucetScript
 var mirror_cabinet: MirrorCabinetScript
+var towel: TowelScript
 var supplies: SuppliesScript
 
 
@@ -359,32 +361,11 @@ func _build_floor_drain() -> void:
 
 
 func _build_towel() -> void:
-	# 左の壁、便器と入口の間のタオル掛け。タオルは2枚重ねで掛かり、上は丸く折り返し、手前の裾に縁取り。見た目だけ
-	var holder := Node3D.new()
-	holder.name = "TowelBar"
-	holder.position = Vector3(-ROOM_W * 0.5, 1.15, 0.72)
-	add_child(holder)
-	var metal := _mat("metal", Color(0.75, 0.75, 0.78), 0.25, 0.8)
-	var out := 0.06   # 壁からの出幅
-	MeshKit.pipe(holder, [Vector3(out, 0, -0.23), Vector3(out, 0, 0.23)], 0.008, metal)
-	for zz in [-0.22, 0.22]:
-		_mesh_box(holder, Vector3(out, 0.012, 0.012), Vector3(out * 0.5, 0, zz), metal)
-	var towel := Node3D.new()
-	towel.name = "Towel"
-	holder.add_child(towel)
-	# 布地は画像を 0.2m 四方で繰り返す（トリプラナー投影なので、箱・円柱のどの面でも同じ細かさ）。縁取りは同じ布地を暗くしたもの
-	var cloth := MeshKit.tiled_mat("towel", TOWEL_TEX, 0.2)
-	var hem := MeshKit.tiled_mat("towel_hem", TOWEL_TEX, 0.2, Color(0.78, 0.8, 0.84))
-	var w := 0.34
-	var t := 0.009
-	var fold_r := 0.022
-	var fold := MeshKit.cylinder(towel, fold_r, w, Vector3(out, 0, 0), cloth, "Fold", -1.0, 16)
-	fold.rotation.x = deg_to_rad(90.0)
-	var front_len := 0.46
-	var back_len := 0.3
-	_mesh_box(towel, Vector3(t, front_len, w), Vector3(out + fold_r - t * 0.5, -front_len * 0.5, 0), cloth)
-	_mesh_box(towel, Vector3(t, back_len, w), Vector3(out - fold_r + t * 0.5, -back_len * 0.5, 0), cloth)
-	_mesh_box(towel, Vector3(t + 0.004, 0.035, w + 0.004), Vector3(out + fold_r - t * 0.5, -front_len + 0.02, 0), hem)
+	# 左の壁、便器と入口の間のタオル掛け。クリックでタオルが横へずれ、裏の傷が見える（towel.gd）
+	towel = TowelScript.new()
+	towel.name = "TowelBar"
+	towel.position = Vector3(-ROOM_W * 0.5, 1.15, 0.72)
+	add_child(towel)
 
 
 func _build_vent() -> void:

@@ -255,9 +255,10 @@ func _run() -> void:
 	# ================================================================ TASK-06 生活用品
 	var sup = room.supplies
 	var msgs6: Dictionary = main.MESSAGES
+	# TASK-09：ホルダーは初期状態で芯だけ、予備ロールはクリックで拾う
 	var targets := [
-		["paper_holder", Vector3(-0.2, 0, 0.75), Vector3(-0.83, 0.70, 0.30)],
-		["spare_roll", Vector3(-0.4, 0, 0.6), sup.get_node("SupplyShelf/SpareRoll").global_position + Vector3(0, 0.06, 0)],
+		["paper_holder_empty", Vector3(-0.2, 0, 0.75), Vector3(-0.83, 0.68, 0.30)],
+		["spare_roll_pickup", Vector3(-0.4, 0, 0.6), sup.get_node("SupplyShelf/SpareRoll").global_position + Vector3(0, 0.06, 0)],
 		["toilet_cleaner", Vector3(0.0, 0, 0.0), sup.get_node("SupplyShelf/Cleaner").global_position + Vector3(0, 0.09, 0)],   # 横からだと手前の予備ロールに隠れる
 		["plunger", Vector3(-0.2, 0, 0.6), Vector3(-0.80, 0.30, 0.995)],
 		["toilet_brush", Vector3(-0.2, 0, 0.6), Vector3(-0.80, 0.30, 1.125)],
@@ -267,7 +268,9 @@ func _run() -> void:
 		player.global_position = t[1]
 		_aim(player, t[2])
 		player.try_interact()
-		_check(main.hud._message_label.text == msgs6[t[0]], "%s を調べられる" % t[0])
+		_check(main.hud._message_label.text == msgs6[t[0]], "%s（照準を合わせてクリック）" % t[0])
+	_check(main.inventory.has("spare_roll") and sup.spare_roll_taken and not sup.get_node("SupplyShelf/SpareRoll").visible,
+			"予備ロールを拾うと所持品に入り、棚から消える")
 	# 点検シール：初期位置の床から（1.8m より遠い）／天井の上からは遮られる
 	main.hud._message_label.text = ""
 	player.global_position = room.spawn_position
@@ -454,7 +457,14 @@ func _run() -> void:
 	await _frames(3)
 	_aim(player, door_pos)
 	player.try_interact()
-	_check(main.door_open, "ドライバー所持でドアを直せる")
+	_check(not main.door_open and main.hud._message_label.text == main.MESSAGES["door_loose"], "ドライバーを持っていても、クリックは調べるだけ（ドアは開かない）")
+	main.select_item(main.inventory.find("spare_roll"))
+	main.use_selected()
+	_check(not main.door_open and main.inventory.has("spare_roll"), "ドアに予備ロールを使っても何も起きず、消費しない")
+	main.select_item(main.inventory.find("driver"))
+	_check(main._use_prompt(player.get_focused(true)) == "F：ドライバーを使う", "ドライバーを選んでドアを狙うと「F：ドライバーを使う」")
+	main.use_selected()
+	_check(main.door_open and main.inventory.has("driver"), "F でドライバーを使うとドアを直せる（ドライバーは消費しない）")
 
 	# --- 一時停止・再開
 	main._pause()
