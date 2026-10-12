@@ -23,6 +23,8 @@ const ExteriorScript := preload("res://scripts/exterior.gd")
 const BathRemoteScript := preload("res://scripts/bath_remote.gd")
 const ToiletPanelScript := preload("res://scripts/toilet_panel.gd")
 const ShowerCurtainScript := preload("res://scripts/shower_curtain.gd")
+const BathWearScript := preload("res://scripts/bath_wear.gd")
+const AmbientSoundScript := preload("res://scripts/ambient_sound.gd")
 
 const LAYER_WORLD := 1      # 壁・設備（プレイヤーがぶつかる）
 const LAYER_INTERACT := 2   # 拾える小物（ぶつからない、照準だけ当たる）
@@ -47,6 +49,7 @@ const VENT_RANGE := 2.4       # 換気口だけ床から見上げて届くよう
 const POSTER_TEX := preload("res://assets/textures/door_poster_plumber.png")
 const LABEL_TEX := preload("res://assets/textures/yubroman_label.png")
 const TOWEL_TEX := preload("res://assets/textures/towel_fabric.png")             # 512x512 継ぎ目なし
+const LAMINATE_TEX := preload("res://assets/textures/bath/bath_material_10.png")   # 棚の化粧板（307x307、継ぎ目なし）
 const TOOTHPASTE_TEX := preload("res://assets/textures/toothpaste_label.png")   # 271x512
 const POSTER_SIZE := Vector2(0.25, 0.354)   # 768x1086px（A判比）
 const POSTER_HINGE_X := 0.32                # 蝶番からの距離（ドアノブ側を避ける）
@@ -110,6 +113,13 @@ func _ready() -> void:
 	add_child(supplies)
 	_build_driver()
 	_build_door()
+	# 経年感の汚れ・傷（見た目だけ。設備がすべてできてから貼る）
+	var wear := BathWearScript.new()
+	wear.name = "BathWear"
+	add_child(wear)
+	var ambient := AmbientSoundScript.new()   # 換気扇・しずく・遠くの路地（コードで作った小さな環境音）
+	ambient.name = "AmbientSound"
+	add_child(ambient)
 
 
 # ---------------------------------------------------------------- 公開API
@@ -354,7 +364,7 @@ func _build_sink_shelf(wx: float, z: float) -> void:
 	shelf.name = "SinkShelf"
 	add_child(shelf)
 	var top := 1.075
-	_mesh_box(shelf, Vector3(0.11, 0.015, 0.44), Vector3(wx - 0.055, top - 0.0075, z), _mat("shelf", Color(0.95, 0.95, 0.93), 0.4))
+	_mesh_box(shelf, Vector3(0.11, 0.015, 0.44), Vector3(wx - 0.055, top - 0.0075, z), MeshKit.tiled_mat("shelf_laminate", LAMINATE_TEX, 0.3, Color.WHITE, 0.45))
 	var cup_pos := Vector3(wx - 0.055, top, z + 0.16)
 	MeshKit.cylinder(shelf, 0.03, 0.09, cup_pos + Vector3(0, 0.045, 0), _mat("cup", Color(0.62, 0.8, 0.7), 0.5), "Cup", 0.033)
 	var brushes := [[Color(0.2, 0.45, 0.85), -12.0, -0.01], [Color(0.9, 0.45, 0.6), 14.0, 0.01]]

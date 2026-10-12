@@ -69,6 +69,7 @@ func _ready() -> void:
 	_build_toy_boxes()
 	_build_cartridges()
 	_build_room_stickers()
+	_build_novelties()
 	_build_lights()
 
 
@@ -113,6 +114,20 @@ func _build_movie_posters() -> void:
 
 
 ## 玄関ホールの左の壁（x=-0.9、+x を向く）のコルクボード。レシート・半券・メモなど紙もの12枚を少し傾けてピンで留める。見た目だけ。
+## コルクボードの紙は、画鋲1本で留めた紙のように、ごくわずかに揺れる（換気の空気の動き）。見た目だけ。
+var _swaying: Array = []
+var _sway_t := 0.0
+
+
+func _process(delta: float) -> void:
+	_sway_t += delta
+	for e in _swaying:
+		var mi: MeshInstance3D = e[0]
+		var k: int = e[2]
+		var a: float = float(e[1]) + 0.7 * sin(_sway_t * (0.5 + 0.07 * k) + k * 1.7) + 0.3 * sin(_sway_t * (1.3 + 0.11 * k))
+		mi.rotation.x = deg_to_rad(a)
+
+
 func _build_corkboard() -> void:
 	var root := Node3D.new()
 	root.name = "Corkboard"
@@ -152,6 +167,7 @@ func _build_corkboard() -> void:
 		mi.rotation = Vector3(deg_to_rad(n[4]), PI * 0.5, 0)   # 表（+z）を +x（ホール側）へ
 		root.add_child(mi)
 		MeshKit.sphere(root, 0.006, mi.position + Vector3(0.004, h * 0.42, 0), pin)
+		_swaying.append([mi, n[4], i])   # [紙, 元の傾き°, 位相の種]
 
 
 # ---------------------------------------------------------------- 自室の外殻
@@ -817,6 +833,44 @@ func _build_room_stickers() -> void:
 	MeshKit.sticker(root, 6, 0.14, Vector3(3.85, 1.35, 2.3 - 0.0125), Vector3.FORWARD, 3.0)
 	MeshKit.sticker(root, 7, 0.12, Vector3(ROOM.position.x + 0.14 + 0.72 + 0.19, 0.72, -0.55), Vector3.RIGHT, -4.0)
 	MeshKit.sticker(root, 8, 0.1, Vector3(ROOM.position.x + 0.14 + 0.38, 0.735 + 0.0005, -0.85), Vector3.UP, 15.0)
+
+
+## 机の天板の右端（椅子側、標本トレーの手前）に、雑貨の絵を小さなアクリルスタンドとして立てる。
+## 絵は novelty_06・01・10（透過付き）を画像の比率のまま板に貼り、足元に薄い透明の台を付けた。
+## 立体のおもちゃではなく平らな絵の立て札（正面 +x、少し角度をずらす）。見た目だけ（当たり判定・調べる対象なし）。
+## 机の天板 x 1.14〜1.64、上面 y 0.735、トレーは x 1.40〜1.52 までなので、x 1.585 に並べると物を覆わない。
+func _build_novelties() -> void:
+	var root := Node3D.new()
+	root.name = "Novelties"
+	add_child(root)
+	var top := 0.735
+	var x := ROOM.position.x + 0.14 + 0.445
+	# [番号, z, 高さ m, 向きの傾き°]
+	var items := [[6, -0.74, 0.075, -12.0], [1, -0.60, 0.095, 8.0], [10, -0.42, 0.09, -5.0]]
+	var base_mat := MeshKit.mat("standee_base", Color(0.85, 0.9, 0.92, 0.55), 0.2)
+	base_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	for it in items:
+		var tex: Texture2D = load("res://assets/textures/room/novelty_%02d.png" % it[0])
+		var h: float = it[2]
+		var w := h * tex.get_width() / tex.get_height()
+		var item := Node3D.new()
+		item.name = "Standee%02d" % it[0]
+		item.position = Vector3(x, top, it[1])
+		item.rotation.y = deg_to_rad(it[3])
+		root.add_child(item)
+		var q := QuadMesh.new()
+		q.size = Vector2(w, h)
+		var m := MeshKit.texture_mat("novelty_%02d" % it[0], tex, 0.7).duplicate() as StandardMaterial3D
+		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR
+		m.cull_mode = BaseMaterial3D.CULL_DISABLED
+		var mi := MeshInstance3D.new()
+		mi.name = "Picture"
+		mi.mesh = q
+		mi.material_override = m
+		mi.position = Vector3(0, h * 0.5 + 0.004, 0)
+		mi.rotation.y = PI * 0.5   # 表（+z）を +x へ
+		item.add_child(mi)
+		MeshKit.box(item, Vector3(0.04, 0.004, w * 0.8), Vector3(0.0, 0.002, 0), base_mat, "Base")
 
 
 func _build_lights() -> void:

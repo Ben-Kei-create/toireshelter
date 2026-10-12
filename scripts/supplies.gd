@@ -22,6 +22,8 @@ const MeshKit := preload("res://scripts/mesh_kit.gd")
 
 const ROLL_WRAP_TEX := preload("res://assets/textures/spare_roll_wrap.png")             # 1024x320
 const CLEANER_TEX := preload("res://assets/textures/toilet_cleaner_label.png")         # 320x512
+const LAMINATE_TEX := preload("res://assets/textures/bath/bath_material_10.png")        # 棚の化粧板
+const PAPER_TEX := preload("res://assets/textures/bath/bath_material_06.png")          # トイレットペーパー（ミシン目の型押し）
 const STICKER_TEX := preload("res://assets/textures/vent_inspection_sticker.png")      # 256x160
 
 const WALL_X := -0.9
@@ -76,7 +78,7 @@ func _build_paper_holder() -> void:
 	root.position = HOLDER_POS
 	add_child(root)
 	var metal := MeshKit.mat("metal", Color(0.75, 0.75, 0.78), 0.25, 0.8)
-	var paper := MeshKit.mat("paper", Color(0.97, 0.97, 0.95), 0.95)
+	var paper := MeshKit.tiled_mat("toilet_paper", PAPER_TEX, 0.1, Color.WHITE, 0.95)
 	var core_mat := MeshKit.mat("paper_core", Color(0.7, 0.6, 0.48), 0.9)
 	MeshKit.box(root, Vector3(0.012, 0.08, 0.15), Vector3(0.006, 0.0, 0.0), metal, "Plate")
 	for zz in [-0.062, 0.062]:
@@ -173,7 +175,7 @@ func _build_shelf() -> void:
 	var t := 0.018
 	var zc := (SHELF_Z.x + SHELF_Z.y) * 0.5
 	var zl := SHELF_Z.y - SHELF_Z.x
-	MeshKit.box(shelf, Vector3(SHELF_DEPTH, t, zl), Vector3(WALL_X + SHELF_DEPTH * 0.5, SHELF_TOP - t * 0.5, zc), white, "Board")
+	MeshKit.box(shelf, Vector3(SHELF_DEPTH, t, zl), Vector3(WALL_X + SHELF_DEPTH * 0.5, SHELF_TOP - t * 0.5, zc), MeshKit.tiled_mat("shelf_laminate", LAMINATE_TEX, 0.3, Color.WHITE, 0.45), "Board")
 	# 棚板の当たり判定（体は届かない高さ。上から棚板の裏の紙を狙う照準を遮るため）
 	var board_body := StaticBody3D.new()
 	board_body.name = "BoardCollision"
