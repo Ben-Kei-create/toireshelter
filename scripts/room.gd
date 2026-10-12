@@ -22,6 +22,7 @@ const ApartmentScript := preload("res://scripts/apartment.gd")
 const ExteriorScript := preload("res://scripts/exterior.gd")
 const BathRemoteScript := preload("res://scripts/bath_remote.gd")
 const ToiletPanelScript := preload("res://scripts/toilet_panel.gd")
+const ShowerCurtainScript := preload("res://scripts/shower_curtain.gd")
 
 const LAYER_WORLD := 1      # 壁・設備（プレイヤーがぶつかる）
 const LAYER_INTERACT := 2   # 拾える小物（ぶつからない、照準だけ当たる）
@@ -69,6 +70,7 @@ var exterior: ExteriorScript
 var vent_cover: Node3D
 var bath_remote: BathRemoteScript
 var toilet_panel: ToiletPanelScript
+var shower_curtain: ShowerCurtainScript
 var bath_powder_taken := false
 var vent_open := false
 var toilet: ToiletScript
@@ -96,6 +98,10 @@ func _ready() -> void:
 	_build_sink_and_mirror()
 	_build_vent()
 	_build_floor_drain()
+	_build_bath_bucket()
+	shower_curtain = ShowerCurtainScript.new()
+	shower_curtain.name = "ShowerCurtain"
+	add_child(shower_curtain)
 	_build_towel()
 	_build_bath_powder()
 	# トイレまわりの生活用品（ペーパーホルダー・棚の予備ロールと洗剤・ラバーカップとブラシ・点検シール）
@@ -381,6 +387,33 @@ func _build_sink_shelf(wx: float, z: float) -> void:
 	tube.add_child(label)
 	MeshKit.cylinder(tube, 0.009, 0.018, Vector3(0, -0.069, 0), _mat("paste_cap", Color(0.15, 0.32, 0.68), 0.4), "Cap")
 	_mesh_box(tube, Vector3(0.03, 0.012, 0.004), Vector3(0, 0.066, 0), body_mat)
+
+
+func _build_bath_bucket() -> void:
+	# 風呂桶：浴槽と洗面台の間の床の隅（右の壁際）。調べられる。体を止める判定はない（小さいので）
+	var root := Node3D.new()
+	root.name = "BathBucket"
+	root.position = Vector3(0.74, 0.0, -0.31)
+	add_child(root)
+	var plastic := MeshKit.mat("bucket", Color(0.62, 0.78, 0.86), 0.35)
+	var r := 0.12
+	var h := 0.11
+	MeshKit.cylinder(root, r * 0.88, 0.008, Vector3(0, 0.004, 0), plastic, "Bottom", -1.0, 24)
+	# 側面：内側が見えるよう、少し広がった筒を薄い帯で作る（底は上の円板）
+	for k in 24:
+		var a := TAU * k / 24.0
+		var seg := MeshKit.box(root, Vector3(0.006, h, 2.0 * r * sin(PI / 24.0) + 0.004), Vector3(cos(a) * r * 0.94, h * 0.5, sin(a) * r * 0.94), plastic)
+		seg.rotation = Vector3(0, -a, deg_to_rad(-6.0))
+	var rim := TorusMesh.new()
+	rim.inner_radius = r - 0.004
+	rim.outer_radius = r + 0.006
+	var rim_mi := MeshInstance3D.new()
+	rim_mi.mesh = rim
+	rim_mi.material_override = plastic
+	rim_mi.position = Vector3(0, h, 0)
+	root.add_child(rim_mi)
+	var area := MeshKit.interact_area(root, "BucketArea", "bath_bucket")
+	MeshKit.shape_box(area, Vector3(r * 2.0, h, r * 2.0), Vector3(0, h * 0.5, 0))
 
 
 func _build_floor_drain() -> void:

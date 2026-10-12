@@ -12,6 +12,7 @@ extends Node3D
 ##
 ## 開口の下端は 1.28m：棚の歯ブラシ（上端 約1.26m）や蛇口とぶつからない高さ。
 ## 開閉中（0.45秒）のクリックは無視する。
+## 初期状態は施錠（扉の右端＝取っ手側に小さな鍵）。施錠中にクリックすると「開かない」と出るだけ。解錠の方法はまだない（unlock() はテスト・今後の仕掛け用）。
 
 const MeshKit := preload("res://scripts/mesh_kit.gd")
 
@@ -32,6 +33,7 @@ const OPEN_DEG := -100.0                    # 部屋側（-x）へ開く
 const SWING_TIME := 0.45
 
 var is_open := false
+var locked := true
 var busy := false
 var door_pivot: Node3D
 
@@ -42,6 +44,13 @@ func _ready() -> void:
 	_build_items()
 	_build_door()
 	_build_body_blocker()
+
+
+func unlock() -> void:
+	locked = false
+	var lock := door_pivot.get_node_or_null("Lock")
+	if lock:
+		lock.rotation.x = deg_to_rad(90.0)   # つまみを縦に回した見た目
 
 
 func toggle() -> void:
@@ -169,6 +178,13 @@ func _build_door() -> void:
 	# 取っ手代わりの小さなつまみ（蝶番と反対側の縁）
 	MeshKit.box(door_pivot, Vector3(0.01, 0.05, 0.012), Vector3(-0.005, h * 0.5, w - 0.02),
 			MeshKit.mat("metal", Color(0.75, 0.75, 0.78), 0.25, 0.8), "Knob")
+	# 鍵：扉の右端（取っ手の下）の小さな金具とつまみ（施錠中は横向き）
+	var lock := Node3D.new()
+	lock.name = "Lock"
+	lock.position = Vector3(-0.006, h * 0.5 - 0.06, w - 0.02)
+	door_pivot.add_child(lock)
+	MeshKit.cylinder(lock, 0.008, 0.008, Vector3.ZERO, MeshKit.mat("brass", Color(0.78, 0.65, 0.35), 0.3, 0.8), "Plate").rotation.z = deg_to_rad(90.0)
+	MeshKit.box(lock, Vector3(0.006, 0.004, 0.014), Vector3(-0.005, 0, 0), MeshKit.mat("brass", Color(0.78, 0.65, 0.35), 0.3, 0.8), "Knob")
 	var area := MeshKit.interact_area(door_pivot, "DoorArea", "mirror_door", self)
 	MeshKit.shape_box(area, Vector3(DOOR_T + 0.012, h, w), Vector3(DOOR_T * 0.5 - 0.006, h * 0.5, w * 0.5))
 
@@ -178,9 +194,13 @@ func _build_door() -> void:
 func get_prompt(_id: String) -> String:
 	if busy:
 		return ""
+	if locked:
+		return "examine"
 	return "cabinet_close" if is_open else "cabinet_open"
 
 
 func interact(_id: String) -> String:
+	if locked:
+		return "cabinet_locked"
 	toggle()
 	return ""

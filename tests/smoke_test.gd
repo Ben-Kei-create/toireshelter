@@ -406,7 +406,17 @@ func _run() -> void:
 	player.global_position = Vector3(0.25, 0.0, 0.1)
 	_aim(player, cab.door_pivot.to_global(Vector3(-0.02, 0.25, 0.22)))
 	var cb_hit = player.get_focused(true)
-	_check(_id(cb_hit) == "mirror_door" and main._prompt_for(cb_hit) == main.PROMPTS["cabinet_open"], "鏡を狙うと「鏡の扉を開ける」")
+	# 初期状態は施錠：クリックしても開かず「右側に鍵がかかっている」
+	main.hud._message_label.text = ""
+	_check(cab.locked and _id(cb_hit) == "mirror_door" and main._prompt_for(cb_hit) == main.PROMPTS["examine"], "初期状態の鏡は施錠されていて、案内は「調べる」")
+	for i in 3:
+		player.try_interact()
+	await _seconds(0.6)
+	_check(not cab.is_open and absf(cab.door_pivot.rotation.y) < 0.001 and main.hud._message_label.text == main.MESSAGES["cabinet_locked"],
+			"施錠中はクリックしても開かず「鍵がかかっている」")
+	_check(cab.door_pivot.has_node("Lock"), "扉の右端に鍵の金具がある")
+	cab.unlock()   # ここから先は解錠した状態で確認（解錠の仕掛けはまだない）
+	_check(_id(cb_hit) == "mirror_door" and main._prompt_for(cb_hit) == main.PROMPTS["cabinet_open"], "解錠すると鏡を狙って「鏡の扉を開ける」")
 	_aim(player, toner.global_position + Vector3(0, 0.06, 0))
 	_check(_id(player.get_focused(true)) == "mirror_door", "閉じた扉越しには中の物を調べられない")
 	player.global_position = Vector3(0.75, 0.0, -0.55)
@@ -444,6 +454,59 @@ func _run() -> void:
 	await _seconds(0.6)
 	_check(not cab.is_open and absf(cab.door_pivot.rotation.y) < 0.001 and _find_world_bodies(cab.door_pivot).is_empty(),
 			"再開すると閉じる。扉は移動を妨げない（ぶつかる判定なし）")
+	player.global_position = saved
+
+	# ================================================================ シャワーカーテン・風呂桶・カセット
+	var cur = room.shower_curtain
+	_check(not cur.closed, "初期状態：カーテンは開いている（左端に寄せてある）")
+	player.global_position = Vector3(0.3, 0.0, -0.15)
+	var plug_pt: Vector3 = tub.to_global(tub.DRAIN_POS + Vector3(0, 0.012, 0))
+	_aim(player, plug_pt)
+	_check(_id(player.get_focused(true)) == "bath_plug", "開いているカーテン越しに浴槽の栓を狙える")
+	_aim(player, Vector3(0.0, 1.3, cur.Z))
+	var ch = player.get_focused(true)
+	_check(_id(ch) == "", "開いているとき、浴槽の中央の高さにカーテンの判定はない")
+	_aim(player, Vector3(-0.82, 1.3, cur.Z))
+	ch = player.get_focused(true)
+	_check(_id(ch) == "shower_curtain" and main._prompt_for(ch) == main.PROMPTS["curtain_close"], "寄せたカーテンを狙うと「カーテンを閉める」")
+	for i in 3:
+		player.try_interact()
+	_check(cur.closed and cur.busy, "カーテンの連打は1回だけ受け付ける")
+	for i in 3:   # 判定の形の変更が物理空間へ反映されるまで（人の操作では次のクリックまでに必ず過ぎる）
+		await physics_frame
+	_aim(player, plug_pt)
+	var blk = player.get_focused(true)
+	_check(_id(blk) == "shower_curtain", "閉め始めた時点で、浴槽の中（栓）への照準をさえぎる（当たり：%s、%s）" % [_id(blk), str(player.ray.get_collider().get_path()) if player.ray.is_colliding() else "なし"])
+	await _seconds(0.15)
+	main._pause()
+	var cs: float = cur.cloth.scale.x
+	await _seconds(0.3)
+	_check(is_equal_approx(cur.cloth.scale.x, cs) and cur.busy, "カーテンを動かす途中で一時停止すると止まる")
+	main._resume()
+	await _seconds(0.6)
+	var cm: StandardMaterial3D = (cur.cloth.get_child(0) as MeshInstance3D).material_override
+	_check(is_equal_approx(cur.cloth.scale.x, 1.0) and cm.transparency == BaseMaterial3D.TRANSPARENCY_ALPHA and cm.albedo_color.a < 0.7,
+			"閉じると浴槽の幅いっぱいに広がり、半透明（不透明度 %.2f）" % cm.albedo_color.a)
+	_aim(player, Vector3(0.0, 1.3, cur.Z))
+	ch = player.get_focused(true)
+	_check(_id(ch) == "shower_curtain" and main._prompt_for(ch) == main.PROMPTS["curtain_open"], "閉じたカーテンを狙うと「カーテンを開ける」")
+	player.try_interact()
+	await _seconds(0.6)
+	_aim(player, plug_pt)
+	_check(not cur.closed and _id(player.get_focused(true)) == "bath_plug", "開け直すと浴槽の栓を狙える")
+	# 風呂桶
+	main.hud._message_label.text = ""
+	player.global_position = Vector3(0.2, 0.0, -0.1)   # 洗面台のボウルの陰にならない位置
+	_aim(player, room.get_node("BathBucket").global_position + Vector3(0, 0.06, 0))
+	player.try_interact()
+	_check(main.hud._message_label.text == main.MESSAGES["bath_bucket"], "風呂桶を調べられる")
+	# カセット
+	var carts: Node3D = room.apartment.get_node("Cartridges")
+	var n_carts := 0
+	for c in carts.get_children():
+		if c.name.begins_with("Cart") and c.has_node("Label"):
+			n_carts += 1
+	_check(n_carts == 8, "自室の台にカセットが8本（ラベル付き）")
 	player.global_position = saved
 
 	# --- 照準を合わせてクリックすると拾える
@@ -506,6 +569,7 @@ func _run() -> void:
 			and r2.sink.level == 0.0 and r2.sink.plug_in and not r2.sink.faucet.is_on
 			and not r2.mirror_cabinet.is_open and absf(r2.mirror_cabinet.door_pivot.rotation.y) < 0.001,
 			"再プレイでタンクの蓋・洗面台・鏡の扉も初期状態に戻る")
+	_check(r2.mirror_cabinet.locked and not r2.shower_curtain.closed, "再プレイで鏡は施錠、カーテンは開いた状態に戻る")
 
 	print("SMOKE TEST: %s (%d failure(s))" % ["PASS" if _failures == 0 else "FAIL", _failures])
 	quit(1 if _failures > 0 else 0)

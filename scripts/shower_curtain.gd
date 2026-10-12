@@ -1,0 +1,93 @@
+extends Node3D
+## 浴槽とトイレの間のシャワーカーテン。浴槽の手前の縁の内側にレールを渡し、半透明のカーテンを下げる。
+## クリックで閉める（浴槽の幅いっぱいに広がる）／開ける（左端＝トイレ側へ寄る）。初期状態は開いている。
+## 寄せる側を左にしたのは、右（洗面台側）だと寄せた布が右の壁の浴室リモコンへの照準をさえぎるため。
+## 布は浴槽の内側（z -0.57）に、縁より下（0.30m）まで垂らす。タンクの蓋を外すときの経路（z -0.53 より手前）と重ならない。
+## 座標は部屋と同じ（この節点は原点に置く）。
+##
+##   ShowerCurtain/Rail     … レール（見た目だけ）
+##   ShowerCurtain/Cloth    … 布。原点を左端に置き、x 方向の縮み（scale.x）で寄せる。半透明なので向こうが透けて見える
+##   ShowerCurtain/CurtainArea … 照準の判定。タオルと同じく、開け終わってから寄せた位置へ、閉め始めに全幅へ移す。
+##                               閉じている間は浴槽の中の物（栓・蛇口など）への照準をさえぎる
+## 体を止める判定はない（布なので、移動演出は通り抜ける）。
+
+const MeshKit := preload("res://scripts/mesh_kit.gd")
+const CLOTH_TEX := preload("res://assets/textures/bath/bath_material_09.png")   # Shower curtain
+
+const X_RANGE := Vector2(-0.88, 0.88)
+const Z := -0.57             # 浴槽の手前の内壁（z -0.53）の内側、縁（上端 0.55）より上に下げる
+const RAIL_Y := 1.95
+const BOTTOM_Y := 0.30          # 浴槽の内側へ垂らす（縁 0.55 より下まで。外から見下ろしても下をくぐれない）
+const FOLDS := 10
+const OPEN_SCALE := 0.13     # 開けたとき（左端に寄せた）の幅の割合
+const SLIDE_TIME := 0.45
+
+var closed := false
+var busy := false
+var cloth: Node3D
+var _area_shape: CollisionShape3D
+
+
+func _ready() -> void:
+	var metal := MeshKit.mat("metal", Color(0.75, 0.75, 0.78), 0.25, 0.8)
+	MeshKit.pipe(self, [Vector3(X_RANGE.x - 0.02, RAIL_Y, Z), Vector3(X_RANGE.y + 0.02, RAIL_Y, Z)], 0.009, metal)
+	cloth = Node3D.new()
+	cloth.name = "Cloth"
+	cloth.position = Vector3(X_RANGE.x, 0.0, Z)
+	cloth.scale.x = OPEN_SCALE
+	add_child(cloth)
+	var m := MeshKit.tiled_mat("shower_curtain", CLOTH_TEX, 0.35, Color(1, 1, 1, 0.55), 0.8).duplicate() as StandardMaterial3D
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	m.cull_mode = BaseMaterial3D.CULL_DISABLED
+	m.uv1_world_triplanar = true   # 寄せても模様が縮まないよう、世界座標で貼る
+	var w := X_RANGE.y - X_RANGE.x
+	var fw := w / FOLDS
+	var h := RAIL_Y - 0.03 - BOTTOM_Y
+	for i in FOLDS:
+		# ひだ：板を交互に少し前後へ傾ける
+		var panel := MeshKit.box(cloth, Vector3(fw * 1.02, h, 0.002), Vector3(fw * (i + 0.5), BOTTOM_Y + h * 0.5, 0.0), m)
+		panel.rotation.y = deg_to_rad(14.0 if i % 2 == 0 else -14.0)
+		panel.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	# レールのリング
+	for i in FOLDS + 1:
+		MeshKit.sphere(cloth, 0.012, Vector3(fw * i, RAIL_Y - 0.012, 0.0), metal)
+	var area := MeshKit.interact_area(self, "CurtainArea", "shower_curtain", self)
+	_area_shape = MeshKit.shape_box(area, Vector3.ONE, Vector3.ZERO)
+	_area_shape.shape = BoxShape3D.new()
+	_place_area(false)
+
+
+func toggle() -> void:
+	if busy:
+		return
+	busy = true
+	closed = not closed
+	if closed:
+		_place_area(true)   # 閉め始めた時点で、浴槽の中への照準をさえぎる
+	var tween := create_tween()
+	tween.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	tween.tween_property(cloth, "scale:x", 1.0 if closed else OPEN_SCALE, SLIDE_TIME)
+	tween.tween_callback(func() -> void:
+		if not closed:
+			_place_area(false)
+		busy = false)
+
+
+func _place_area(full: bool) -> void:
+	var w := (X_RANGE.y - X_RANGE.x) * (1.0 if full else OPEN_SCALE)
+	var h := RAIL_Y - BOTTOM_Y
+	(_area_shape.shape as BoxShape3D).size = Vector3(w, h, 0.06)
+	_area_shape.position = Vector3(X_RANGE.x + w * 0.5, BOTTOM_Y + h * 0.5, Z)
+
+
+# ---------------------------------------------------------------- main.gd から呼ばれる
+
+func get_prompt(_id: String) -> String:
+	if busy:
+		return ""
+	return "curtain_open" if closed else "curtain_close"
+
+
+func interact(_id: String) -> String:
+	toggle()
+	return ""

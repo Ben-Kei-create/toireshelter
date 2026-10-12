@@ -51,6 +51,8 @@ const MESSAGES := {
 	"plunger": "ラバーカップ。ブラシと妙にきれいに並んでいる。",
 	"toilet_brush": "トイレブラシ。ここでの仕事には慣れていそうだ。",
 	"vent_sticker": "『点検済。異常なし。たぶん。』……たぶん？",
+	"cabinet_locked": "鏡の扉は開かない。右側に鍵がかかっている。",
+	"bath_bucket": "風呂桶。軽くて、よく転がる。",
 	"face_wash": "洗顔料。泡立ちがいいらしい。",
 	"toner": "化粧水。ほとんど減っていない。",
 	"cotton_swabs": "綿棒。ぎっしり詰まっている。",
@@ -101,6 +103,8 @@ const PROMPTS := {
 	"towel_back": "左クリック：タオルを戻す",
 	"cover_open": "左クリック：カバーを開ける",
 	"cover_close": "左クリック：カバーを閉める",
+	"curtain_close": "左クリック：カーテンを閉める",
+	"curtain_open": "左クリック：カーテンを開ける",
 }
 
 ## 持ち物（拾える物）。最大2つ。1・2 キーは取った順
@@ -359,7 +363,7 @@ func _on_interact_requested(target: Object) -> void:
 		return
 	match id:
 		"sink", "vent", "poster", \
-		"toilet_cleaner", "plunger", "toilet_brush", "vent_sticker", \
+		"toilet_cleaner", "plunger", "toilet_brush", "vent_sticker", "bath_bucket", \
 		"face_wash", "toner", "cotton_swabs", "tub_note", "towel_scratch", "shelf_note", "tank_note":
 			hud.show_message(MESSAGES[id])
 		"driver":

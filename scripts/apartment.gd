@@ -65,6 +65,7 @@ func _ready() -> void:
 	_build_bed()
 	_build_specimens()
 	_build_toy_boxes()
+	_build_cartridges()
 	_build_lights()
 
 
@@ -691,6 +692,46 @@ func _build_toy_boxes() -> void:
 		var col := MeshKit.mat("toybox_%d" % i, [Color(0.9, 0.75, 0.3), Color(0.85, 0.45, 0.35), Color(0.2, 0.3, 0.6)][i], 0.7)
 		MeshKit.box(root, size, Vector3(x, size.y * 0.5, zs[i]), col, "ToyBox%02d" % (i + 1))
 		_sign(root, "collection_label_%02d" % (i + 1), Vector3(x + size.x * 0.5 + 0.0015, size.y * 0.5, zs[i]), size.y - 0.004, Vector3.RIGHT)
+
+
+# ---------------------------------------------------------------- ゲームのカセット（左の壁の低い台。ラベル cart_label_01〜08）
+
+func _build_cartridges() -> void:
+	var root := Node3D.new()
+	root.name = "Cartridges"
+	add_child(root)
+	var x0 := ROOM.position.x + 0.006
+	var depth := 0.28
+	var z0 := 0.0
+	var z1 := 1.06
+	var top := 0.42
+	var wood := MeshKit.tiled_mat("shelf_wood_tex", TEX_SHELF_WOOD, 0.5, Color.WHITE, 0.7)
+	MeshKit.box(root, Vector3(depth, top, z1 - z0), Vector3(x0 + depth * 0.5, top * 0.5, (z0 + z1) * 0.5), wood, "Rack")
+	MeshKit.shape_box(_body, Vector3(depth, top, z1 - z0), Vector3(x0 + depth * 0.5, top * 0.5, (z0 + z1) * 0.5))
+	var shell := MeshKit.mat("cart_shell", Color(0.55, 0.55, 0.58), 0.6)
+	var body := Vector3(0.022, 0.09, 0.12)   # 厚み・高さ・幅
+	for i in 8:
+		var tex: Texture2D = load(ART_DIR + "cart_label_%02d.png" % (i + 1))
+		var cart := Node3D.new()
+		cart.name = "Cart%02d" % (i + 1)
+		cart.position = Vector3(x0 + 0.12, top, z0 + 0.07 + i * 0.13)
+		cart.rotation.z = deg_to_rad(-8.0)   # 少し壁側へもたせかける
+		root.add_child(cart)
+		MeshKit.box(cart, body, Vector3(0, body.y * 0.5, 0), shell, "Shell")
+		for k in 4:   # 上のつかみの溝
+			MeshKit.box(cart, Vector3(body.x + 0.002, 0.003, body.z - 0.01), Vector3(0, body.y - 0.006 - k * 0.006, 0), MeshKit.mat("cart_groove", Color(0.42, 0.42, 0.45), 0.7))
+		var q := QuadMesh.new()
+		var lw := body.z - 0.012
+		q.size = Vector2(lw, lw * tex.get_height() / tex.get_width())
+		var m := MeshKit.texture_mat("cart_label_%02d" % (i + 1), tex, 0.6).duplicate() as StandardMaterial3D
+		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR   # 角の丸み（透明）を抜く
+		var label := MeshInstance3D.new()
+		label.name = "Label"
+		label.mesh = q
+		label.material_override = m
+		label.position = Vector3(body.x * 0.5 + 0.0008, body.y * 0.42, 0)
+		label.rotation.y = PI * 0.5   # 表を +x（部屋側）へ
+		cart.add_child(label)
 
 
 func _build_lights() -> void:
