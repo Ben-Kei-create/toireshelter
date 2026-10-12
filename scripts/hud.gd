@@ -45,8 +45,8 @@ func _ready() -> void:
 	#   照準   … 画面中央
 	#   操作   … 照準の 28px 下（中央）
 	#   説明文 … 下端から 92px 上を底辺として上に伸びる（最大2〜3行）
-	#   所持品欄 … 右下（下端から 16〜68px、スロット2つ）
-	#   操作案内 … 最下段の左（下端から 12〜40px）。所持品欄と重ならない長さ
+	#   所持品欄 … 右下（下端から 16〜68px、スロット3つ）
+	#   操作案内 … 上端（上から 12〜38px）
 	#   拡大表示 … 画面中央（Q で開閉）
 	_build_crosshair()
 	_prompt_label = _make_label(20, HORIZONTAL_ALIGNMENT_CENTER)
@@ -70,13 +70,13 @@ func _ready() -> void:
 
 	_hint_label = _make_label(17, HORIZONTAL_ALIGNMENT_LEFT)
 	_hint_label.name = "Hint"
-	_hint_label.text = "WASD：移動　クリック：調べる　F：使う　1/2・ホイール：選ぶ　Q：拡大　C：しゃがむ　E：座る・入る　Esc：停止"
+	_hint_label.text = "WASD：移動　クリック：調べる　F：使う　1-3・ホイール：選ぶ　Q：拡大　C：しゃがむ　E：座る・入る　Esc：停止"
 	_hint_label.add_theme_color_override("font_color", Color(1, 1, 1, 0.85))
 	_hint_label.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.8))
 	_hint_label.add_theme_constant_override("shadow_offset_x", 1)
 	_hint_label.add_theme_constant_override("shadow_offset_y", 1)
 	_hint_label.add_theme_font_size_override("font_size", 15)
-	_place(_hint_label, 0.0, 1.0, 1.0, 1.0, 24.0, -40.0, -260.0, -12.0)
+	_place(_hint_label, 0.0, 0.0, 1.0, 0.0, 20.0, 12.0, -20.0, 38.0)   # 上端（所持品欄と重ならないよう、下から移した）
 
 	_pause_menu = _make_menu("PauseMenu", "一時停止")
 	_resume_button = _add_button(_pause_menu, "再開", func() -> void: resume_pressed.emit())
@@ -116,7 +116,7 @@ func set_prompt(text: String) -> void:
 		_prompt_panel.visible = not text.is_empty()
 
 
-## 所持品欄を更新する。names：持っている物の名前（最大2つ、順に 1・2 キー）、selected：選択中の番号（なければ -1）。
+## 所持品欄を更新する。names：持っている物の名前（最大3つ、順に 1・2・3 キー）、selected：選択中の番号（なければ -1）。
 func set_inventory(names: Array, selected: int) -> void:
 	for i in _slot_labels.size():
 		var has := i < names.size()
@@ -182,11 +182,11 @@ func _build_inventory_bar() -> void:
 	title.add_theme_constant_override("shadow_offset_x", 1)
 	title.add_theme_constant_override("shadow_offset_y", 1)
 	_inventory_bar.add_child(title)
-	for i in 2:
+	for i in 3:
 		var label := _make_label(17, HORIZONTAL_ALIGNMENT_LEFT)
 		label.name = "Slot%dLabel" % (i + 1)
 		var panel := _make_panel("Slot%d" % (i + 1), label, 0.45)
-		panel.custom_minimum_size = Vector2(118, 46)
+		panel.custom_minimum_size = Vector2(112, 46)
 		var style := (panel.get_theme_stylebox("panel") as StyleBoxFlat).duplicate() as StyleBoxFlat
 		panel.add_theme_stylebox_override("panel", style)
 		_inventory_bar.add_child(panel)

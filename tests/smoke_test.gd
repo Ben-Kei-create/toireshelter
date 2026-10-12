@@ -98,17 +98,18 @@ func _run() -> void:
 			and pp.z - r >= shelf.SHELF_Z.x and pp.z + r <= shelf.SHELF_Z.y,
 			"入浴剤の容器が棚の上に収まっている (%s)" % pp)
 
-	# --- 入浴剤を調べられる／壁の外からは調べられない
+	# --- 入浴剤：壁の外からは狙えない／照準を合わせてクリックで拾う（TASK-11 から取得できる）
 	var powder_mid := pp + Vector3(0.0, 0.08, 0.0)
-	player.global_position = Vector3(0.0, 0.0, 0.3)
-	main.hud._message_label.text = ""
-	_aim(player, powder_mid)
-	player.try_interact()
-	_check(main.hud._message_label.text == msgs["bath_powder"], "入浴剤の容器を調べられる")
 	player.global_position = Vector3(-1.3, 0.0, -0.08)
 	_aim(player, powder_mid)
 	var behind = player.get_focused(true)
-	_check(behind == null, "左の壁の外からは入浴剤を調べられない")
+	_check(behind == null, "左の壁の外からは入浴剤を狙えない")
+	player.global_position = Vector3(0.0, 0.0, 0.3)
+	main.hud._message_label.text = ""
+	_aim(player, powder_mid)
+	_check(main._prompt_for(player.get_focused(true)) == main.PROMPT_PICKUP, "入浴剤の容器に「拾う」")
+	player.try_interact()
+	_check(main.hud._message_label.text == msgs["bath_powder_pickup"] and main.inventory.has("bath_powder"), "入浴剤の容器を拾える")
 	player.global_position = saved
 
 	# --- 画像はミップマップ付きで取り込まれている

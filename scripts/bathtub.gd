@@ -4,8 +4,13 @@ extends Node3D
 ## 奥（-z）が部屋の奥の壁。
 ##
 ## 水位 level は 0（空）〜1（満水）。給水と排水は流量の差で計算する:
-##   蛇口が出ている間  +1/FILL_TIME 毎秒
+##   給水している間    +1/FILL_TIME 毎秒（給水元は「手の蛇口」と「リモコンのふろ自動」。両方でも 1 本分＝二重に数えない）
 ##   栓が抜けている間  -1/DRAIN_TIME 毎秒
+## ふろ自動（auto_filling）は AUTO_LEVEL で止まる。栓を抜く・停止・運転OFF でも止まる。
+## 入浴剤：powder は「溶けている粉の量」（満水1杯ぶんの濃さ 1.0 × 水量で数える）。濃さ = powder / level。
+##   給水すると水が増えて薄まり、排水では濃さは変わらず、空になると 0 に戻る。
+##   色は入れてから REVEAL_TIME 秒かけて現れる（reveal 0→1）。一時停止中は進まない。
+## 追い焚き（reheating）：REHEAT_TIME 秒、水面がゆらぎ、吸込口の前に渦が出る（熱の計算はしない）。
 ## 満水でも水面は縁より 5cm 下（WATER_MAX_Y）で止まり、あふれない。
 ## 一時停止中は _process が止まるので、水位も水流の模様も止まる。
 
@@ -14,6 +19,14 @@ const FaucetScript := preload("res://scripts/faucet.gd")
 
 const FILL_TIME := 40.0    # 空→満水（秒）
 const DRAIN_TIME := 25.0   # 満水→空（秒）。給水より速い
+const AUTO_LEVEL := 0.8    # ふろ自動の設定水位
+const MIN_POWDER_LEVEL := 0.1
+const REHEAT_MIN_LEVEL := 0.3
+const REHEAT_TIME := 6.0
+const REVEAL_TIME := 2.0
+const WATER_COLOR := Color(0.62, 0.8, 0.9, 0.55)
+const YUZU_COLOR := Color(0.98, 0.86, 0.42, 0.7)
+const PORT_POS := Vector3(-0.6, 0.2, -HALF.z + WALL)   # 循環口（ふろ自動の給水と追い焚きの吸込口。奥の内壁）
 
 const HALF := Vector3(0.9, 0.55, 0.375)   # 外形の半分（y は高さそのもの）
 const WALL := 0.08
@@ -31,6 +44,16 @@ const PLUG_HEIGHT := 0.016
 var level := 0.0
 var plug_in := true
 var was_filled := false   # 一度でも水が入ったか（「濡れている」表示用）
+var auto_filling := false
+var auto_done := false    # ふろ自動が設定水位で止まった（表示用）
+var reheating := false
+var powder := 0.0
+var reveal := 0.0
+var powder_busy := false
+var _reheat_left := 0.0
+var _t := 0.0
+var _water_mat: StandardMaterial3D
+var _swirl: MeshInstance3D
 
 var faucet: FaucetScript
 var _water: MeshInstance3D
@@ -47,13 +70,15 @@ func _ready() -> void:
 	_build_plug()
 	_build_faucet()
 	_build_note()
+	_build_port()
 
 	_water = MeshInstance3D.new()
 	_water.name = "Water"
 	var plane := PlaneMesh.new()
 	plane.size = Vector2((HALF.x - WALL) * 2.0 - 0.004, (HALF.z - WALL) * 2.0 - 0.004)
 	_water.mesh = plane
-	_water.material_override = MeshKit.water_surface_mat()
+	_water_mat = MeshKit.water_surface_mat().duplicate()   # 入浴剤で色が変わるので浴槽専用
+	_water.material_override = _water_mat
 	_water.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(_water)
 	_update_water()
@@ -63,17 +88,102 @@ func _process(delta: float) -> void:
 	advance(delta)
 
 
-## 水位を delta 秒ぶん進める（テストからも呼ぶ）。
+## 給水しているか（手の蛇口とふろ自動のどちらか）。
+func is_filling() -> bool:
+	return faucet.is_on or auto_filling
+
+
+func concentration() -> float:
+	return clampf(powder / level, 0.0, 1.0) if level > 0.0005 else 0.0
+
+
+## 水位・入浴剤・自動運転・追い焚きを delta 秒ぶん進める（テストからも呼ぶ）。
 func advance(delta: float) -> void:
+	_t += delta
+	var before := level
 	var rate := 0.0
-	if faucet.is_on:
+	if is_filling():
 		rate += 1.0 / FILL_TIME
 	if not plug_in:
 		rate -= 1.0 / DRAIN_TIME
 	level = clampf(level + rate * delta, 0.0, 1.0)
+	# ふろ自動は設定水位で止まる（手の蛇口が出ていれば、そちらはそのまま）
+	if auto_filling and level >= AUTO_LEVEL and before <= AUTO_LEVEL + 0.0001:
+		if not faucet.is_on:
+			level = maxf(before, minf(level, AUTO_LEVEL))
+		auto_filling = false
+		auto_done = true
+	# 排水では濃さを保つ（粉も水と同じ割合で流れる）。空になったら色を戻す
+	if level < before and before > 0.0:
+		powder *= level / before
+	if level <= 0.0005:
+		powder = 0.0
+		reveal = 0.0
+	if powder > 0.0 and reveal < 1.0:
+		reveal = minf(1.0, reveal + delta / REVEAL_TIME)
+	if reheating:
+		_reheat_left -= delta
+		if _reheat_left <= 0.0 or level < REHEAT_MIN_LEVEL:
+			reheating = false
 	if level > 0.02:
 		was_filled = true
 	_update_water()
+
+
+## ふろ自動を始める。結果："ok" / "plug_open" / "full"。
+func start_auto() -> String:
+	if not plug_in:
+		return "plug_open"
+	auto_done = false
+	if level >= AUTO_LEVEL - 0.001:
+		auto_done = true
+		return "full"
+	auto_filling = true
+	return "ok"
+
+
+## 追い焚き。結果："ok" / "low"。
+func start_reheat() -> String:
+	if level < REHEAT_MIN_LEVEL:
+		return "low"
+	reheating = true
+	_reheat_left = REHEAT_TIME
+	return "ok"
+
+
+func stop_remote() -> void:
+	auto_filling = false
+	reheating = false
+	_reheat_left = 0.0
+
+
+## 入浴剤を入れる。結果："ok"（演出開始）／"low"（水が足りない）／"busy"。
+func add_powder(from: Vector3) -> String:
+	if powder_busy:
+		return "busy"
+	if level < MIN_POWDER_LEVEL:
+		return "low"
+	powder_busy = true
+	# 粉を入れる簡単な演出：小さな粒が水面へ落ちる（容器は投げ込まない）
+	var target_y := water_y()
+	var grains := Node3D.new()
+	grains.name = "PowderGrains"
+	add_child(grains)
+	var start_local := to_local(from)
+	start_local.x = clampf(start_local.x, -HALF.x + WALL + 0.1, HALF.x - WALL - 0.1)
+	start_local.z = clampf(start_local.z, -HALF.z + WALL + 0.08, HALF.z - WALL - 0.08)
+	start_local.y = maxf(start_local.y, target_y + 0.25)
+	var grain_mat := MeshKit.mat("powder_grain", Color(0.98, 0.9, 0.55), 0.8)
+	var tween := create_tween().set_parallel()
+	for i in 10:
+		var g := MeshKit.sphere(grains, 0.006, start_local + Vector3(randf_range(-0.03, 0.03), 0, randf_range(-0.03, 0.03)), grain_mat)
+		tween.tween_property(g, "position:y", target_y, 0.5).set_delay(i * 0.03).set_ease(Tween.EASE_IN).set_trans(Tween.TRANS_QUAD)
+	tween.chain().tween_callback(func() -> void:
+		grains.queue_free()
+		powder += level   # 濃さ 1.0 ぶん
+		reveal = 0.0
+		powder_busy = false)
+	return "ok"
 
 
 func water_y() -> float:
@@ -82,6 +192,8 @@ func water_y() -> float:
 
 func set_plug(inserted: bool) -> void:
 	plug_in = inserted
+	if not inserted:
+		auto_filling = false   # 栓を抜いたらふろ自動は止まる
 	if inserted:
 		_plug.position = DRAIN_POS
 		_plug.rotation = Vector3.ZERO
@@ -96,7 +208,13 @@ func _update_water() -> void:
 	if _water == null:
 		return
 	_water.visible = level > 0.0005
-	_water.position = Vector3(0.0, water_y(), 0.0)
+	var wobble := sin(_t * 9.0) * 0.003 if reheating else 0.0
+	_water.position = Vector3(0.0, water_y() + wobble, 0.0)
+	_water_mat.albedo_color = WATER_COLOR.lerp(YUZU_COLOR, concentration() * reveal)
+	if _swirl:
+		_swirl.visible = _water.visible and (reheating or auto_filling) and water_y() > PORT_POS.y - 0.12
+		_swirl.position.y = water_y() + 0.003
+		_swirl.rotation.y = _t * 4.0
 	# 水流は水面まで。水がなければ底まで
 	faucet.stream_floor_y = to_global(Vector3(0.0, water_y() if _water.visible else BOTTOM_Y, 0.0)).y
 
@@ -146,6 +264,17 @@ func _build_note() -> void:
 	add_child(note)
 	var area := MeshKit.interact_area(self, "TubNoteArea", "tub_note")
 	MeshKit.shape_box(area, Vector3(NOTE_SIZE.x, NOTE_SIZE.y, 0.004), NOTE_POS - Vector3(0, 0, 0.002))
+
+
+func _build_port() -> void:
+	# 循環口：奥の内壁の丸い金具。ふろ自動・追い焚きのときは前の水面に渦が出る
+	var metal := MeshKit.mat("metal", Color(0.75, 0.75, 0.78), 0.25, 0.8)
+	var port := MeshKit.cylinder(self, 0.035, 0.012, PORT_POS + Vector3(0, 0, 0.006), metal, "CirculationPort")
+	port.rotation.x = deg_to_rad(90.0)
+	MeshKit.cylinder(port, 0.018, 0.014, Vector3.ZERO, MeshKit.mat("drain_hole", Color(0.05, 0.05, 0.06), 1.0))
+	_swirl = MeshKit.cylinder(self, 0.09, 0.002, Vector3(PORT_POS.x, 0.0, PORT_POS.z + 0.12), MeshKit.new_stream_mat(), "PortSwirl", -1.0, 18)
+	_swirl.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_swirl.visible = false
 
 
 func _build_drain(visual: Node3D) -> void:
@@ -231,5 +360,5 @@ func interact(id: String) -> String:
 			return ""
 		_:
 			if level > 0.02:
-				return "bathtub_water"
+				return "bathtub_yuzu" if powder > 0.0 else "bathtub_water"
 			return "bathtub_wet" if was_filled else "bathtub"

@@ -23,6 +23,16 @@ const MESSAGES := {
 	"vent": "換気口。格子の奥は暗く、よく見えない。",
 	"poster": "水道修理の広告だ。連絡先は管理会社……スマホは部屋に置いてきた。",
 	"bath_powder": "ユブロマン。ゆずの香りの入浴剤。今はのんびり浸かっている場合じゃない。",
+	"bath_powder_pickup": "ユブロマンを手に入れた。ゆずの香りの入浴剤。",
+	"powder_need_water": "もう少し水をためてから入れよう。",
+	"powder_added": "ユブロマンを入れた。お湯がゆず色になっていく。",
+	"powder_empty": "もう空っぽだ。",
+	"bathtub_yuzu": "ゆず色のお湯がたまっている。いい香りがする。",
+	"remote_off": "先に「運転」を押そう。",
+	"remote_plug_open": "栓が抜けている。先に栓をしよう。",
+	"remote_already_full": "もうお湯は設定の量まで入っている。",
+	"remote_need_water": "お湯が少ないので追い焚きできない。",
+	"washlet_need_sit": "座っているときだけ使える。",
 	"paper_holder": "いつものトイレットペーパー。ここだけは平常運転だ。",
 	"spare_roll": "『明日もある』。今日の分は、なんとかしてほしい。",
 	"toilet_cleaner": "『無かったことに』。閉じ込められた件にも効くだろうか。",
@@ -68,6 +78,13 @@ const PROMPTS := {
 	"window_open": "左クリック：窓を開ける",
 	"window_close": "左クリック：窓を閉める",
 	"flush": "左クリック：水を流す",
+	"remote_power": "左クリック：運転",
+	"remote_auto": "左クリック：ふろ自動",
+	"remote_reheat": "左クリック：追い焚き",
+	"remote_stop": "左クリック：停止",
+	"washlet_rear": "左クリック：おしり",
+	"washlet_bidet": "左クリック：ビデ",
+	"washlet_stop": "左クリック：止",
 	"towel_slide": "左クリック：タオルをずらす",
 	"towel_back": "左クリック：タオルを戻す",
 	"cover_open": "左クリック：カバーを開ける",
@@ -78,6 +95,7 @@ const PROMPTS := {
 const ITEMS := {
 	"driver": {"name": "ドライバー", "desc": "赤橙の柄のドライバー。先はプラス。"},
 	"spare_roll": {"name": "予備ロール", "desc": "包装されたトイレットペーパー。『明日もある』。"},
+	"bath_powder": {"name": "ユブロマン", "desc": "ゆずの香りの粉末入浴剤。1回分。"},
 }
 
 ## E キーで変わる姿勢の案内
@@ -90,6 +108,8 @@ const ACTION_PROMPTS := {
 	"duct_back": "E：浴室へ戻る",
 	"balcony_down": "E：ベランダへ降りる",
 }
+
+const TUB_TARGETS := ["bathtub", "bath_plug", "bath_faucet", "tub_note"]   # 入浴剤を使える照準先（浴槽のどこか）
 
 const CLEAR_TITLES := {"legit": "正規ルートで帰還", "shortcut": "裏技ルートで帰還"}
 # 換気経路：入口で浴槽へ戻れる範囲（換気口の真上からの水平距離）、出口からベランダへ降りる経由点と着地候補
@@ -121,6 +141,7 @@ var has_driver := false          # ドライバーを持っているか（使っ
 var inventory: Array[String] = []   # 持ち物の id（取った順）
 var selected := -1                  # 選択中の番号（なければ -1）
 var _item_models := {}              # 拡大表示用の3Dモデル（拾ったときに複製）
+var powder_used := false           # ユブロマンを使った（空の容器は所持品に残る）
 var route_duct := false            # 換気経路を通ってベランダへ降りた
 var clear_route := ""              # "legit" / "shortcut"（クリアした経路）
 var region := ""                   # 今いる区画：bath / hall / room / duct / balcony
@@ -200,6 +221,9 @@ func _unhandled_input(event: InputEvent) -> void:
 		if event.is_action_pressed("item_2"):
 			select_item(1)
 			return
+		if event.is_action_pressed("item_3"):
+			select_item(2)
+			return
 		if event.is_action_pressed("inspect_item"):
 			toggle_zoom()
 			return
@@ -260,6 +284,7 @@ func do_action() -> void:
 		"stand_up":
 			if player.leave_fixed(SEAT_EXITS):
 				room.toilet.occupied = false
+				room.toilet_panel.stop()   # 立つと操作パネルは止まる
 			else:
 				hud.show_message(MESSAGES["no_way_out"])
 		"tub_enter":
@@ -295,7 +320,7 @@ func _prompt_for(target: Object) -> String:
 	match id:
 		"":
 			return ""
-		"driver", "spare_roll":
+		"driver", "spare_roll", "bath_powder":
 			return PROMPT_PICKUP
 		"door":
 			return PROMPT_EXAMINE
@@ -315,7 +340,7 @@ func _on_interact_requested(target: Object) -> void:
 			hud.show_message(MESSAGES[key])
 		return
 	match id:
-		"sink", "vent", "poster", "bath_powder", \
+		"sink", "vent", "poster", \
 		"toilet_cleaner", "plunger", "toilet_brush", "vent_sticker", \
 		"face_wash", "toner", "cotton_swabs", "tub_note", "towel_scratch", "shelf_note", "tank_note":
 			hud.show_message(MESSAGES[id])
@@ -334,6 +359,13 @@ func _on_interact_requested(target: Object) -> void:
 			room.supplies.take_spare_roll()
 			add_item("spare_roll")
 			hud.show_message(MESSAGES["spare_roll_pickup"])
+		"bath_powder":
+			if inventory.has("bath_powder") or room.bath_powder_taken:
+				return
+			_item_models["bath_powder"] = room.get_node("BathPowder/Visual").duplicate()
+			room.take_bath_powder()
+			add_item("bath_powder")
+			hud.show_message(MESSAGES["bath_powder_pickup"])
 		"door":
 			if door_open:
 				return
@@ -369,10 +401,16 @@ func select_item(i: int) -> void:
 		selected = i
 	var names := []
 	for id in inventory:
-		names.append(ITEMS[id]["name"])
+		names.append(item_name(id))
 	hud.set_inventory(names, selected)
 	if hud.is_zoom_open():
 		_show_zoom()
+
+
+func item_name(id: String) -> String:
+	if id == "bath_powder" and powder_used:
+		return "ユブロマン（空）"
+	return ITEMS[id]["name"]
 
 
 func selected_item() -> String:
@@ -392,7 +430,8 @@ func _show_zoom() -> void:
 	if id.is_empty():
 		hud.show_item_zoom(null, "", "")
 		return
-	hud.show_item_zoom(_item_models.get(id), ITEMS[id]["name"], ITEMS[id]["desc"])
+	var desc: String = "空の容器。ゆずの香りだけ残っている。" if id == "bath_powder" and powder_used else ITEMS[id]["desc"]
+	hud.show_item_zoom(_item_models.get(id), item_name(id), desc)
 
 
 ## F の案内（照準の対象に選んだ物が使えるときだけ）。
@@ -402,8 +441,9 @@ func _use_prompt(target: Object) -> String:
 		return ""
 	var tid := String(target.get_meta("interact_id", ""))
 	if (id == "driver" and tid == "door" and not door_open) \
-			or (id == "spare_roll" and tid in ["paper_holder", "paper_cover"] and not room.supplies.has_paper):
-		return "F：%sを使う" % ITEMS[id]["name"]
+			or (id == "spare_roll" and tid in ["paper_holder", "paper_cover"] and not room.supplies.has_paper) \
+			or (id == "bath_powder" and not powder_used and tid in TUB_TARGETS):
+		return "F：%sを使う" % item_name(id)
 	return ""
 
 
@@ -430,6 +470,18 @@ func use_selected() -> void:
 				hud.show_message(MESSAGES["cover_closed"])
 			"full":
 				hud.show_message(MESSAGES["holder_full"])
+		return
+	if id == "bath_powder" and tid in TUB_TARGETS:
+		if powder_used:
+			hud.show_message(MESSAGES["powder_empty"])
+			return
+		match room.bathtub.add_powder(player.camera.global_position + player.camera.global_basis * Vector3(0, -0.2, -0.4)):
+			"ok":
+				powder_used = true
+				select_item(selected)   # 所持品欄の名前を「（空）」へ
+				hud.show_message(MESSAGES["powder_added"])
+			"low":
+				hud.show_message(MESSAGES["powder_need_water"])
 		return
 	hud.show_message(MESSAGES["cannot_use"])
 
@@ -530,6 +582,7 @@ func _setup_input_map() -> void:
 	_add_key_action("use_item", [KEY_F])
 	_add_key_action("item_1", [KEY_1])
 	_add_key_action("item_2", [KEY_2])
+	_add_key_action("item_3", [KEY_3])
 	_add_key_action("inspect_item", [KEY_Q])
 	if not InputMap.has_action("interact"):
 		InputMap.add_action("interact")

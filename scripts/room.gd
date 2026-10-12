@@ -20,6 +20,8 @@ const MirrorCabinetScript := preload("res://scripts/mirror_cabinet.gd")
 const TowelScript := preload("res://scripts/towel.gd")
 const ApartmentScript := preload("res://scripts/apartment.gd")
 const ExteriorScript := preload("res://scripts/exterior.gd")
+const BathRemoteScript := preload("res://scripts/bath_remote.gd")
+const ToiletPanelScript := preload("res://scripts/toilet_panel.gd")
 
 const LAYER_WORLD := 1      # 壁・設備（プレイヤーがぶつかる）
 const LAYER_INTERACT := 2   # 拾える小物（ぶつからない、照準だけ当たる）
@@ -63,6 +65,9 @@ var driver_node: Node3D
 var apartment: ApartmentScript
 var exterior: ExteriorScript
 var vent_cover: Node3D
+var bath_remote: BathRemoteScript
+var toilet_panel: ToiletPanelScript
+var bath_powder_taken := false
 var vent_open := false
 var toilet: ToiletScript
 var bathtub: BathtubScript
@@ -115,6 +120,14 @@ func open_vent() -> void:
 	var tween := create_tween()
 	tween.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
 	tween.tween_property(vent_cover, "rotation:x", deg_to_rad(95.0), 0.35)
+
+
+## 棚の入浴剤（ユブロマン）を取る。
+func take_bath_powder() -> void:
+	bath_powder_taken = true
+	var node: Node3D = get_node("BathPowder")
+	node.visible = false
+	(node.get_node("Collision") as StaticBody3D).collision_layer = 0
 
 
 func open_door() -> void:
@@ -287,6 +300,13 @@ func _build_bathtub() -> void:
 	bathtub.name = "Bathtub"
 	bathtub.position = Vector3(0.0, 0.0, -ROOM_D * 0.5 + BathtubScript.HALF.z)
 	add_child(bathtub)
+	# 給湯器の浴室リモコン：浴槽の右横の壁（x=0.9）、高さ1.05m。部屋側（-x）を向く
+	bath_remote = BathRemoteScript.new()
+	bath_remote.name = "BathRemote"
+	bath_remote.setup(bathtub)
+	bath_remote.position = Vector3(ROOM_W * 0.5, 1.05, -0.75)
+	bath_remote.rotation.y = -PI * 0.5
+	add_child(bath_remote)
 
 
 func _build_toilet() -> void:
@@ -294,6 +314,12 @@ func _build_toilet() -> void:
 	toilet = ToiletScript.new()
 	toilet.name = "Toilet"
 	add_child(toilet)
+	# 操作パネル：便座の左横（座った本人の左下、浴槽側 -z）。上面 y=0.43
+	toilet_panel = ToiletPanelScript.new()
+	toilet_panel.name = "ToiletPanel"
+	toilet_panel.setup(toilet)
+	toilet_panel.position = Vector3(-0.42, 0.43, -0.23)
+	add_child(toilet_panel)
 
 
 func _build_sink_and_mirror() -> void:
