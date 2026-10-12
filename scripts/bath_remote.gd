@@ -62,8 +62,13 @@ func _process(_delta: float) -> void:
 	if bathtub:
 		if _was_auto and not bathtub.auto_filling and bathtub.auto_done:
 			notice.emit("remote_auto_done")
-		if _was_reheat and not bathtub.reheating and power:
-			notice.emit("remote_reheat_done")
+		# 追い焚きが止まった理由で表示を分ける。停止ボタン・運転OFFはそのボタンの表示だけ（重ねない）
+		if _was_reheat and not bathtub.reheating:
+			match bathtub.reheat_end_reason:
+				"done":
+					notice.emit("remote_reheat_done")
+				"low":
+					notice.emit("remote_reheat_low")
 		_was_auto = bathtub.auto_filling
 		_was_reheat = bathtub.reheating
 	_refresh()

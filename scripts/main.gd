@@ -39,6 +39,7 @@ const MESSAGES := {
 	"remote_auto_done": "ふろ自動：お湯はりが終わった。",
 	"remote_reheat_start": "追い焚きを始めた。",
 	"remote_reheat_done": "追い焚きが終わった。",
+	"remote_reheat_low": "お湯が少なくなったため、追い焚きを中断した。",
 	"remote_stopped": "お湯はり・追い焚きを止めた。",
 	"washlet_rear_on": "おしり：作動中。",
 	"washlet_bidet_on": "ビデ：作動中。",

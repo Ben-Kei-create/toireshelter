@@ -189,6 +189,55 @@ func _run() -> void:
 	await _frames(3)
 	_check(not tub.reheating and not tub._swirl.visible and main.hud._message_label.text == main.MESSAGES["remote_reheat_done"],
 			"しばらくすると追い焚きは終わり、メッセージで分かる")
+	# 追い焚きの止まり方の区別（FIX-12）
+	# 水量不足：30% より少し上で始め、栓を抜いて途中で止まる
+	tub.level = tub.REHEAT_MIN_LEVEL + 0.02
+	tub.advance(0.0)
+	_press(main, player, remote, "remote_reheat")
+	await _frames(2)
+	tub.set_plug(false)
+	main.hud._message_label.text = ""
+	var seen_msgs := []
+	for i in 30:
+		tub.advance(0.1)
+		await process_frame
+		if not main.hud._message_label.text.is_empty() and not seen_msgs.has(main.hud._message_label.text):
+			seen_msgs.append(main.hud._message_label.text)
+	tub.set_plug(true)
+	_check(not tub.reheating and tub.reheat_end_reason == "low" and seen_msgs == [main.MESSAGES["remote_reheat_low"]],
+			"水量不足で止まると「中断した」だけが出て、完了の説明は出ない（%s）" % str(seen_msgs))
+	# 手動停止
+	tub.level = 0.6
+	tub.advance(0.0)
+	_press(main, player, remote, "remote_reheat")
+	await _frames(2)
+	main.hud._message_label.text = ""
+	seen_msgs.clear()
+	_press(main, player, remote, "remote_stop")
+	for i in 5:
+		await process_frame
+		if not seen_msgs.has(main.hud._message_label.text):
+			seen_msgs.append(main.hud._message_label.text)
+	_check(tub.reheat_end_reason == "stopped" and seen_msgs == [main.MESSAGES["remote_stopped"]], "停止ボタン：「止めた」だけ（%s）" % str(seen_msgs))
+	# 運転OFF
+	_press(main, player, remote, "remote_reheat")
+	await _frames(2)
+	main.hud._message_label.text = ""
+	seen_msgs.clear()
+	_press(main, player, remote, "remote_power")
+	for i in 5:
+		await process_frame
+		if not seen_msgs.has(main.hud._message_label.text):
+			seen_msgs.append(main.hud._message_label.text)
+	_check(seen_msgs == [main.MESSAGES["remote_power_off"]], "運転OFF：「運転を切った」だけ（%s）" % str(seen_msgs))
+	_press(main, player, remote, "remote_power")
+	# 正常完了
+	_press(main, player, remote, "remote_reheat")
+	await _frames(2)
+	main.hud._message_label.text = ""
+	tub.advance(tub.REHEAT_TIME + 0.1)
+	await _frames(3)
+	_check(tub.reheat_end_reason == "done" and main.hud._message_label.text == main.MESSAGES["remote_reheat_done"], "正常完了：「追い焚きが終わった」")
 	_press(main, player, remote, "remote_auto")
 	_press(main, player, remote, "remote_power")
 	_check(not remote.power and not tub.auto_filling and not tub.reheating, "運転OFFで自動運転も止まる")

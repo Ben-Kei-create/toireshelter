@@ -239,36 +239,66 @@ func _build_bookshelf() -> void:
 		var lv := 1 + k / 3
 		var zc: float = [-0.62, 0.48, 1.62][k % 3] + (0.22 if lv % 2 == 0 else 0.0)
 		face_out.append([lv, zc, k + 1])
+	# 本は1冊（または横積み1山）ごとに、傾きを含めた実際の占有範囲（z の幅と高さ）を先に計算し、
+	# 表紙を見せる本の予約範囲・側板・棚の高さに収まるときだけ置く。入らなければ次の空きへずらす（FIX-12）
+	var inner_z0 := z0 + 0.0125 + 0.004   # 側板の内側
+	var inner_z1 := z1 - 0.0125 - 0.004
+	var max_h := step - 0.022 - 0.012      # 棚板の下面までの余裕
 	for i in levels:
 		var base := i * step + 0.022
-		var z := z0 + 0.03
-		while z < z1 - 0.05:
-			var skip := false
-			for fo in face_out:
-				if fo[0] == i and z > fo[1] - 0.14 and z < fo[1] + 0.14:
-					z = fo[1] + 0.14
-					skip = true
-			if skip:
-				continue
+		var blocked := []   # この段の予約範囲 [z0, z1]
+		for fo in face_out:
+			if fo[0] == i:
+				blocked.append([fo[1] - 0.14, fo[1] + 0.14])
+		var z := inner_z0
+		while z < inner_z1 - 0.012:
 			var kind := _rng.randf()
-			var thick := _rng.randf_range(0.015, 0.06)
-			var height := minf(_rng.randf_range(0.14, 0.3), step - 0.04)
 			var dep := _rng.randf_range(0.13, 0.26)
 			var c: Color = palette[_rng.randi() % palette.size()]
+			var items := []   # [Transform3D, Color]
+			var span := 0.0   # この本（山）が占める z の幅
 			if kind < 0.1:   # 横積み
-				var n := _rng.randi_range(2, 5)
 				var w := _rng.randf_range(0.16, 0.24)
+				var n := _rng.randi_range(2, 5)
+				var y := 0.0
 				for k in n:
 					var tk := _rng.randf_range(0.02, 0.04)
-					xforms.append(Transform3D(Basis.from_scale(Vector3(dep, tk, w)), Vector3(x1 - 0.03 - dep * 0.5, base + k * 0.035 + tk * 0.5, z + w * 0.5)))
-					colors.append(palette[_rng.randi() % palette.size()])
-				z += w + 0.01
+					if y + tk > max_h:
+						break
+					items.append([Transform3D(Basis.from_scale(Vector3(dep, tk, w)), Vector3(x1 - 0.03 - dep * 0.5, base + y + tk * 0.5, 0.0)), palette[_rng.randi() % palette.size()]])
+					y += tk + 0.003
+				span = w
+			else:
+				var thick := _rng.randf_range(0.015, 0.06)
+				var height := minf(_rng.randf_range(0.14, 0.3), max_h)
+				var tilt := deg_to_rad(_rng.randf_range(-14.0, 14.0)) if kind < 0.2 else 0.0
+				# 傾けた本の z の幅と高さ（底の角を棚板に付ける）
+				span = thick * cos(absf(tilt)) + height * sin(absf(tilt))
+				var book_h := thick * sin(absf(tilt)) + height * cos(absf(tilt))
+				if book_h > max_h:
+					tilt = 0.0
+					span = thick
+					book_h = height
+				var b := Basis(Vector3.RIGHT, tilt) * Basis.from_scale(Vector3(dep, height, thick))
+				items.append([Transform3D(b, Vector3(x1 - 0.03 - dep * 0.5, base + book_h * 0.5, 0.0)), c])
+			# 占有範囲 [z, z + span] が予約範囲・側板にかかるなら、その先の空きへずらしてやり直す
+			var z_end := z + span
+			if z_end > inner_z1:
+				break
+			var moved := false
+			for bl in blocked:
+				if z_end > bl[0] and z < bl[1]:
+					z = bl[1] + 0.004
+					moved = true
+					break
+			if moved:
 				continue
-			var tilt := deg_to_rad(_rng.randf_range(-14.0, 14.0)) if kind < 0.2 else 0.0
-			var b := Basis(Vector3.RIGHT, tilt) * Basis.from_scale(Vector3(dep, height, thick))
-			xforms.append(Transform3D(b, Vector3(x1 - 0.03 - dep * 0.5, base + height * 0.5, z + thick * 0.5)))
-			colors.append(c)
-			z += thick + (0.012 if tilt != 0.0 else 0.002)
+			for it in items:
+				var t: Transform3D = it[0]
+				t.origin.z = z + span * 0.5   # 占有範囲の中央
+				xforms.append(t)
+				colors.append(it[1])
+			z = z_end + _rng.randf_range(0.001, 0.004)
 	_multimesh(root, "Books", BoxMesh.new(), xforms, colors, MeshKit.mat("book_base", Color.WHITE, 0.8))
 	for fo in face_out:
 		_face_out_book(root, fo[2], Vector3(x1 - 0.2, fo[0] * step + 0.022, fo[1]))

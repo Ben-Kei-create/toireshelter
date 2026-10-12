@@ -51,6 +51,7 @@ var powder := 0.0
 var reveal := 0.0
 var powder_busy := false
 var _reheat_left := 0.0
+var reheat_end_reason := ""   # 追い焚きが止まった理由："done"（正常完了）/ "low"（水量不足で中断）/ "stopped"（停止ボタン・運転OFF）
 var _t := 0.0
 var _water_mat: StandardMaterial3D
 var _swirl: MeshInstance3D
@@ -123,8 +124,12 @@ func advance(delta: float) -> void:
 		reveal = minf(1.0, reveal + delta / REVEAL_TIME)
 	if reheating:
 		_reheat_left -= delta
-		if _reheat_left <= 0.0 or level < REHEAT_MIN_LEVEL:
+		if level < REHEAT_MIN_LEVEL:
 			reheating = false
+			reheat_end_reason = "low"
+		elif _reheat_left <= 0.0:
+			reheating = false
+			reheat_end_reason = "done"
 	if level > 0.02:
 		was_filled = true
 	_update_water()
@@ -147,11 +152,14 @@ func start_reheat() -> String:
 	if level < REHEAT_MIN_LEVEL:
 		return "low"
 	reheating = true
+	reheat_end_reason = ""
 	_reheat_left = REHEAT_TIME
 	return "ok"
 
 
 func stop_remote() -> void:
+	if reheating:
+		reheat_end_reason = "stopped"
 	auto_filling = false
 	reheating = false
 	_reheat_left = 0.0
