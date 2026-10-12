@@ -14,6 +14,7 @@ const MeshKit := preload("res://scripts/mesh_kit.gd")
 const ToiletScript := preload("res://scripts/toilet.gd")
 const BathtubScript := preload("res://scripts/bathtub.gd")
 const FaucetScript := preload("res://scripts/faucet.gd")
+const SuppliesScript := preload("res://scripts/supplies.gd")
 
 const LAYER_WORLD := 1      # 壁・設備（プレイヤーがぶつかる）
 const LAYER_INTERACT := 2   # 拾える小物（ぶつからない、照準だけ当たる）
@@ -58,6 +59,7 @@ var exit_area: Area3D
 var toilet: ToiletScript
 var bathtub: BathtubScript
 var sink_faucet: FaucetScript
+var supplies: SuppliesScript
 
 
 func _ready() -> void:
@@ -72,6 +74,10 @@ func _ready() -> void:
 	_build_floor_drain()
 	_build_towel()
 	_build_bath_powder()
+	# トイレまわりの生活用品（ペーパーホルダー・棚の予備ロールと洗剤・ラバーカップとブラシ・点検シール）
+	supplies = SuppliesScript.new()
+	supplies.name = "Supplies"
+	add_child(supplies)
 	_build_driver()
 	_build_door()
 	_build_exit()

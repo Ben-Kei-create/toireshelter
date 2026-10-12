@@ -17,6 +17,12 @@ const MESSAGES := {
 	"vent": "換気口。格子の奥は暗く、よく見えない。",
 	"poster": "水道修理の広告だ。連絡先は管理会社……スマホは部屋に置いてきた。",
 	"bath_powder": "ユブロマン。ゆずの香りの入浴剤。今はのんびり浸かっている場合じゃない。",
+	"paper_holder": "いつものトイレットペーパー。ここだけは平常運転だ。",
+	"spare_roll": "『明日もある』。今日の分は、なんとかしてほしい。",
+	"toilet_cleaner": "『無かったことに』。閉じ込められた件にも効くだろうか。",
+	"plunger": "ラバーカップ。ブラシと妙にきれいに並んでいる。",
+	"toilet_brush": "トイレブラシ。ここでの仕事には慣れていそうだ。",
+	"vent_sticker": "『点検済。異常なし。たぶん。』……たぶん？",
 	"driver": "ドライバーを手に入れた。",
 	"door_locked": "ドアノブが空回りする。開かない。",
 	"door_fixed": "ドライバーでドアノブのネジを締め直した。……ドアが開いた！",
@@ -130,7 +136,8 @@ func _on_interact_requested(target: Object) -> void:
 			hud.show_message(MESSAGES[key])
 		return
 	match id:
-		"mirror", "sink", "vent", "poster", "bath_powder":
+		"mirror", "sink", "vent", "poster", "bath_powder", \
+		"paper_holder", "spare_roll", "toilet_cleaner", "plunger", "toilet_brush", "vent_sticker":
 			hud.show_message(MESSAGES[id])
 		"driver":
 			if has_driver:

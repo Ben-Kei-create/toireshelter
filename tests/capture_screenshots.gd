@@ -13,6 +13,12 @@ const VIEWS := [
 	["door_poster", Vector3(-0.03, 0.0, 0.55), Vector3(-0.03, 1.4, 1.2)],
 	["bath_powder", Vector3(-0.2, 0.0, 0.1), Vector3(-0.8, 1.0, -0.08)],
 	["bath_powder_closeup", Vector3(-0.45, 0.0, -0.05), Vector3(-0.8, 1.0, -0.08)],
+	# TASK-06（状態を切り替える前に撮る）
+	["t6_room_overview", Vector3(0.45, 0.0, 0.95), Vector3(-0.45, 0.85, -0.2)],
+	["t6_supply_shelf", Vector3(-0.3, 0.0, 0.55), Vector3(-0.83, 1.42, 0.0)],
+	["t6_cleaning_stand", Vector3(-0.15, 0.0, 0.45), Vector3(-0.8, 0.2, 1.06)],
+	["t6_paper_holder", Vector3(-0.2, 0.0, 0.75), Vector3(-0.83, 0.68, 0.30)],
+	["t6_vent_sticker", Vector3(-0.4, 0.0, -0.2), Vector3(-0.6, 2.2, -1.02)],
 	["t5_room_overview", Vector3(0.45, 0.0, 0.95), Vector3(-0.3, 0.6, -1.0)],
 	["t5_sink_area", Vector3(-0.1, 0.0, 0.2), Vector3(0.8, 0.85, 0.1), "sink_water"],
 	["t5_sink_trap_low_reference", Vector3(0.25, 0.0, 0.75), Vector3(0.75, 0.45, 0.1), "low_camera"],

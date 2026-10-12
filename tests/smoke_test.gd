@@ -111,8 +111,10 @@ func _run() -> void:
 
 	# --- 画像はミップマップ付きで取り込まれている
 	_check(room.POSTER_TEX.get_image().has_mipmaps() and room.LABEL_TEX.get_image().has_mipmaps()
-			and room.TOWEL_TEX.get_image().has_mipmaps() and room.TOOTHPASTE_TEX.get_image().has_mipmaps(),
-			"広告・入浴剤ラベル・タオル布地・歯磨き粉ラベルの画像にミップマップがある")
+			and room.TOWEL_TEX.get_image().has_mipmaps() and room.TOOTHPASTE_TEX.get_image().has_mipmaps()
+			and room.supplies.ROLL_WRAP_TEX.get_image().has_mipmaps() and room.supplies.CLEANER_TEX.get_image().has_mipmaps()
+			and room.supplies.STICKER_TEX.get_image().has_mipmaps(),
+			"画像7枚すべてにミップマップがある")
 
 	# ================================================================ TASK-05 水回り
 	var toilet = room.toilet
@@ -170,6 +172,24 @@ func _run() -> void:
 	player.try_interact()
 	_check(tub.faucet.is_on and absf(tub.faucet.stream_length() - (spout.y - 0.015 - tub.BOTTOM_Y)) < 0.01,
 			"蛇口から浴槽の底まで水が流れる（%.2fm）" % tub.faucet.stream_length())
+	# 水位 0／25／50／100% で、計算値だけでなく水面メッシュと水流メッシュの実際の位置を確かめる
+	for lv in [0.0, 0.25, 0.5, 1.0]:
+		tub.level = lv
+		tub.advance(0.0)
+		tub.faucet._update_stream()
+		var water: MeshInstance3D = tub._water
+		var expect_y: float = tub.to_global(Vector3(0, lerpf(tub.WATER_MIN_Y, tub.WATER_MAX_Y, lv), 0)).y
+		var stream: MeshInstance3D = tub.faucet._stream
+		var stream_bottom: float = stream.global_position.y - stream.global_transform.basis.get_scale().y * 0.5
+		var floor_y: float = expect_y if lv > 0.0 else tub.to_global(Vector3(0, tub.BOTTOM_Y, 0)).y
+		var water_ok: bool = (not water.visible) if lv == 0.0 else (water.visible and absf(water.global_position.y - expect_y) < 0.0005)
+		_check(water_ok and stream.visible and absf(stream_bottom - floor_y) < 0.0005
+				and water.global_position.y < tub.HALF.y,
+				"水位%d%%：水面メッシュ %s、水流の下端 %.3f = %s %.3f" % [int(lv * 100.0),
+				("非表示" if not water.visible else "y=%.3f" % water.global_position.y), stream_bottom,
+				("水面" if lv > 0.0 else "底"), floor_y])
+	tub.level = 0.0
+	tub.advance(0.0)
 	var plug_pos: Vector3 = tub.to_global(tub.DRAIN_POS + Vector3(0, 0.012, 0))
 	_aim(player, plug_pos)
 	var p_hit = player.get_focused(true)
@@ -227,6 +247,73 @@ func _run() -> void:
 	_check(is_equal_approx(sink_faucet.stream_length(), s_len), "洗面台の水はたまらず、流れ続ける")
 	player.global_position = saved
 
+	# ================================================================ TASK-06 生活用品
+	var sup = room.supplies
+	var msgs6: Dictionary = main.MESSAGES
+	var targets := [
+		["paper_holder", Vector3(-0.2, 0, 0.75), Vector3(-0.83, 0.70, 0.30)],
+		["spare_roll", Vector3(-0.4, 0, 0.6), Vector3(-0.83, 1.41, 0.09)],
+		["toilet_cleaner", Vector3(-0.4, 0, 0.6), Vector3(-0.83, 1.44, -0.09)],
+		["plunger", Vector3(-0.2, 0, 0.6), Vector3(-0.80, 0.30, 0.995)],
+		["toilet_brush", Vector3(-0.2, 0, 0.6), Vector3(-0.80, 0.30, 1.125)],
+	]
+	for t in targets:
+		main.hud._message_label.text = ""
+		player.global_position = t[1]
+		_aim(player, t[2])
+		player.try_interact()
+		_check(main.hud._message_label.text == msgs6[t[0]], "%s を調べられる" % t[0])
+	# 点検シール：初期位置の床から（1.8m より遠い）／天井の上からは遮られる
+	main.hud._message_label.text = ""
+	player.global_position = room.spawn_position
+	_aim(player, sup.STICKER_CENTER - Vector3(0, 0.004, 0))
+	var st_dist: float = player.camera.global_position.distance_to(sup.STICKER_CENTER)
+	player.try_interact()
+	_check(main.hud._message_label.text == msgs6["vent_sticker"] and st_dist > player.INTERACT_RANGE and st_dist < sup.STICKER_RANGE,
+			"初期位置から点検シールを調べられる（%.2fm）" % st_dist)
+	main.hud._message_label.text = ""
+	player.global_position = sup.STICKER_CENTER + Vector3(0, -0.6, 0.0)   # 目の高さが天井より上
+	_aim(player, sup.STICKER_CENTER - Vector3(0, 0.004, 0))
+	player.try_interact()
+	_check(main.hud._message_label.text == "", "天井越しには点検シールを調べられない")
+	player.global_position = saved
+
+	# ラバーカップとブラシ：持ち手が垂直、台の前端からの距離と両端の余白がそろう、通路を狭めない
+	var ph: Node3D = sup.plunger.get_node("Handle")
+	var bh: Node3D = sup.brush.get_node("Handle")
+	var tray_z0: float = sup.STAND_CENTER.z - sup.STAND_SIZE.z * 0.5
+	var tray_z1: float = sup.STAND_CENTER.z + sup.STAND_SIZE.z * 0.5
+	_check(ph.global_transform.basis.y.normalized().dot(Vector3.UP) > 0.9999 and bh.global_transform.basis.y.normalized().dot(Vector3.UP) > 0.9999
+			and is_equal_approx(sup.plunger.global_position.x, sup.brush.global_position.x)
+			and is_equal_approx(sup.plunger.global_position.z - tray_z0, tray_z1 - sup.brush.global_position.z),
+			"ラバーカップとブラシの持ち手が垂直で、前端と間隔がそろっている")
+	var stand_box := _mesh_aabb(sup.get_node("CleaningStand"))
+	_check(stand_box.end.x < -0.35 - 0.25, "収納台はドアの開口と通路にかからない（x ≤ %.2f）" % stand_box.end.x)
+
+	# 実際の寸法で重なりを確認：蓋を開け、便座を上げた状態で
+	toilet.toggle_lid()
+	await _seconds(0.6)
+	toilet.toggle_seat()
+	await _seconds(0.6)
+	var others := {
+		"開いた蓋": toilet.lid_pivot, "上げた便座": toilet.seat_pivot,
+		"入浴剤": room.get_node("BathPowder/Visual"), "タオル": room.get_node("TowelBar"),
+		"便器本体": toilet.get_node("Visual"), "換気口": room.get_node("Vent/Visual"),
+	}
+	for name in ["PaperHolder", "SupplyShelf", "CleaningStand", "VentSticker"]:
+		var a := _mesh_aabb(sup.get_node(name))
+		for ax in 3:   # 接しているだけの面を重なりと数えないよう 1mm 縮める（厚みのない板の軸は除く）
+			if a.size[ax] > 0.002:
+				a.position[ax] += 0.001
+				a.size[ax] -= 0.002
+		var hits := []
+		for o in others:
+			if a.intersects(_mesh_aabb(others[o])):
+				hits.append(o)
+		_check(hits.is_empty(), "%s は他の物と重ならない%s" % [name, "" if hits.is_empty() else "（重なり：%s）" % ", ".join(hits)])
+	toilet.toggle_lid()
+	await _seconds(1.0)
+
 	# --- 照準を合わせてクリックすると拾える
 	_aim(player, driver_pos)
 	player.try_interact()
@@ -273,6 +360,20 @@ func _run() -> void:
 
 	print("SMOKE TEST: %s (%d failure(s))" % ["PASS" if _failures == 0 else "FAIL", _failures])
 	quit(1 if _failures > 0 else 0)
+
+
+## node 以下のすべてのメッシュを覆うワールド座標の箱。
+func _mesh_aabb(node: Node) -> AABB:
+	var box := AABB()
+	var first := true
+	var list: Array = node.find_children("*", "MeshInstance3D", true, false)
+	if node is MeshInstance3D:
+		list.append(node)
+	for mi in list:
+		var b: AABB = mi.global_transform * mi.get_aabb()
+		box = b if first else box.merge(b)
+		first = false
+	return box
 
 
 func _id(target: Object) -> String:
