@@ -13,6 +13,7 @@ const PlayerScript := preload("res://scripts/player.gd")
 const HudScript := preload("res://scripts/hud.gd")
 const ExteriorScript := preload("res://scripts/exterior.gd")
 const ApartmentScript := preload("res://scripts/apartment.gd")
+const BooksScript := preload("res://scripts/books.gd")
 const CorridorScript := preload("res://scripts/corridor.gd")
 
 const MESSAGES := {
@@ -73,6 +74,9 @@ const MESSAGES := {
 	"cannot_use": "ここでは使えない。",
 	"tub_note": "小さな紙が貼ってある。『ここまで来たか。』",
 	"towel_scratch": "タオルの裏に傷がある。前からあっただろうか。",
+	"ufo_miss": "アームが降りて……景品をつかみそこねた。",
+	"ufo_win": "景品をつかんだ。取り出し口に落ちた。持ち帰れはしないらしい。",
+	"ufo_empty": "景品は、もうない。",
 	"life_paper_02": "古い映画の再上映。半券を捨てずに取ってある。",
 	"life_paper_07": "石好きの会。ここなら話が合いそうだ。",
 	"shelf_note": "棚の裏に小さな紙が貼ってある。『下からなら見える。』",
@@ -116,6 +120,8 @@ const PROMPTS := {
 	"shower_off": "左クリック：シャワーを止める",
 	"curtain_open": "左クリック：カーテンを開ける",
 	"front_door_open": "左クリック：玄関のドアを開ける",
+	"book_read": "左クリック：本を読む",
+	"ufo_play": "左クリック：アームを動かす",
 }
 
 ## 持ち物（拾える物）。最大2つ。1・2 キーは取った順
@@ -176,6 +182,13 @@ var _last_region := ""
 var door_open := false
 var cleared := false
 var paused := false
+var reading := false               # 本を読む画面が開いている
+var _reader_pages: Array = []
+var _reader_page := 0
+var _reader_title := ""
+var _reader_cover: Texture2D
+var _reader_tint := Color.WHITE
+var _reader_opened_frame := -1
 
 var room: RoomScript
 var player: PlayerScript
@@ -201,6 +214,9 @@ func _ready() -> void:
 	player.interact_requested.connect(_on_interact_requested)
 	room.bath_remote.notice.connect(func(key: String) -> void: hud.show_message(MESSAGES[key]))
 	player.crouch_blocked.connect(func() -> void: hud.show_message(MESSAGES["no_headroom"]))
+	var books = room.apartment.books
+	books.player = player
+	books.read_requested.connect(_open_reader)
 
 
 	hud = HudScript.new()
@@ -215,7 +231,7 @@ func _ready() -> void:
 
 
 func _process(_delta: float) -> void:
-	if paused or cleared:
+	if paused or cleared or reading:
 		hud.set_prompt("")
 		return
 	var focused := player.get_focused()
@@ -233,6 +249,21 @@ func _process(_delta: float) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if reading:
+		# 本を読んでいる間：左クリックで次のページ（最後は閉じる）、Esc で閉じる。ほかの操作は受け付けない
+		if Engine.get_process_frames() == _reader_opened_frame:
+			return
+		if event.is_action_pressed("pause"):
+			get_viewport().set_input_as_handled()
+			_close_reader()
+		elif event is InputEventMouseButton and event.pressed and (event as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT:
+			get_viewport().set_input_as_handled()
+			_reader_page += 1
+			if _reader_page >= _reader_pages.size():
+				_close_reader()
+			else:
+				_show_reader_page()
+		return
 	if event.is_action_pressed("action"):
 		get_viewport().set_input_as_handled()
 		if not paused and not cleared:
@@ -269,6 +300,32 @@ func _unhandled_input(event: InputEvent) -> void:
 			_resume()
 		else:
 			_pause()
+
+
+# ---------------------------------------------------------------- 本を読む
+
+func _open_reader(title: String, pages: Array, cover: Texture2D, tint: Color) -> void:
+	if reading or paused or cleared:
+		return
+	reading = true
+	_reader_title = title
+	_reader_pages = pages
+	_reader_page = 0
+	_reader_cover = cover
+	_reader_tint = tint
+	_reader_opened_frame = Engine.get_process_frames()
+	player.controls_enabled = false
+	_show_reader_page()
+
+
+func _show_reader_page() -> void:
+	hud.show_reader(_reader_title, _reader_pages[_reader_page], _reader_cover, _reader_tint, _reader_page, _reader_pages.size())
+
+
+func _close_reader() -> void:
+	reading = false
+	hud.hide_reader()
+	player.controls_enabled = true
 
 
 # ---------------------------------------------------------------- 姿勢（座る・浴槽）
@@ -362,7 +419,7 @@ func _prompt_for(target: Object) -> String:
 
 
 func _on_interact_requested(target: Object) -> void:
-	if paused or cleared or target == null:
+	if paused or cleared or reading or target == null:
 		return
 	var id := String(target.get_meta("interact_id", ""))
 	var fixture: Object = target.get_meta("fixture") if target.has_meta("fixture") else null

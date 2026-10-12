@@ -10,6 +10,8 @@ extends Node3D
 ## 本とカードは MultiMesh で軽く作る。当たり判定は大きな家具ごとの単純な箱だけ。展示品の取得や個別操作はなし。
 
 const MeshKit := preload("res://scripts/mesh_kit.gd")
+const BooksScript := preload("res://scripts/books.gd")
+const UfoCatcherScript := preload("res://scripts/ufo_catcher.gd")
 
 # 素材（docs/assets.md の ASSETS-30）
 const TEX_GRANITE := preload("res://assets/textures/surfaces/surface_01.png")
@@ -74,6 +76,7 @@ func _ready() -> void:
 	_build_novelties()
 	_build_tv_corner()
 	_build_life_papers()
+	_build_ufo_catcher()
 	_build_hall_slippers()
 	_build_lights()
 
@@ -125,6 +128,8 @@ func _build_movie_posters() -> void:
 
 ## 突き当たりの壁のコルクボード。レシート・半券・メモなど紙もの12枚を少し傾けてピンで留める。見た目だけ。
 ## コルクボードの紙は、画鋲1本で留めた紙のように、ごくわずかに揺れる（換気の空気の動き）。見た目だけ。
+var books: Node
+var ufo_catcher: Node3D
 var _swaying: Array = []
 var _sway_t := 0.0
 
@@ -392,6 +397,23 @@ func _build_bookshelf() -> void:
 	_multimesh(root, "Books", BoxMesh.new(), xforms, colors, MeshKit.mat("book_base", Color.WHITE, 0.8))
 	for fo in face_out:
 		_face_out_book(root, fo[2], Vector3(x1 - 0.2, fo[0] * step + 0.022, fo[1]))
+	# 本を読む（books.gd）：表紙の本ごとの判定と、背表紙の本の段ごとの判定。判定は棚の前面（x0）の手前に薄く置く
+	# （棚の本体の当たり判定より手前にないと、照準が届かない）。表紙の本の判定は段の判定より手前（x0-0.03）
+	books = BooksScript.new()
+	books.name = "Books"
+	books.shelf_step = step
+	add_child(books)
+	var areas := Node3D.new()
+	areas.name = "BookAreas"
+	root.add_child(areas)
+	for i in levels:
+		var a := MeshKit.interact_area(areas, "Level%d" % i, "shelf_books", books)
+		MeshKit.shape_box(a, Vector3(0.02, step - 0.035, z1 - z0 - 0.06), Vector3(x0 - 0.012, i * step + 0.022 + (step - 0.022) * 0.5, (z0 + z1) * 0.5))
+	for fo in face_out:
+		var tex: Texture2D = load("res://assets/textures/books/book_cover_%02d.png" % fo[2])
+		var w := BOOK_H * float(tex.get_width()) / float(tex.get_height())
+		var a := MeshKit.interact_area(areas, "Book%02d" % fo[2], "book_%02d" % fo[2], books)
+		MeshKit.shape_box(a, Vector3(0.02, BOOK_H, w), Vector3(x0 - 0.03, fo[0] * step + 0.022 + BOOK_H * 0.5, fo[1]))
 
 
 ## 表紙を部屋側（-x）へ向けて立てた本。表紙の画像は正面だけ。厚み・背表紙・裏表紙は単色の箱。
@@ -930,6 +952,17 @@ func _life_paper(parent: Node3D, n: int, width: float, pos: Vector3, normal: Vec
 	area.basis = mi.basis
 	area.position = pos + nn * 0.01
 	return mi
+
+
+## 超簡易のクレーンゲーム（ufo_catcher.gd）。部屋の右奥、本棚の手前（x 3.3、z 0.0、幅0.5×奥行き0.5。z -0.25〜0.25）。
+## 本棚（x 3.7〜）との間に 0.15m。表紙の本（z 0.38〜0.58 と -0.5〜-0.3 など）は斜めから狙える、窓（x 1.8〜3.2、奥の壁）・宝石（z 0.94〜）・机からは離れていて、通路と本棚の判定をふさがない。
+## 正面は部屋の中央側（-x）。
+func _build_ufo_catcher() -> void:
+	ufo_catcher = UfoCatcherScript.new()
+	ufo_catcher.name = "UfoCatcher"
+	ufo_catcher.position = Vector3(3.3, 0.0, 0.0)
+	ufo_catcher.rotation.y = -PI * 0.5
+	add_child(ufo_catcher)
 
 
 ## テレビ台・テレビ・ゲーム機・ゲームのソフト（手前の壁の左側、大きな絵の下）。

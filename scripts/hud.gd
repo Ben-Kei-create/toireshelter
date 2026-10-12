@@ -24,6 +24,13 @@ var _zoom_viewport: SubViewport
 var _zoom_pivot: Node3D
 var _zoom_name: Label
 var _zoom_desc: Label
+var _reader: Control
+var _reader_cover: TextureRect
+var _reader_tint: ColorRect
+var _reader_tint_label: Label
+var _reader_title: Label
+var _reader_body: Label
+var _reader_foot: Label
 var _hint_label: Label
 var _pause_menu: Control
 var _clear_menu: Control
@@ -67,6 +74,7 @@ func _ready() -> void:
 
 	_build_inventory_bar()
 	_build_zoom()
+	_build_reader()
 
 	_hint_label = _make_label(17, HORIZONTAL_ALIGNMENT_LEFT)
 	_hint_label.name = "Hint"
@@ -147,6 +155,31 @@ func show_item_zoom(model: Node3D, item_name: String, desc: String) -> void:
 
 func is_zoom_open() -> bool:
 	return _zoom.visible
+
+
+## 本を読む画面（本棚の本）。cover があれば表紙、なければ tint の色の無地の背表紙に題名。
+## page は 0 始まり、pages は総ページ数。最後のページでは「閉じる」の案内にする。
+func show_reader(title: String, body: String, cover: Texture2D, tint: Color, page: int, pages: int) -> void:
+	_zoom.visible = false
+	_message_panel.visible = false
+	_reader_cover.texture = cover
+	_reader_cover.visible = cover != null
+	_reader_tint.visible = cover == null
+	_reader_tint.color = tint
+	_reader_tint_label.text = title
+	_reader_title.text = title
+	_reader_body.text = body
+	var more := page < pages - 1
+	_reader_foot.text = "%s左クリック：%s　／　Esc：閉じる" % ["%d / %d　　" % [page + 1, pages] if pages > 1 else "", "次のページ" if more else "閉じる"]
+	_reader.visible = true
+
+
+func hide_reader() -> void:
+	_reader.visible = false
+
+
+func is_reader_open() -> bool:
+	return _reader.visible
 
 
 func show_pause(is_paused: bool) -> void:
@@ -252,6 +285,58 @@ func _build_zoom() -> void:
 	panel.grow_vertical = Control.GROW_DIRECTION_BOTH
 	_zoom = panel
 	_zoom.visible = false
+
+
+func _build_reader() -> void:
+	var left := Control.new()
+	left.custom_minimum_size = Vector2(210, 300)
+	left.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_reader_cover = TextureRect.new()
+	_reader_cover.name = "Cover"
+	_reader_cover.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_reader_cover.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_reader_cover.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	_reader_cover.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	left.add_child(_reader_cover)
+	_reader_tint = ColorRect.new()
+	_reader_tint.name = "Spine"
+	_reader_tint.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_reader_tint.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	left.add_child(_reader_tint)
+	_reader_tint_label = _make_label(24, HORIZONTAL_ALIGNMENT_CENTER)
+	_reader_tint_label.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_reader_tint_label.autowrap_mode = TextServer.AUTOWRAP_ARBITRARY
+	_reader_tint.add_child(_reader_tint_label)
+	var right := VBoxContainer.new()
+	right.add_theme_constant_override("separation", 12)
+	_reader_title = _make_label(26, HORIZONTAL_ALIGNMENT_LEFT)
+	right.add_child(_reader_title)
+	_reader_body = _make_label(22, HORIZONTAL_ALIGNMENT_LEFT)
+	_reader_body.vertical_alignment = VERTICAL_ALIGNMENT_TOP
+	_reader_body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_reader_body.custom_minimum_size = Vector2(400, 200)
+	right.add_child(_reader_body)
+	_reader_foot = _make_label(15, HORIZONTAL_ALIGNMENT_LEFT)
+	_reader_foot.modulate = Color(1, 1, 1, 0.7)
+	right.add_child(_reader_foot)
+	var box := HBoxContainer.new()
+	box.add_theme_constant_override("separation", 24)
+	box.add_child(left)
+	box.add_child(right)
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.05, 0.04, 0.03, 0.88)
+	style.set_corner_radius_all(8)
+	style.set_content_margin_all(20)
+	var panel := PanelContainer.new()
+	panel.name = "Reader"
+	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	panel.add_theme_stylebox_override("panel", style)
+	panel.add_child(box)
+	_place(panel, 0.5, 0.5, 0.5, 0.5, 0.0, -20.0, 0.0, -20.0)
+	panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	panel.grow_vertical = Control.GROW_DIRECTION_BOTH
+	_reader = panel
+	_reader.visible = false
 
 
 func _make_theme() -> Theme:
