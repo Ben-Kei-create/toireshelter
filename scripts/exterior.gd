@@ -13,6 +13,15 @@ extends Node3D
 const MeshKit := preload("res://scripts/mesh_kit.gd")
 const TEX_DUCT := preload("res://assets/textures/surfaces/surface_07.png")
 const TEX_FACADE := preload("res://assets/textures/surfaces/surface_10.png")
+const STREET := "res://assets/textures/street/"
+const TEX_AIRCON := preload("res://assets/textures/street/ext_material_01.png")       # 室外機の正面（ファン）
+const TEX_AIRCON_GRILLE := preload("res://assets/textures/street/ext_material_02.png")
+const TEX_PIPE_TAPE := preload("res://assets/textures/street/ext_material_03.png")    # 配管の化粧テープ
+const TEX_CONCRETE := preload("res://assets/textures/street/ext_material_04.png")     # 路面・電柱
+const TEX_STUCCO := preload("res://assets/textures/street/ext_material_05.png")       # 自分の建物の外壁
+const TEX_DARK_WOOD := preload("res://assets/textures/street/ext_material_06.png")    # 手すりの笠木・店の庇
+const TEX_VENT := preload("res://assets/textures/street/ext_material_07.png")         # 外壁の換気口
+const TEX_CAUTION := preload("res://assets/textures/street/ext_material_08.png")      # 「吹出口をふさがない」
 
 const DUCT_FLOOR := 2.5
 const DUCT_TOP := 3.1
@@ -41,6 +50,7 @@ func _ready() -> void:
 	_build_facade()
 	_build_balcony()
 	_build_opposite()
+	_build_street()
 	_build_lights()
 
 
@@ -137,7 +147,7 @@ func _build_facade() -> void:
 	var f := Node3D.new()
 	f.name = "Facade"
 	add_child(f)
-	var wall := MeshKit.mat("facade", Color(0.62, 0.6, 0.56), 0.95)
+	var wall := MeshKit.tiled_mat("facade_stucco", TEX_STUCCO, 0.8, Color(0.82, 0.8, 0.76), 0.95)
 	var z := FACADE_Z - FACADE_T * 0.5
 	var x0 := -3.0
 	var x1 := 7.0
@@ -177,9 +187,10 @@ func _build_balcony() -> void:
 	var z0 := BALCONY.position.z
 	var z1 := FACADE_Z - FACADE_T
 	var slab := MeshKit.mat("balcony_floor", Color(0.55, 0.54, 0.5), 0.9)
-	var panel := MeshKit.mat("balcony_panel", Color(0.72, 0.74, 0.74, 0.85), 0.4)
+	# 腰板はすりガラス。下の路地がうっすら透けて見える程度に（以前は 0.85）
+	var panel := MeshKit.mat("balcony_panel_own", Color(0.72, 0.74, 0.74, 0.45), 0.4)
 	panel.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	var rail := MeshKit.mat("rail", Color(0.35, 0.36, 0.37), 0.4, 0.6)
+	var rail := MeshKit.tiled_mat("rail_wood", TEX_DARK_WOOD, 0.4, Color.WHITE, 0.6)
 	var add := func(size: Vector3, center: Vector3, m: Material, collide := true) -> void:
 		MeshKit.box(b, size, center, m)
 		if collide:
@@ -197,17 +208,24 @@ func _build_balcony() -> void:
 	for x in [x0 - 0.02, x1 + 0.02]:
 		add.call(Vector3(0.04, 1.9, z1 - z0), Vector3(x, 0.95, (z0 + z1) * 0.5), sep)
 	# 室外機（右端に寄せる）
+	# 室外機：狭いベランダらしく、吹出口を窓側（-x）へ向けて右端の隔て板の前に置く
 	var unit := Node3D.new()
 	unit.name = "AirConUnit"
-	unit.position = Vector3(3.42, 0.0, -1.58)
+	unit.position = Vector3(3.45, 0.0, -1.62)
+	unit.rotation.y = PI * 0.5   # ローカル -z（正面）を -x へ
 	b.add_child(unit)
 	var unit_mat := MeshKit.mat("aircon", Color(0.86, 0.85, 0.8), 0.6)
-	MeshKit.box(unit, Vector3(0.5, 0.52, 0.26), Vector3(0, 0.29, 0), unit_mat, "Body")
-	var fan := MeshKit.cylinder(unit, 0.17, 0.01, Vector3(-0.06, 0.29, -0.131), MeshKit.mat("aircon_grille", Color(0.3, 0.3, 0.3), 0.8), "Fan")
-	fan.rotation.x = deg_to_rad(90.0)
-	MeshKit.box(unit, Vector3(0.5, 0.03, 0.26), Vector3(0, 0.015, 0), rail, "Legs")
-	MeshKit.shape_box(body, Vector3(0.5, 0.55, 0.26), unit.position + Vector3(0, 0.275, 0))
-	MeshKit.pipe(b, [unit.position + Vector3(0.2, 0.5, 0.1), Vector3(3.62, 1.6, z1 - 0.03)], 0.012, MeshKit.mat("pipe_cream", Color(0.82, 0.8, 0.72), 0.7))
+	var usz := Vector3(0.6, 0.45, 0.24)
+	MeshKit.box(unit, usz, Vector3(0, 0.05 + usz.y * 0.5, 0), unit_mat, "Body")
+	_quad(unit, TEX_AIRCON, Vector2(usz.x - 0.01, usz.y - 0.01), Vector3(0, 0.05 + usz.y * 0.5, -usz.z * 0.5 - 0.001), Vector3(0, PI, 0), "Front")
+	_quad(unit, TEX_AIRCON_GRILLE, Vector2(usz.z - 0.02, usz.y - 0.04), Vector3(usz.x * 0.5 + 0.001, 0.05 + usz.y * 0.5, 0), Vector3(0, PI * 0.5, 0), "SideGrille")
+	var sticker := _quad(unit, TEX_CAUTION, Vector2(0.16, 0.097), Vector3(0.12, 0.05 + usz.y + 0.001, 0.0), Vector3(-PI * 0.5, 0, 0), "CautionSticker", true)
+	sticker.rotation = Vector3(-PI * 0.5, 0, PI)   # 上向きに寝かせ、窓側から読める向き（文字の上が奥）
+	MeshKit.box(unit, Vector3(usz.x - 0.04, 0.05, usz.z - 0.02), Vector3(0, 0.025, 0), MeshKit.mat("rail", Color(0.35, 0.36, 0.37), 0.4, 0.6), "Legs")
+	MeshKit.shape_box(body, Vector3(usz.z, 0.55, usz.x), unit.position + Vector3(0, 0.275, 0))
+	# 冷媒管：化粧テープを巻いた太い管が、室外機の背から外壁へ
+	var tape := MeshKit.tiled_mat("pipe_tape", TEX_PIPE_TAPE, 0.12, Color.WHITE, 0.8)
+	MeshKit.pipe(b, [unit.position + Vector3(0.0, 0.42, 0.05), Vector3(3.45, 0.8, z1 - 0.06), Vector3(3.6, 1.7, z1 - 0.04)], 0.022, tape)
 	# サンダル（窓の右側の前）と小さな植木鉢（左奥の隅）。見た目だけ
 	var sandal := MeshKit.mat("sandal", Color(0.25, 0.32, 0.42), 0.8)
 	for dz in [-0.05, 0.07]:
@@ -243,7 +261,7 @@ func _build_opposite() -> void:
 	var x1 := 8.0
 	MeshKit.box(o, Vector3(x1 - x0, 20.0, 0.3), Vector3((x0 + x1) * 0.5, 2.0, OPPOSITE_Z - 0.15), wall, "Wall")
 	# 路地の地面（2階分下）
-	MeshKit.box(o, Vector3(x1 - x0, 0.1, OPPOSITE_Z - BALCONY.position.z + 0.8), Vector3((x0 + x1) * 0.5, -2.0 * FLOOR_PITCH - 0.05, (OPPOSITE_Z + FACADE_Z) * 0.5), MeshKit.mat("alley", Color(0.2, 0.2, 0.21), 1.0), "Alley")
+	MeshKit.box(o, Vector3(x1 - x0, 0.1, OPPOSITE_Z - BALCONY.position.z + 0.8), Vector3((x0 + x1) * 0.5, -2.0 * FLOOR_PITCH - 0.05, (OPPOSITE_Z + FACADE_Z) * 0.5), MeshKit.tiled_mat("alley_concrete", TEX_CONCRETE, 1.2, Color(0.75, 0.75, 0.75), 1.0), "Alley")
 	var glass := MeshKit.mat("opp_glass", Color(0.16, 0.18, 0.2), 0.2, 0.2)
 	var lit := MeshKit.mat("opp_lit", Color(1.0, 0.85, 0.6), 0.6)
 	lit.emission_enabled = true
@@ -252,7 +270,7 @@ func _build_opposite() -> void:
 	var frame := MeshKit.mat("opp_frame", Color(0.6, 0.6, 0.58), 0.6)
 	var unit_mat := MeshKit.mat("aircon", Color(0.86, 0.85, 0.8), 0.6)
 	var face := OPPOSITE_Z
-	for floor_i in range(-2, 3):
+	for floor_i in range(0, 3):   # 1階・2階は店（_build_street()）
 		var y := floor_i * FLOOR_PITCH
 		var x := x0 + 0.6
 		while x < x1 - 1.0:
@@ -264,6 +282,7 @@ func _build_opposite() -> void:
 			MeshKit.box(o, Vector3(w, h, 0.02), Vector3(x + w * 0.5, wy, face + 0.03), lit if is_lit else glass)
 			if _rng.randf() < 0.4:   # 窓の下の室外機
 				MeshKit.box(o, Vector3(0.5, 0.45, 0.25), Vector3(x + w * 0.5, y + 0.5, face + 0.125), unit_mat)
+				_quad(o, TEX_AIRCON, Vector2(0.49, 0.44), Vector3(x + w * 0.5, y + 0.5, face + 0.252), Vector3.ZERO, "")
 			x += w + _rng.randf_range(0.6, 1.3)
 	# 縦の配管
 	var pipe := MeshKit.mat("pipe_grey", Color(0.45, 0.45, 0.44), 0.6)
@@ -280,6 +299,156 @@ func _build_opposite() -> void:
 	for w in [[Vector3(-2.0, 5.2, FACADE_Z - 0.2), Vector3(6.0, 4.6, OPPOSITE_Z + 0.1)], [Vector3(-1.0, 5.6, OPPOSITE_Z + 0.1), Vector3(7.0, 5.0, FACADE_Z - 0.2)], [Vector3(-3.0, 4.2, -2.9), Vector3(7.5, 4.4, -2.7)]]:
 		MeshKit.pipe(o, w, 0.008, wire)
 	MeshKit.auto_round = true
+
+# ---------------------------------------------------------------- 路地の店と看板（下北沢の細い路地のような密集感）
+
+## 向かいの建物の1階・2階を店にし、横長の看板（street_sign_h）を掛ける。縦の突き出し看板（street_sign_v）は
+## 向かいの壁と自分の建物の壁から路地へ張り出す。看板は夕方でも読めるよう、弱く自己発光させる。
+## 自分のベランダの腰板（すりガラス）越しに見下ろすと、2階の看板と突き出し看板、遠くの1階の店が見える。
+func _build_street() -> void:
+	MeshKit.auto_round = false
+	var st := Node3D.new()
+	st.name = "Street"
+	add_child(st)
+	var face := OPPOSITE_Z
+	var glass_lit := MeshKit.mat("shop_glass", Color(1.0, 0.86, 0.62), 0.3)
+	glass_lit.emission_enabled = true
+	glass_lit.emission = Color(1.0, 0.78, 0.5)
+	glass_lit.emission_energy_multiplier = 0.7
+	var shutter := MeshKit.mat("shutter", Color(0.5, 0.5, 0.5), 0.5, 0.4)
+	var awning_wood := MeshKit.tiled_mat("awning_wood", TEX_DARK_WOOD, 0.6, Color.WHITE, 0.7)
+	# 店の並び：[x の左端, 幅, 横看板の番号]（1階と2階でずらす）
+	var shops := [
+		[-1, [-3.6, 1.7, 1], [-1.75, 1.5, 2], [-0.1, 1.9, 3], [1.95, 1.6, 4], [3.7, 1.8, 5], [5.65, 1.9, 6]],
+		[-2, [-3.2, 1.9, 7], [-1.1, 1.7, 8], [0.8, 2.0, 9], [3.0, 1.6, 10], [4.8, 1.9, 11], [6.8, 1.0, 12]],
+	]
+	for row in shops:
+		var floor_i: int = row[0]
+		var y0: float = floor_i * FLOOR_PITCH
+		for k in range(1, row.size()):
+			var s: Array = row[k]
+			var x: float = s[0]
+			var w: float = s[1]
+			var cx := x + w * 0.5
+			# 間口：明かりの付いたガラス（ところどころシャッター）
+			var closed: bool = (int(s[2]) % 5) == 0
+			MeshKit.box(st, Vector3(w - 0.2, 2.0, 0.04), Vector3(cx, y0 + 1.1, face + 0.02), shutter if closed else glass_lit)
+			# 庇と横看板（看板は庇の上、比率そのまま）
+			MeshKit.box(st, Vector3(w - 0.05, 0.06, 0.45), Vector3(cx, y0 + 2.25, face + 0.225), awning_wood)
+			var tex: Texture2D = load(STREET + "street_sign_h_%02d.png" % s[2])
+			var sw := minf(w - 0.25, 1.25)
+			var sh := sw * tex.get_height() / tex.get_width()
+			_sign(st, tex, Vector2(sw, sh), Vector3(cx, y0 + 2.35 + sh * 0.5, face + 0.03), Vector3.ZERO)
+	# 縦の突き出し看板：[x, 建物（"opp"=向かい / "own"=自分の建物）, 下端の高さ, 番号]
+	var vsigns := [
+		[-2.9, "opp", -3.0, 1], [-0.95, "opp", -2.8, 2], [1.0, "opp", -3.0, 3], [2.7, "opp", -2.9, 4],
+		[4.6, "opp", -3.1, 5], [6.6, "opp", -2.8, 6], [-2.4, "own", -3.0, 7], [-0.6, "own", -2.9, 8],
+		[0.9, "own", -6.3, 9], [4.3, "own", -3.0, 10], [5.8, "own", -2.9, 11], [6.9, "opp", -6.2, 12],
+	]
+	var bracket := MeshKit.mat("sign_bracket", Color(0.25, 0.25, 0.26), 0.5, 0.6)
+	for v in vsigns:
+		var tex: Texture2D = load(STREET + "street_sign_v_%02d.png" % v[3])
+		var h := 1.7
+		var w := h * tex.get_width() / tex.get_height()
+		var wall_z: float = face if v[1] == "opp" else FACADE_Z - FACADE_T
+		var dir := 1.0 if v[1] == "opp" else -1.0   # 壁から路地へ張り出す向き（z）
+		var cz := wall_z + dir * (0.12 + w * 0.5)
+		var cy: float = v[2] + h * 0.5
+		# 両面に同じ看板（それぞれ正しい向きで読める）
+		_sign(st, tex, Vector2(w, h), Vector3(v[0] + 0.012, cy, cz), Vector3(0, PI * 0.5, 0))
+		_sign(st, tex, Vector2(w, h), Vector3(v[0] - 0.012, cy, cz), Vector3(0, -PI * 0.5, 0))
+		MeshKit.box(st, Vector3(0.02, h + 0.04, w + 0.04), Vector3(v[0], cy, cz), bracket)
+		for yy in [cy + h * 0.45, cy - h * 0.45]:
+			MeshKit.box(st, Vector3(0.03, 0.03, 0.14), Vector3(v[0], yy, wall_z + dir * 0.07), bracket)
+	# 路地の両端：別の建物が視界をふさぎ、路地はその先で曲がっていく（空が抜けないように）
+	_end_building(st, -4.6, 1.0, deg_to_rad(10.0), Color(0.78, 0.82, 0.76), [7, 11])
+	_end_building(st, 8.6, -1.0, deg_to_rad(-14.0), Color(0.86, 0.8, 0.7), [2, 12])
+	# 自分の建物の換気口（各階の同じ位置）
+	for k in [-2, -1, 1, 2]:
+		_quad(st, TEX_VENT, Vector2(0.3, 0.23), Vector3(1.9, k * FLOOR_PITCH + 2.8, FACADE_Z - FACADE_T - 0.004), Vector3(0, PI, 0), "")
+	# 電柱：路地の自分の建物寄り。コンクリートの柱と変圧器、電線は向かいの建物と自分の建物へ
+	var pole := MeshKit.tiled_mat("pole_concrete", TEX_CONCRETE, 0.6, Color(0.85, 0.85, 0.85), 0.9)
+	var pole_pos := Vector3(0.45, 0.0, -2.55)
+	var bottom := -2.0 * FLOOR_PITCH
+	var top := 5.6
+	MeshKit.cylinder(st, 0.15, top - bottom, Vector3(pole_pos.x, (top + bottom) * 0.5, pole_pos.z), pole, "UtilityPole", 0.12, 14)
+	MeshKit.cylinder(st, 0.22, 0.75, Vector3(pole_pos.x + 0.3, 3.6, pole_pos.z), MeshKit.mat("transformer", Color(0.55, 0.58, 0.55), 0.5, 0.3), "Transformer")
+	MeshKit.box(st, Vector3(1.0, 0.08, 0.08), Vector3(pole_pos.x, top - 0.4, pole_pos.z), MeshKit.mat("sign_bracket", Color(0.25, 0.25, 0.26), 0.5, 0.6), "CrossArm")
+	var wire := MeshKit.mat("wire", Color(0.08, 0.08, 0.08), 0.8)
+	for e in [Vector3(-4.0, 4.9, -2.5), Vector3(8.0, 5.1, -2.6), Vector3(3.0, 4.5, OPPOSITE_Z + 0.05), Vector3(-1.5, 4.0, FACADE_Z - 0.05)]:
+		MeshKit.pipe(st, [Vector3(pole_pos.x, top - 0.4, pole_pos.z), (Vector3(pole_pos.x, top - 0.4, pole_pos.z) + e) * 0.5 + Vector3(0, -0.35, 0), e], 0.007, wire)
+	MeshKit.auto_round = true
+
+
+## 路地の突き当たりの建物。x：壁の位置、facing：路地側の向き（+1 = +x を向く）、yaw：少し振って曲がり角に見せる。
+## 窓・室外機・配管・縦看板付き。背景だけ（当たり判定なし）。
+func _end_building(parent: Node3D, x: float, facing: float, yaw: float, tint: Color, signs: Array) -> void:
+	var bld := Node3D.new()
+	bld.name = "EndBuilding"
+	bld.position = Vector3(x, 0.0, (OPPOSITE_Z + FACADE_Z) * 0.5 - 0.4)
+	bld.rotation.y = yaw + (0.0 if facing > 0.0 else PI)
+	parent.add_child(bld)
+	# ローカル +x が路地側。壁の面はローカル x=0、幅（z）5m
+	var wall := MeshKit.tiled_mat("end_wall_%s" % tint.to_html(false), TEX_STUCCO, 0.9, tint, 0.95)
+	var bottom := -2.0 * FLOOR_PITCH
+	var top := 10.0
+	MeshKit.box(bld, Vector3(0.4, top - bottom, 5.0), Vector3(-0.2, (top + bottom) * 0.5, 0), wall, "Wall")
+	var glass := MeshKit.mat("opp_glass", Color(0.16, 0.18, 0.2), 0.2, 0.2)
+	var lit := MeshKit.mat("opp_lit", Color(1.0, 0.85, 0.6), 0.6)
+	var frame := MeshKit.mat("opp_frame", Color(0.6, 0.6, 0.58), 0.6)
+	for k in range(-2, 3):
+		var y := k * FLOOR_PITCH
+		for zz in [-1.4, 0.2, 1.5]:
+			var w := _rng.randf_range(0.6, 0.9)
+			var h := _rng.randf_range(0.8, 1.1)
+			MeshKit.box(bld, Vector3(0.03, h + 0.08, w + 0.08), Vector3(0.015, y + 1.2 + h * 0.5, zz), frame)
+			MeshKit.box(bld, Vector3(0.02, h, w), Vector3(0.03, y + 1.2 + h * 0.5, zz), lit if _rng.randf() < 0.3 else glass)
+		if k < 1 and _rng.randf() < 0.8:
+			var unit_pos := Vector3(0.13, y + 0.6, _rng.randf_range(-1.8, 1.8))
+			MeshKit.box(bld, Vector3(0.25, 0.42, 0.5), unit_pos, MeshKit.mat("aircon", Color(0.86, 0.85, 0.8), 0.6))
+			_quad(bld, TEX_AIRCON, Vector2(0.49, 0.41), unit_pos + Vector3(0.126, 0, 0), Vector3(0, PI * 0.5, 0), "")
+	MeshKit.cylinder(bld, 0.035, top - bottom, Vector3(0.06, (top + bottom) * 0.5, 2.3), MeshKit.mat("pipe_grey", Color(0.45, 0.45, 0.44), 0.6), "", -1.0, 8)
+	# 縦の突き出し看板（両面）
+	var bracket := MeshKit.mat("sign_bracket", Color(0.25, 0.25, 0.26), 0.5, 0.6)
+	var zs := [-0.6, 1.0]
+	for i in signs.size():
+		var tex: Texture2D = load(STREET + "street_sign_v_%02d.png" % signs[i])
+		var h2 := 1.6
+		var w2 := h2 * tex.get_width() / tex.get_height()
+		var c := Vector3(0.12 + w2 * 0.5, -3.0 + i * 0.4 + h2 * 0.5, zs[i])
+		_sign(bld, tex, Vector2(w2, h2), c + Vector3(0, 0, 0.012), Vector3.ZERO)
+		_sign(bld, tex, Vector2(w2, h2), c - Vector3(0, 0, 0.012), Vector3(0, PI, 0))
+		MeshKit.box(bld, Vector3(w2 + 0.04, h2 + 0.04, 0.02), c, bracket)
+
+
+## 画像を貼った板（看板）。弱く自己発光させ、透過部分は抜く。
+func _sign(parent: Node3D, tex: Texture2D, size: Vector2, pos: Vector3, rot: Vector3) -> MeshInstance3D:
+	var mi := _quad(parent, tex, size, pos, rot, "", true)
+	var m := mi.material_override as StandardMaterial3D
+	m.emission_enabled = true
+	m.emission_texture = tex
+	m.emission = Color(1, 1, 1)
+	m.emission_energy_multiplier = 0.35
+	return mi
+
+
+## 画像1枚の板。rot は向き（オイラー角）。alpha=true なら透過部分を抜く。
+func _quad(parent: Node3D, tex: Texture2D, size: Vector2, pos: Vector3, rot: Vector3, node_name: String, alpha := false) -> MeshInstance3D:
+	var q := QuadMesh.new()
+	q.size = size
+	var mi := MeshInstance3D.new()
+	if not node_name.is_empty():
+		mi.name = node_name
+	mi.mesh = q
+	var m := MeshKit.texture_mat("ext_%s" % tex.resource_path.get_file(), tex, 0.8).duplicate() as StandardMaterial3D
+	if alpha:
+		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR
+	mi.material_override = m
+	mi.position = pos
+	mi.rotation = rot
+	parent.add_child(mi)
+	return mi
+
 
 func _build_lights() -> void:
 	var balcony_light := OmniLight3D.new()

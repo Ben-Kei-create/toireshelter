@@ -36,7 +36,7 @@ const WATER_MAX_Y := 0.50                  # 満水時の水面（縁 0.55 よ�
 const DRAIN_POS := Vector3(0.62, BOTTOM_Y, 0.0)
 const PLUG_OUT_POS := Vector3(0.71, BOTTOM_Y, -0.17)
 const CHAIN_ANCHOR := Vector3(0.62, 0.42, -HALF.z + WALL + 0.004)   # 奥の内壁のあふれ口
-const NOTE_SIZE := Vector2(0.07, 0.035)
+const NOTE_SIZE := Vector2(0.045, 0.045)   # bath_note_01（正方形）。満水の水面 0.50 と縁 0.55 の間に収まる大きさ
 const NOTE_POS := Vector3(-0.25, 0.524, HALF.z - WALL)   # 手前の縁の裏（内側の面）。満水 0.50 より上、縁 0.55 より下
 const PLUG_RADIUS := 0.024
 const PLUG_HEIGHT := 0.016
@@ -205,7 +205,16 @@ func _build_bottles() -> void:
 		add_child(b)
 		var body := MeshKit.mat("bottle_%s" % sp[1], sp[2], 0.35)
 		MeshKit.cylinder(b, 0.032, 0.16, Vector3(0, 0.08, 0), body, "Body", 0.03, 20)
-		MeshKit.cylinder(b, 0.0325, 0.05, Vector3(0, 0.08, 0), MeshKit.mat("bottle_band_%s" % sp[1], Color(0.95, 0.75, 0.3) if sp[4] else Color(0.55, 0.7, 0.85), 0.5), "Band", -1.0, 20)
+		# ラベル（BATH-ASSETS-40 の 04 シャンプー／05 リンス）：正面（浴槽の手前 +z）に、画像の比率のまま巻く
+		var ltex: Texture2D = load("res://assets/textures/bath/bath_label_%s.png" % ("04" if sp[4] else "05"))
+		var lh := 0.1
+		var span := lh * ltex.get_width() / ltex.get_height() / 0.0318
+		var label := MeshInstance3D.new()
+		label.name = "Label"
+		label.mesh = MeshKit.band(0.0322, 0.0314, lh, -PI * 0.5, span, 20)
+		label.material_override = MeshKit.texture_mat("bath_label_%s" % ("04" if sp[4] else "05"), ltex, 0.5)
+		label.position = Vector3(0, 0.08, 0)
+		b.add_child(label)
 		MeshKit.cylinder(b, 0.012, 0.03, Vector3(0, 0.175, 0), MeshKit.mat("pump", Color(0.95, 0.95, 0.95), 0.4), "Neck")
 		MeshKit.box(b, Vector3(0.05, 0.012, 0.018), Vector3(0.012, 0.196, 0), MeshKit.mat("pump", Color(0.95, 0.95, 0.95), 0.4), "Pump")
 		if sp[4]:   # シャンプーの側面のギザギザ（目を閉じても分かる印）
@@ -326,7 +335,9 @@ func _build_note() -> void:
 	var note := MeshInstance3D.new()
 	note.name = "TubNote"
 	note.mesh = quad
-	note.material_override = MeshKit.note_mat()
+	var nm := MeshKit.texture_mat("bath_note_01", load("res://assets/textures/bath/bath_note_01.png"), 0.9).duplicate() as StandardMaterial3D
+	nm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR   # 紙の縁の外（透明）を抜く
+	note.material_override = nm
 	note.position = NOTE_POS - Vector3(0, 0, 0.0012)
 	note.rotation.y = PI   # 表（+z）を浴槽の内側（-z）へ
 	add_child(note)

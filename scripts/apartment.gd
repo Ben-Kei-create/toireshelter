@@ -55,6 +55,7 @@ func _ready() -> void:
 	add_child(_body)
 	_build_hall()
 	_build_movie_posters()
+	_build_corkboard()
 	_build_room_shell()
 	_build_window()
 	_build_bookshelf()
@@ -108,6 +109,48 @@ func _build_movie_posters() -> void:
 	for i in 8:
 		var pos := Vector3(xs[i % 4], ys[i / 4], HALL.end.z - 0.003)
 		_sign(root, "movie_poster_%02d" % (i + 1), pos, 0.42, Vector3.FORWARD)
+
+
+## 玄関ホールの左の壁（x=-0.9、+x を向く）のコルクボード。レシート・半券・メモなど紙もの12枚を少し傾けてピンで留める。見た目だけ。
+func _build_corkboard() -> void:
+	var root := Node3D.new()
+	root.name = "Corkboard"
+	add_child(root)
+	var wx := HALL.position.x + 0.005   # 壁の内側の面 -0.9 の少し手前
+	var board_c := Vector3(wx + 0.01, 1.42, 1.85)
+	var bw := 0.86
+	var bh := 0.6
+	MeshKit.box(root, Vector3(0.02, bh, bw), board_c, MeshKit.mat("cork", Color(0.62, 0.45, 0.28), 0.95), "Board")
+	var frame := MeshKit.mat("cork_frame", Color(0.4, 0.28, 0.18), 0.7)
+	for dz in [-bw * 0.5, bw * 0.5]:
+		MeshKit.box(root, Vector3(0.03, bh + 0.03, 0.02), board_c + Vector3(0.005, 0, dz), frame)
+	for dy in [-bh * 0.5, bh * 0.5]:
+		MeshKit.box(root, Vector3(0.03, 0.02, bw + 0.03), board_c + Vector3(0.005, dy, 0), frame)
+	# [番号, 板の中での位置（z, y。中心からの m）, 高さ, 傾き°]
+	var notes := [
+		[1, -0.33, 0.12, 0.17, -4.0], [2, -0.08, 0.18, 0.13, 3.0], [3, 0.24, 0.13, 0.17, 6.0], [4, 0.36, -0.06, 0.15, -3.0],
+		[5, -0.31, -0.11, 0.11, 5.0], [6, -0.16, -0.06, 0.16, -8.0], [7, 0.08, -0.02, 0.12, 2.0], [8, 0.27, -0.2, 0.1, 10.0],
+		[9, -0.27, -0.23, 0.11, -2.0], [10, 0.02, -0.22, 0.1, -6.0], [11, -0.04, 0.0, 0.0, 0.0], [12, 0.13, 0.17, 0.1, 4.0],
+	]
+	var pin := MeshKit.mat("pin", Color(0.85, 0.2, 0.2), 0.4)
+	for i in notes.size():
+		var n: Array = notes[i]
+		if n[3] <= 0.0:   # 11 は板の中央の下段へ
+			n = [11, 0.15, -0.08, 0.1, -3.0]
+		var tex: Texture2D = load("res://assets/textures/street/paper_note_%02d.png" % n[0])
+		var h: float = n[3]
+		var q := QuadMesh.new()
+		q.size = Vector2(h * tex.get_width() / tex.get_height(), h)
+		var m := MeshKit.texture_mat("paper_note_%02d" % n[0], tex, 0.9).duplicate() as StandardMaterial3D
+		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR
+		var mi := MeshInstance3D.new()
+		mi.name = "PaperNote%02d" % n[0]
+		mi.mesh = q
+		mi.material_override = m
+		mi.position = board_c + Vector3(0.0115 + i * 0.0006, n[2], n[1])   # 重なりのちらつきを避けて少しずつ手前へ
+		mi.rotation = Vector3(deg_to_rad(n[4]), PI * 0.5, 0)   # 表（+z）を +x（ホール側）へ
+		root.add_child(mi)
+		MeshKit.sphere(root, 0.006, mi.position + Vector3(0.004, h * 0.42, 0), pin)
 
 
 # ---------------------------------------------------------------- 自室の外殻

@@ -144,6 +144,9 @@ func _build_items() -> void:
 	var tube := MeshKit.cylinder(wash, 0.022, 0.11, Vector3(0, 0.022 + 0.055, 0), MeshKit.mat("wash_body", Color(0.98, 0.82, 0.72), 0.5), "Tube", 0.019)
 	MeshKit.box(wash, Vector3(0.008, 0.012, 0.042), Vector3(0, 0.022 + 0.11 + 0.006, 0), MeshKit.mat("wash_body", Color(0.98, 0.82, 0.72), 0.5))
 	tube.name = "Tube"
+	# ラベル（BATH-ASSETS-40）：容器の正面（部屋側 -x）に巻く帯。画像の縦横比のまま
+	_label(toner, "bath_label_02", 0.0265, 0.0265, 0.08, 0.06)
+	_label(wash, "bath_label_01", 0.0218, 0.0196, 0.07, 0.022 + 0.06)
 	# 中の段：綿棒の入れ物（透明に近い円筒）と、上に頭を出した綿棒
 	var swabs := _item(items, "CottonSwabs", "cotton_swabs", Vector3(x, SHELF_YS[0], 0.10), Vector3(0.08, 0.1, 0.08))
 	var case_mat := MeshKit.mat("swab_case", Color(0.55, 0.8, 0.75), 0.15)
@@ -154,6 +157,20 @@ func _build_items() -> void:
 		var off := Vector3(cos(a) * 0.015, 0, sin(a) * 0.015)
 		MeshKit.cylinder(swabs, 0.0025, 0.075, off + Vector3(0, 0.04, 0), stick, "", -1.0, 6)
 		MeshKit.sphere(swabs, 0.005, off + Vector3(0, 0.0785, 0), stick)
+	_label(swabs, "bath_label_03", 0.0305, 0.0305, 0.05, 0.03)
+
+
+## 円筒の容器の正面（-x）に、画像の比率のまま巻くラベル。r0/r1：下端・上端の半径、h：高さ、cy：中心の高さ。
+func _label(parent: Node3D, file: String, r0: float, r1: float, h: float, cy: float) -> void:
+	var tex: Texture2D = load("res://assets/textures/bath/%s.png" % file)
+	var w := h * tex.get_width() / tex.get_height()
+	var span := w / ((r0 + r1) * 0.5)
+	var mi := MeshInstance3D.new()
+	mi.name = "Label"
+	mi.mesh = MeshKit.band(r0, r1, h, PI, span, 20)
+	mi.material_override = MeshKit.texture_mat(file, tex, 0.5)
+	mi.position = Vector3(0, cy, 0)
+	parent.add_child(mi)
 
 
 ## 中の物の節点と、それを覆う調べる判定（底の中心が pos、判定の大きさ size）。
