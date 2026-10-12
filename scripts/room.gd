@@ -37,6 +37,8 @@ const VENT_RANGE := 2.4       # 換気口だけ床から見上げて届くよう
 
 const POSTER_TEX := preload("res://assets/textures/door_poster_plumber.png")
 const LABEL_TEX := preload("res://assets/textures/yubroman_label.png")
+const TOWEL_TEX := preload("res://assets/textures/towel_fabric.png")             # 512x512 継ぎ目なし
+const TOOTHPASTE_TEX := preload("res://assets/textures/toothpaste_label.png")   # 271x512
 const POSTER_SIZE := Vector2(0.25, 0.354)   # 768x1086px（A判比）
 const POSTER_HINGE_X := 0.32                # 蝶番からの距離（ドアノブ側を避ける）
 const POSTER_CENTER_Y := 1.40
@@ -337,16 +339,30 @@ func _build_sink_shelf(wx: float, z: float) -> void:
 		var handle_mat := _mat("brush_%s" % b[0].to_html(false), b[0], 0.4)
 		_mesh_box(brush, Vector3(0.012, 0.17, 0.008), Vector3(0, 0.085, 0), handle_mat)
 		_mesh_box(brush, Vector3(0.012, 0.025, 0.012), Vector3(-0.006, 0.16, 0), _mat("bristle", Color(0.97, 0.97, 0.97), 0.9))
-	# 歯磨き粉：棚の上に寝かせたチューブ。白地に青い帯、青いキャップ、反対側は平たく潰した端
+	# 歯磨き粉：棚の上に寝かせたチューブ（キャップ側 r=0.015 → 潰した端 r=0.012 の先細り）。
+	# ラベル画像はチューブの正面（部屋側の斜め上）に約200°巻く。裏側は画像の地色に近い単色、キャップは青の単色
 	var tube := Node3D.new()
 	tube.name = "Toothpaste"
 	tube.position = Vector3(wx - 0.06, top + 0.015, z - 0.06)
 	tube.rotation.x = deg_to_rad(90.0)
 	shelf.add_child(tube)
-	MeshKit.cylinder(tube, 0.015, 0.12, Vector3.ZERO, _mat("paste_body", Color(0.96, 0.96, 0.95), 0.5), "Body", 0.012)
-	MeshKit.cylinder(tube, 0.0153, 0.03, Vector3(0, -0.02, 0), _mat("paste_band", Color(0.2, 0.42, 0.75), 0.5))
+	var body_mat := _mat("paste_body", Color(0.96, 0.95, 0.91), 0.5)
+	MeshKit.cylinder(tube, 0.015, 0.12, Vector3.ZERO, body_mat, "Body", 0.012)
+	# 帯の範囲：チューブのローカル y -0.05〜0.04（上 = 潰した端、下 = キャップ側。縦書きの上がつぶした端）
+	var y0 := -0.05
+	var y1 := 0.04
+	var r0 := lerpf(0.015, 0.012, (y0 + 0.06) / 0.12) + 0.0006   # 本体より 0.6mm 外側
+	var r1 := lerpf(0.015, 0.012, (y1 + 0.06) / 0.12) + 0.0006
+	# 幅 = 高さ 0.09 × 縦横比 271/512 ≒ 0.048m → 平均半径 0.0137m で約 200°
+	var span := (y1 - y0) * (271.0 / 512.0) / ((r0 + r1) * 0.5)
+	var label := MeshInstance3D.new()
+	label.name = "Label"
+	label.mesh = MeshKit.band(r0, r1, y1 - y0, deg_to_rad(135.0), span, 24)
+	label.material_override = _texture_mat("toothpaste_label", TOOTHPASTE_TEX, 0.5)
+	label.position = Vector3(0, (y0 + y1) * 0.5, 0)
+	tube.add_child(label)
 	MeshKit.cylinder(tube, 0.009, 0.018, Vector3(0, -0.069, 0), _mat("paste_cap", Color(0.15, 0.32, 0.68), 0.4), "Cap")
-	_mesh_box(tube, Vector3(0.03, 0.012, 0.004), Vector3(0, 0.066, 0), _mat("paste_body", Color(0.96, 0.96, 0.95), 0.5))
+	_mesh_box(tube, Vector3(0.03, 0.012, 0.004), Vector3(0, 0.066, 0), body_mat)
 
 
 func _build_floor_drain() -> void:
@@ -381,8 +397,9 @@ func _build_towel() -> void:
 	var towel := Node3D.new()
 	towel.name = "Towel"
 	holder.add_child(towel)
-	var cloth := _mat("towel", Color(0.55, 0.68, 0.78), 1.0)
-	var hem := _mat("towel_hem", Color(0.45, 0.57, 0.68), 1.0)
+	# 布地は画像を 0.2m 四方で繰り返す（トリプラナー投影なので、箱・円柱のどの面でも同じ細かさ）。縁取りは同じ布地を暗くしたもの
+	var cloth := MeshKit.tiled_mat("towel", TOWEL_TEX, 0.2)
+	var hem := MeshKit.tiled_mat("towel_hem", TOWEL_TEX, 0.2, Color(0.78, 0.8, 0.84))
 	var w := 0.34
 	var t := 0.009
 	var fold_r := 0.022
@@ -491,37 +508,9 @@ func _build_bath_powder() -> void:
 	body.add_child(cs)
 
 
-## 蓋のない円筒の帯（ラベル用）。u は円周方向 0〜1、v は上 0〜下 1。
-## u=0.5 が +x（通路側）を向き、u=0/1 の継ぎ目は -x（壁側）。
-## 通路側から見て、画像の左→右が見る人の左→右になるよう巻く。
+## 入浴剤のラベル帯：一周巻き、u=0.5（文字のある中央）を +x（通路側）、継ぎ目を -x（壁側）に向ける。
 func _label_band(radius: float, height: float, segments: int) -> ArrayMesh:
-	var verts := PackedVector3Array()
-	var normals := PackedVector3Array()
-	var uvs := PackedVector2Array()
-	var indices := PackedInt32Array()
-	for i in segments + 1:
-		var u := float(i) / segments
-		var a := TAU * (u - 0.5)
-		var n := Vector3(cos(a), 0.0, -sin(a))
-		for row in 2:
-			verts.append(n * radius + Vector3(0.0, height * (0.5 - row), 0.0))
-			normals.append(n)
-			uvs.append(Vector2(u, row))
-	for i in segments:
-		var t0 := i * 2      # 上
-		var b0 := i * 2 + 1  # 下
-		var t1 := t0 + 2
-		var b1 := b0 + 2
-		indices.append_array([t0, t1, b0, t1, b1, b0])
-	var arrays := []
-	arrays.resize(Mesh.ARRAY_MAX)
-	arrays[Mesh.ARRAY_VERTEX] = verts
-	arrays[Mesh.ARRAY_NORMAL] = normals
-	arrays[Mesh.ARRAY_TEX_UV] = uvs
-	arrays[Mesh.ARRAY_INDEX] = indices
-	var mesh := ArrayMesh.new()
-	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
-	return mesh
+	return MeshKit.band(radius, radius, height, 0.0, TAU, segments)
 
 
 func _build_driver() -> void:

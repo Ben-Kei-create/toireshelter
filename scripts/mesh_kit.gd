@@ -49,6 +49,38 @@ static func sphere(parent: Node, radius: float, center: Vector3, material: Mater
 	return _instance(parent, mesh, center, material, "")
 
 
+## 蓋のない円筒の帯（ラベル用）。u は円周方向 0〜1、v は上 0〜下 1。
+## a_center：u=0.5 が向く角度（法線 = (cos a, 0, -sin a)。0 なら +x）／span：帯が覆う角度（TAU で一周）。
+## r_bottom と r_top を変えると先細りの筒（チューブ）に沿わせられる。外側から見て画像が左右反転しない向きに巻く。
+static func band(r_bottom: float, r_top: float, height: float, a_center: float, span: float, segments: int) -> ArrayMesh:
+	var verts := PackedVector3Array()
+	var normals := PackedVector3Array()
+	var uvs := PackedVector2Array()
+	var indices := PackedInt32Array()
+	for i in segments + 1:
+		var u := float(i) / segments
+		var a := a_center + span * (u - 0.5)
+		var n := Vector3(cos(a), 0.0, -sin(a))
+		for row in 2:
+			var r := r_top if row == 0 else r_bottom
+			verts.append(n * r + Vector3(0.0, height * (0.5 - row), 0.0))
+			normals.append(n)
+			uvs.append(Vector2(u, row))
+	for i in segments:
+		var t0 := i * 2      # 上
+		var b0 := i * 2 + 1  # 下
+		indices.append_array([t0, t0 + 2, b0, t0 + 2, b0 + 2, b0])
+	var arrays := []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = verts
+	arrays[Mesh.ARRAY_NORMAL] = normals
+	arrays[Mesh.ARRAY_TEX_UV] = uvs
+	arrays[Mesh.ARRAY_INDEX] = indices
+	var mesh := ArrayMesh.new()
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	return mesh
+
+
 static func shape_box(body: CollisionObject3D, size: Vector3, center: Vector3) -> CollisionShape3D:
 	var shape := BoxShape3D.new()
 	shape.size = size
@@ -92,6 +124,22 @@ static func texture_mat(key: String, tex: Texture2D, roughness: float) -> Standa
 	var m := StandardMaterial3D.new()
 	m.albedo_texture = tex
 	m.roughness = roughness
+	m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
+	_mat_cache[key] = m
+	return m
+
+
+## 繰り返し模様（布地など）を、面ごとの UV に関係なく一定の細かさで貼る（トリプラナー投影）。
+## tile_m：画像1枚がゲーム内で何 m 四方になるか。
+static func tiled_mat(key: String, tex: Texture2D, tile_m: float, tint := Color.WHITE, roughness := 1.0) -> StandardMaterial3D:
+	if _mat_cache.has(key):
+		return _mat_cache[key]
+	var m := StandardMaterial3D.new()
+	m.albedo_texture = tex
+	m.albedo_color = tint
+	m.roughness = roughness
+	m.uv1_triplanar = true
+	m.uv1_scale = Vector3.ONE / tile_m
 	m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
 	_mat_cache[key] = m
 	return m

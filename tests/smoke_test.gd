@@ -110,8 +110,9 @@ func _run() -> void:
 	player.global_position = saved
 
 	# --- 画像はミップマップ付きで取り込まれている
-	_check(room.POSTER_TEX.get_image().has_mipmaps() and room.LABEL_TEX.get_image().has_mipmaps(),
-			"広告・ラベルの画像にミップマップがある")
+	_check(room.POSTER_TEX.get_image().has_mipmaps() and room.LABEL_TEX.get_image().has_mipmaps()
+			and room.TOWEL_TEX.get_image().has_mipmaps() and room.TOOTHPASTE_TEX.get_image().has_mipmaps(),
+			"広告・入浴剤ラベル・タオル布地・歯磨き粉ラベルの画像にミップマップがある")
 
 	# ================================================================ TASK-05 水回り
 	var toilet = room.toilet
