@@ -27,6 +27,11 @@ const VIEWS := [
 	["t5_tub_filling", Vector3(0.3, 0.0, -0.1), Vector3(0.5, 0.3, -0.9), "tub_filling"],
 	["t5_tub_drained", Vector3(0.45, 0.0, -0.15), Vector3(0.62, 0.1, -0.88), "tub_drained"],
 	["t5_towel_and_floor_drain", Vector3(0.35, 0.0, 0.0), Vector3(-0.6, 0.6, 0.5)],
+	["t7_tank_inside", Vector3(-0.2, 0.0, 0.35), Vector3(-0.8, 0.8, 0.0), "tank_open"],
+	["t7_tank_lid_parked", Vector3(0.0, 0.0, -0.2), Vector3(-0.85, 0.3, -0.3)],
+	["t7_sink_filled", Vector3(0.2, 0.0, 0.15), Vector3(0.7, 0.8, 0.1), "sink_filled"],
+	["t7_mirror_cabinet_open", Vector3(0.2, 0.0, 0.3), Vector3(0.86, 1.45, 0.1), "cabinet_open"],
+	["t7_room_overview", Vector3(0.45, 0.0, 0.95), Vector3(-0.3, 0.9, -0.6)],
 	["door_open", Vector3(0.0, 0.0, 0.2), Vector3(0.0, 1.2, 2.4)],
 	["door_open_poster_from_corridor", Vector3(0.35, 0.0, 2.6), Vector3(-0.35, 1.4, 1.6)],
 ]
@@ -91,6 +96,17 @@ func _apply_state(main: Node, player: Node3D, state: String) -> void:
 		"tub_filling":
 			room.bathtub.faucet.set_on(true)
 			room.bathtub.advance(18.0)
+		"tank_open":
+			room.toilet.toggle_tank()
+			await create_timer(1.6).timeout
+		"sink_filled":
+			room.sink.faucet.set_on(true)
+			room.sink.set_plug(true)
+			room.sink.level = 0.65
+			room.sink.advance(0.0)
+		"cabinet_open":
+			room.mirror_cabinet.toggle()
+			await create_timer(0.7).timeout
 		"tub_drained":
 			room.bathtub.faucet.set_on(false)
 			room.bathtub.set_plug(false)

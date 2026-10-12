@@ -15,6 +15,8 @@ const ToiletScript := preload("res://scripts/toilet.gd")
 const BathtubScript := preload("res://scripts/bathtub.gd")
 const FaucetScript := preload("res://scripts/faucet.gd")
 const SuppliesScript := preload("res://scripts/supplies.gd")
+const SinkScript := preload("res://scripts/sink.gd")
+const MirrorCabinetScript := preload("res://scripts/mirror_cabinet.gd")
 
 const LAYER_WORLD := 1      # 壁・設備（プレイヤーがぶつかる）
 const LAYER_INTERACT := 2   # 拾える小物（ぶつからない、照準だけ当たる）
@@ -58,7 +60,9 @@ var driver_node: Node3D
 var exit_area: Area3D
 var toilet: ToiletScript
 var bathtub: BathtubScript
+var sink: SinkScript
 var sink_faucet: FaucetScript
+var mirror_cabinet: MirrorCabinetScript
 var supplies: SuppliesScript
 
 
@@ -261,69 +265,15 @@ func _build_toilet() -> void:
 
 
 func _build_sink_and_mirror() -> void:
-	# 右の壁に付けた小さな洗面台（ペデスタルなし）。下に排水管とトラップが見え、床（洗面台の下）にドライバーを置く
-	var f := _fixture("Sink", "sink")
-	var visual: Node3D = f[0]
-	var body: StaticBody3D = f[1]
-	var porcelain := _mat("porcelain", PORCELAIN_COLOR, 0.3)
-	var metal := _mat("metal", Color(0.75, 0.75, 0.78), 0.25, 0.8)
-	var wx := ROOM_W * 0.5
-	var z := 0.1
-	# 下から配管が見えるよう、ボウルは薄め（底 y=0.74）
-	var basin_size := Vector3(0.38, 0.11, 0.5)
-	var basin_center := Vector3(wx - 0.19, 0.795, z)
-	_mesh_box(visual, basin_size, basin_center, porcelain)
-	_mesh_box(visual, Vector3(0.28, 0.02, 0.38), Vector3(wx - 0.18, 0.851, z), _mat("basin_inner", Color(0.82, 0.86, 0.88), 0.3))
-	# 洗面ボウルの排水口（ボウルの中央。排水管はここから下りる）
-	var drain_x := wx - 0.21
-	MeshKit.cylinder(visual, 0.016, 0.002, Vector3(drain_x, 0.8615, z), _mat("drain_hole", Color(0.05, 0.05, 0.06), 1.0))
-	# 壁の受け金具
-	_mesh_box(visual, Vector3(0.03, 0.05, 0.4), Vector3(wx - 0.015, 0.715, z), metal)
-	# 排水管：ボウルの底から下りて U 字のトラップを通り、壁へ（当たり判定なし）
-	var r := 0.016
-	var pipe_mat := _mat("pipe", Color(0.86, 0.86, 0.88), 0.3, 0.35)   # 影の中でも沈まない明るめのメッキ
-	var tail_x := drain_x
-	# U 字の底を低め（約0.36m）にして、立った目線でもボウルの陰から見えるようにする
-	var bend_y := 0.40
-	var trap_pts := [Vector3(tail_x, 0.74, z), Vector3(tail_x, bend_y, z)]
-	var bend_c := Vector3(tail_x + 0.045, bend_y, z)
-	for i in range(1, 7):
-		var a := PI * i / 6.0
-		trap_pts.append(bend_c + Vector3(-cos(a) * 0.045, -sin(a) * 0.045, 0.0))
-	trap_pts.append(Vector3(tail_x + 0.09, 0.47, z))
-	trap_pts.append(Vector3(wx - 0.004, 0.47, z))
-	MeshKit.pipe(visual, trap_pts, r, pipe_mat)
-	var flange := MeshKit.cylinder(visual, 0.03, 0.008, Vector3(wx - 0.004, 0.47, z), pipe_mat)
-	flange.rotation.z = deg_to_rad(90.0)
-	_shape_box(body, basin_size, basin_center)
-
-	# 蛇口（クリックで水を出す／止める。水はたまらず、ボウルの底へ流れ続ける）
-	sink_faucet = FaucetScript.new()
-	sink_faucet.name = "Faucet"
-	sink_faucet.position = Vector3(wx - 0.04, 0.85, z)
-	_mesh_box(sink_faucet, Vector3(0.04, 0.12, 0.04), Vector3(0, 0.06, 0), metal)
-	_mesh_box(sink_faucet, Vector3(0.12, 0.03, 0.03), Vector3(-0.05, 0.11, 0), metal)
-	var lever := Node3D.new()
-	lever.name = "Lever"
-	lever.position = Vector3(0, 0.12, 0)
-	sink_faucet.add_child(lever)
-	_mesh_box(lever, Vector3(0.07, 0.01, 0.016), Vector3(-0.03, 0.005, 0), metal)
-	sink_faucet.setup(Vector3(-0.1, 0.095, 0), 0.852, lever, 0.004)
-	var faucet_area := MeshKit.interact_area(sink_faucet, "FaucetArea", "sink_faucet", sink_faucet)
-	_shape_box(faucet_area, Vector3(0.16, 0.1, 0.06), Vector3(-0.04, 0.09, 0))
-	add_child(sink_faucet)
-
-	_build_sink_shelf(wx, z)
-
-	# 鏡（仮の材質。リアルタイム反射なし）
-	var m := _fixture("Mirror", "mirror")
-	var m_visual: Node3D = m[0]
-	var m_body: StaticBody3D = m[1]
-	var mirror_size := Vector3(0.02, 0.5, 0.4)
-	var mirror_center := Vector3(wx - 0.01, 1.4, 0.1)
-	_mesh_box(m_visual, Vector3(0.015, 0.54, 0.44), Vector3(wx - 0.005, 1.4, 0.1), _mat("frame_dark", Color(0.3, 0.3, 0.32)))
-	_mesh_box(m_visual, mirror_size, mirror_center, _mat("mirror", Color(0.72, 0.78, 0.82), 0.08, 0.6))
-	_shape_box(m_body, mirror_size, mirror_center)
+	# 右の壁の洗面台（くぼみ・栓・貯水と排水・蛇口・排水管）は sink.gd、鏡裏収納は mirror_cabinet.gd
+	sink = SinkScript.new()
+	sink.name = "Sink"
+	add_child(sink)
+	sink_faucet = sink.faucet
+	_build_sink_shelf(SinkScript.WALL_X, SinkScript.Z)
+	mirror_cabinet = MirrorCabinetScript.new()
+	mirror_cabinet.name = "MirrorCabinet"
+	add_child(mirror_cabinet)
 
 
 func _build_sink_shelf(wx: float, z: float) -> void:
@@ -462,15 +412,15 @@ func _build_vent() -> void:
 
 
 func _build_bath_powder() -> void:
-	# 便器タンクの上（上面 y=0.925、x -0.9〜-0.7、z -0.2〜0.2）に置く粉末入浴剤の容器。
+	# タンクの上の壁の棚（supplies.gd、上面 y=1.35）に置く粉末入浴剤の容器。
+	# タンクの蓋を開けられるよう、TASK-07 でタンクの上から棚へ移した。
 	#   BathPowder/Visual/Body  … 本体の円筒（クリーム色の蓋とは別ノード）
 	#   BathPowder/Visual/Label … ラベル専用の帯。UV を自前で巻き、文字のある中央を +x（通路側）、継ぎ目を壁側に向ける
 	#   BathPowder/Visual/Lid   … 蓋（将来開けられるよう別ノード）
 	var f := _fixture("BathPowder", "bath_powder")
 	var visual: Node3D = f[0]
 	var body: StaticBody3D = f[1]
-	var tank_top := 0.925
-	var base := Vector3(-ROOM_W * 0.5 + 0.1, tank_top, -0.08)   # タンク上面の中心線上、レバーと反対側
+	var base := Vector3(SuppliesScript.WALL_X + SuppliesScript.SHELF_DEPTH * 0.5, SuppliesScript.SHELF_TOP, SuppliesScript.POWDER_Z)
 	visual.position = base
 	body.position = base
 

@@ -89,12 +89,14 @@ func _run() -> void:
 	_aim(player, poster.global_position)
 	_check(player.get_focused(true) == room.door_body, "廊下側からは広告ではなくドアに当たる")
 
-	# --- 入浴剤：タンクの上に浮かず、はみ出さずに置かれている
+	# --- 入浴剤：タンクの上の棚に浮かず、はみ出さずに置かれている（TASK-07 でタンクの上から移動）
 	var powder: Node3D = room.get_node("BathPowder/Visual")
 	var pp: Vector3 = powder.global_position
 	var r: float = room.LID_RADIUS
-	_check(is_equal_approx(pp.y, 0.925) and pp.x - r >= -0.9 and pp.x + r <= -0.7 and pp.z - r >= -0.2 and pp.z + r <= 0.2,
-			"入浴剤の容器がタンク上面に収まっている (%s)" % pp)
+	var shelf = room.supplies
+	_check(is_equal_approx(pp.y, shelf.SHELF_TOP) and pp.x - r >= shelf.WALL_X and pp.x + r <= shelf.WALL_X + shelf.SHELF_DEPTH
+			and pp.z - r >= shelf.SHELF_Z.x and pp.z + r <= shelf.SHELF_Z.y,
+			"入浴剤の容器が棚の上に収まっている (%s)" % pp)
 
 	# --- 入浴剤を調べられる／壁の外からは調べられない
 	var powder_mid := pp + Vector3(0.0, 0.08, 0.0)
@@ -235,16 +237,19 @@ func _run() -> void:
 	_aim(player, spout)
 	_check(_id(player.get_focused(true)) != "bath_faucet", "奥の壁の外からは浴槽の蛇口を操作できない")
 
-	# --- 洗面台の蛇口：水を出す／止める（たまらない）
+	# --- 洗面台の蛇口：水を出す／止める（貯水と排水は TASK-07 の項で確認）
 	player.global_position = Vector3(0.3, 0.0, 0.1)
 	_aim(player, sink_faucet.to_global(Vector3(-0.05, 0.11, 0)))
 	var s_hit = player.get_focused(true)
 	_check(_id(s_hit) == "sink_faucet" and main._prompt_for(s_hit) == main.PROMPTS["water_on"], "洗面台の蛇口を狙うと「水を出す」")
 	player.try_interact()
 	var s_len: float = sink_faucet.stream_length()
-	_check(sink_faucet.is_on and s_len > 0.05 and s_len < 0.15, "洗面台の蛇口から水が流れる（%.2fm）" % s_len)
-	await _seconds(0.2)
-	_check(is_equal_approx(sink_faucet.stream_length(), s_len), "洗面台の水はたまらず、流れ続ける")
+	_check(sink_faucet.is_on and absf(s_len - (sink_faucet.to_global(Vector3(-0.1, 0.095, 0)).y - room.sink.BOTTOM_Y)) < 0.01,
+			"洗面台の蛇口からボウルの底まで水が流れる（%.2fm）" % s_len)
+	player.try_interact()
+	_check(not sink_faucet.is_on, "洗面台の蛇口を止められる")
+	room.sink.level = 0.0
+	room.sink.advance(0.0)
 	player.global_position = saved
 
 	# ================================================================ TASK-06 生活用品
@@ -252,8 +257,8 @@ func _run() -> void:
 	var msgs6: Dictionary = main.MESSAGES
 	var targets := [
 		["paper_holder", Vector3(-0.2, 0, 0.75), Vector3(-0.83, 0.70, 0.30)],
-		["spare_roll", Vector3(-0.4, 0, 0.6), Vector3(-0.83, 1.41, 0.09)],
-		["toilet_cleaner", Vector3(-0.4, 0, 0.6), Vector3(-0.83, 1.44, -0.09)],
+		["spare_roll", Vector3(-0.4, 0, 0.6), sup.get_node("SupplyShelf/SpareRoll").global_position + Vector3(0, 0.06, 0)],
+		["toilet_cleaner", Vector3(0.0, 0, 0.0), sup.get_node("SupplyShelf/Cleaner").global_position + Vector3(0, 0.09, 0)],   # 横からだと手前の予備ロールに隠れる
 		["plunger", Vector3(-0.2, 0, 0.6), Vector3(-0.80, 0.30, 0.995)],
 		["toilet_brush", Vector3(-0.2, 0, 0.6), Vector3(-0.80, 0.30, 1.125)],
 	]
@@ -295,24 +300,147 @@ func _run() -> void:
 	await _seconds(0.6)
 	toilet.toggle_seat()
 	await _seconds(0.6)
-	var others := {
-		"開いた蓋": toilet.lid_pivot, "上げた便座": toilet.seat_pivot,
-		"入浴剤": room.get_node("BathPowder/Visual"), "タオル": room.get_node("TowelBar"),
-		"便器本体": toilet.get_node("Visual"), "換気口": room.get_node("Vent/Visual"),
-	}
-	for name in ["PaperHolder", "SupplyShelf", "CleaningStand", "VentSticker"]:
-		var a := _mesh_aabb(sup.get_node(name))
-		for ax in 3:   # 接しているだけの面を重なりと数えないよう 1mm 縮める（厚みのない板の軸は除く）
-			if a.size[ax] > 0.002:
-				a.position[ax] += 0.001
-				a.size[ax] -= 0.002
-		var hits := []
-		for o in others:
-			if a.intersects(_mesh_aabb(others[o])):
-				hits.append(o)
+	var others := _fixed_objects(room)
+	for name in ["PaperHolder", "SupplyShelf/Board", "SupplyShelf/SpareRoll", "SupplyShelf/Cleaner", "CleaningStand", "VentSticker"]:
+		var hits := _overlaps(sup.get_node(name), others)
 		_check(hits.is_empty(), "%s は他の物と重ならない%s" % [name, "" if hits.is_empty() else "（重なり：%s）" % ", ".join(hits)])
+
+	# ================================================================ TASK-07 タンク・洗面台の貯水・鏡裏収納
+	# --- 貯水タンクの蓋（便器の蓋と便座は開けたまま＝いちばん狭い状態で確認）
+	_check(not toilet.tank_open and toilet.tank_lid.position.is_equal_approx(toilet.TANK_LID_CLOSED), "初期状態：タンクの蓋は閉")
+	player.global_position = Vector3(0.0, 0.0, 0.35)
+	_aim(player, toilet.tank_lid.global_position + Vector3(0, 0.0125, 0))
+	var tk_hit = player.get_focused(true)
+	_check(_id(tk_hit) == "tank_lid" and main._prompt_for(tk_hit) == main.PROMPTS["tank_open"], "タンクの蓋を狙うと「タンクの蓋を開ける」")
+	for i in 5:   # 連打
+		player.try_interact()
+	_check(toilet.tank_open and toilet.tank_busy and main._prompt_for(tk_hit) == "", "タンクの蓋の連打：1回だけ受け付け、動作中は案内なし")
+	var lid_moving := others.duplicate()
+	lid_moving.erase("便器本体")   # 閉じた蓋はタンク本体に載っているので、動いている間は別に確認する
+	var tank_hits := await _watch_overlaps(toilet.tank_lid, lid_moving, func() -> bool: return toilet.tank_busy)
+	_check(tank_hits.is_empty(), "タンクの蓋が動く間、棚・入浴剤・開いた蓋と便座・ホルダー・浴槽と重ならない%s" % _hits_text(tank_hits))
+	_check(toilet.tank_lid.position.is_equal_approx(toilet.TANK_LID_PARKED) and _overlaps(toilet.tank_lid, others).is_empty(),
+			"開けた蓋はタンクと浴槽の間の壁際に置かれ、何とも重ならない")
+	_check(main._prompt_for(player.get_focused(true)) == "" or _id(player.get_focused(true)) != "tank_lid", "蓋の元の位置にはもう蓋の判定がない")
+	var tank_water: Node3D = toilet.get_node("Visual/Tank/TankWater")
+	_aim(player, tank_water.global_position)
+	_check(tank_water.is_visible_in_tree() and _id(player.get_focused(true)) == "toilet", "蓋を開けるとタンクの中（水・部品）が見え、中を狙うと便器を調べる")
+	player.global_position = Vector3(0.0, 0.0, -0.2)   # 便器と浴槽の間から（開いた便器の蓋に遮られない位置）
+	_aim(player, toilet.tank_lid.global_position)
+	tk_hit = player.get_focused(true)
+	_check(_id(tk_hit) == "tank_lid" and main._prompt_for(tk_hit) == main.PROMPTS["tank_close"], "置いた蓋を狙うと「タンクの蓋を戻す」（判定が蓋と一緒に移動）")
+	# 途中で一時停止 → 動きが止まり、再開すると続きから戻る
+	player.try_interact()
+	await _seconds(0.3)
+	main._pause()
+	var paused_pos: Vector3 = toilet.tank_lid.position
+	await _seconds(0.4)
+	_check(toilet.tank_lid.position.is_equal_approx(paused_pos) and toilet.tank_busy, "タンクの蓋を戻す途中で一時停止すると止まる")
+	main._resume()
+	tank_hits = await _watch_overlaps(toilet.tank_lid, lid_moving, func() -> bool: return toilet.tank_busy)
+	_check(tank_hits.is_empty() and not toilet.tank_open and toilet.tank_lid.position.is_equal_approx(toilet.TANK_LID_CLOSED)
+			and toilet.tank_lid.rotation.is_equal_approx(Vector3.ZERO), "再開すると重ならずに元の位置へ戻る%s" % _hits_text(tank_hits))
 	toilet.toggle_lid()
 	await _seconds(1.0)
+	_check(_find_world_bodies(toilet.tank_lid).is_empty(), "タンクの蓋は移動を妨げない（ぶつかる判定なし）")
+
+	# --- 洗面台の貯水と排水
+	var sk = room.sink
+	_check(sk.level == 0.0 and sk.plug_in and not sk.faucet.is_on, "初期状態：洗面台は水量0、栓あり、蛇口OFF")
+	player.global_position = Vector3(0.25, 0.0, 0.1)
+	_aim(player, sk.to_global(sk.DRAIN_POS + Vector3(0, 0.008, 0)))
+	var sp_hit = player.get_focused(true)
+	_check(_id(sp_hit) == "sink_plug" and main._prompt_for(sp_hit) == main.PROMPTS["plug_pull"], "洗面台の栓を狙うと「栓を抜く」")
+	sk.faucet.set_on(true)
+	var cavity := AABB(Vector3(sk.CAVITY_X.x, sk.BOTTOM_Y, sk.CAVITY_Z.x), Vector3(sk.CAVITY_X.y - sk.CAVITY_X.x, 0.1, sk.CAVITY_Z.y - sk.CAVITY_Z.x))
+	for lv in [0.0, 0.5, 1.0]:
+		sk.level = lv
+		sk.advance(0.0)
+		sk.faucet._update_stream()
+		var w: MeshInstance3D = sk._water
+		var wy: float = lerpf(sk.WATER_MIN_Y, sk.WATER_MAX_Y, lv)
+		var st: MeshInstance3D = sk.faucet._stream
+		var bottom: float = st.global_position.y - st.global_transform.basis.get_scale().y * 0.5
+		var wb := _mesh_aabb(w)
+		var inside: bool = (not w.visible) or (cavity.encloses(wb) and wb.position.y <= sk.WATER_MAX_Y and sk.WATER_MAX_Y < sk.OUTER.end.y)
+		_check(((not w.visible) if lv == 0.0 else (w.visible and absf(w.global_position.y - wy) < 0.0005)) and inside
+				and absf(bottom - (wy if lv > 0.0 else sk.BOTTOM_Y)) < 0.0005,
+				"洗面台 水位%d%%：水面 %s がくぼみの中、水流の下端 %.3f" % [int(lv * 100.0), ("非表示" if not w.visible else "y=%.3f" % w.global_position.y), bottom])
+	sk.level = 0.0
+	sk.advance(6.0)
+	_check(is_equal_approx(sk.level, 0.5), "栓をして給水6秒で半分（満水まで12秒）")
+	sk.advance(100.0)
+	_check(sk.level == 1.0, "満水で止まる（縁より2cm下）")
+	sk.faucet.set_on(false)
+	sk.advance(60.0)
+	_check(sk.level == 1.0, "蛇口を止めても栓をしていれば水位を保つ")
+	_aim(player, sk.to_global(sk.DRAIN_POS + Vector3(0, 0.008, 0)))
+	sp_hit = player.get_focused(true)
+	player.try_interact()
+	_check(_id(sp_hit) == "sink_plug" and not sk.plug_in and main._prompt_for(sp_hit) == main.PROMPTS["plug_insert"], "満水でも水面越しに栓を抜ける")
+	sk.advance(4.0)
+	_check(is_equal_approx(sk.level, 0.5), "栓を抜くと徐々に下がる（満水から8秒で空）")
+	sk.faucet.set_on(true)
+	sk.advance(4.0)
+	_check(is_equal_approx(sk.level, 0.5 - 4.0 * (1.0 / 8.0 - 1.0 / 12.0)), "同時給排水は流量差で下がる")
+	sk.advance(100.0)
+	_check(sk.level == 0.0 and not sk._water.visible, "空で止まり、水面が消える")
+	player.try_interact()
+	_check(sk.plug_in, "栓を戻せる")
+	sk.advance(3.0)
+	var lv_before: float = sk.level
+	main._pause()
+	await _seconds(0.3)
+	var lv_paused: float = sk.level
+	main._resume()
+	_check(lv_before > 0.0 and is_equal_approx(lv_paused, lv_before), "一時停止中は洗面台の水位も止まる")
+	sk.faucet.set_on(false)
+
+	# --- 鏡裏収納
+	var cab = room.mirror_cabinet
+	var toner: Node3D = cab.get_node("Items/Toner")
+	player.global_position = Vector3(0.25, 0.0, 0.1)
+	_aim(player, cab.door_pivot.to_global(Vector3(-0.02, 0.25, 0.22)))
+	var cb_hit = player.get_focused(true)
+	_check(_id(cb_hit) == "mirror_door" and main._prompt_for(cb_hit) == main.PROMPTS["cabinet_open"], "鏡を狙うと「鏡の扉を開ける」")
+	_aim(player, toner.global_position + Vector3(0, 0.06, 0))
+	_check(_id(player.get_focused(true)) == "mirror_door", "閉じた扉越しには中の物を調べられない")
+	player.global_position = Vector3(0.75, 0.0, -0.55)
+	_aim(player, toner.global_position + Vector3(0, 0.06, 0))
+	_check(_id(player.get_focused(true)) == "", "横からも収納箱の板に遮られて中の物を調べられない")
+	player.global_position = Vector3(0.25, 0.0, 0.1)
+	_aim(player, cab.door_pivot.to_global(Vector3(-0.02, 0.25, 0.22)))
+	for i in 5:
+		player.try_interact()
+	_check(cab.is_open and cab.busy, "鏡の扉の連打：1回だけ受け付ける")
+	var cab_others := {
+		"歯ブラシの棚": room.get_node("SinkShelf"), "洗面台": room.sink.get_node("Visual"), "洗面台の蛇口": room.sink_faucet,
+		"浴槽": room.bathtub.get_node("Visual"), "浴槽の蛇口": room.bathtub.faucet, "換気口": room.get_node("Vent/Visual"),
+	}
+	var door_hits := await _watch_overlaps(cab.door_pivot, cab_others, func() -> bool: return cab.busy)
+	_check(door_hits.is_empty() and is_equal_approx(rad_to_deg(cab.door_pivot.rotation.y), cab.OPEN_DEG),
+			"扉が開く間、歯ブラシの棚・蛇口・洗面台・浴槽と重ならない%s" % _hits_text(door_hits))
+	_check(_overlaps(cab.get_node("Box"), cab_others).is_empty(), "収納箱は歯ブラシの棚・蛇口と重ならない")
+	_aim(player, cab.door_pivot.to_global(Vector3(-0.02, 0.25, 0.22)))
+	_check(_id(player.get_focused(true)) == "mirror_door" and main._prompt_for(player.get_focused(true)) == main.PROMPTS["cabinet_close"],
+			"開いた扉を狙うと「鏡の扉を閉める」（判定が扉と一緒に回る）")
+	for item in [["Items/Toner", "toner", 0.06], ["Items/FaceWash", "face_wash", 0.07], ["Items/CottonSwabs", "cotton_swabs", 0.04]]:
+		main.hud._message_label.text = ""
+		_aim(player, cab.get_node(item[0]).global_position + Vector3(0, item[2], 0))
+		player.try_interact()
+		_check(main.hud._message_label.text == main.MESSAGES[item[1]], "開けると %s を調べられる" % item[1])
+	_aim(player, cab.door_pivot.to_global(Vector3(-0.02, 0.25, 0.22)))
+	player.try_interact()
+	await _seconds(0.2)
+	main._pause()
+	var door_paused: float = cab.door_pivot.rotation.y
+	await _seconds(0.3)
+	_check(is_equal_approx(cab.door_pivot.rotation.y, door_paused) and cab.busy, "扉を閉める途中で一時停止すると止まる")
+	main._resume()
+	await _seconds(0.6)
+	_check(not cab.is_open and absf(cab.door_pivot.rotation.y) < 0.001 and _find_world_bodies(cab.door_pivot).is_empty(),
+			"再開すると閉じる。扉は移動を妨げない（ぶつかる判定なし）")
+	player.global_position = saved
 
 	# --- 照準を合わせてクリックすると拾える
 	_aim(player, driver_pos)
@@ -357,9 +485,64 @@ func _run() -> void:
 	_check(not r2.toilet.lid_open and not r2.toilet.seat_up and r2.bathtub.level == 0.0 and r2.bathtub.plug_in
 			and not r2.bathtub.faucet.is_on and not r2.sink_faucet.is_on,
 			"再プレイで蓋・便座が閉、浴槽が空、栓あり、蛇口OFFに戻る")
+	_check(not r2.toilet.tank_open and r2.toilet.tank_lid.position.is_equal_approx(r2.toilet.TANK_LID_CLOSED)
+			and r2.sink.level == 0.0 and r2.sink.plug_in and not r2.sink.faucet.is_on
+			and not r2.mirror_cabinet.is_open and absf(r2.mirror_cabinet.door_pivot.rotation.y) < 0.001,
+			"再プレイでタンクの蓋・洗面台・鏡の扉も初期状態に戻る")
 
 	print("SMOKE TEST: %s (%d failure(s))" % ["PASS" if _failures == 0 else "FAIL", _failures])
 	quit(1 if _failures > 0 else 0)
+
+
+## 重なりを確かめる相手（固定の物と、開けた状態の便器の蓋・便座）。
+func _fixed_objects(room: Node) -> Dictionary:
+	var toilet = room.toilet
+	return {
+		"開いた蓋": toilet.lid_pivot, "上げた便座": toilet.seat_pivot,
+		"入浴剤": room.get_node("BathPowder/Visual"), "タオル": room.get_node("TowelBar"),
+		"便器本体": toilet.get_node("Visual"), "換気口": room.get_node("Vent/Visual"),
+		"棚の板": room.get_node("Supplies/SupplyShelf/Board"), "予備ロール": room.get_node("Supplies/SupplyShelf/SpareRoll"),
+		"洗剤": room.get_node("Supplies/SupplyShelf/Cleaner"), "ペーパーホルダー": room.get_node("Supplies/PaperHolder"),
+		"浴槽": room.bathtub.get_node("Visual"),
+	}
+
+
+## node のメッシュの外形（接するだけの面は除くため 1mm 縮める）と重なる相手の名前。自分自身は除く。
+func _overlaps(node: Node, others: Dictionary) -> Array:
+	var a := _mesh_aabb(node)
+	for ax in 3:
+		if a.size[ax] > 0.002:
+			a.position[ax] += 0.001
+			a.size[ax] -= 0.002
+	var hits := []
+	for o in others:
+		var other: Node = others[o]
+		if other == node or node.is_ancestor_of(other) or other.is_ancestor_of(node):
+			continue
+		if a.intersects(_mesh_aabb(other)):
+			hits.append(o)
+	return hits
+
+
+## busy() が true の間、毎フレーム重なりを調べ、重なった相手の名前を集める。
+func _watch_overlaps(node: Node, others: Dictionary, busy: Callable) -> Array:
+	var all := []
+	for i in 300:
+		for h in _overlaps(node, others):
+			if not all.has(h):
+				all.append(h)
+		if not busy.call():
+			break
+		await process_frame
+	return all
+
+
+func _hits_text(hits: Array) -> String:
+	return "" if hits.is_empty() else "（重なり：%s）" % ", ".join(hits)
+
+
+func _find_world_bodies(node: Node) -> Array:
+	return node.find_children("*", "StaticBody3D", true, false)
 
 
 ## node 以下のすべてのメッシュを覆うワールド座標の箱。

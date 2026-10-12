@@ -12,7 +12,6 @@ const MESSAGES := {
 	"bathtub": "空っぽの浴槽。乾いていて、何も入っていない。",
 	"bathtub_water": "浴槽に水がたまっている。",
 	"bathtub_wet": "空の浴槽。底がまだ濡れている。",
-	"mirror": "くもった鏡。疲れた顔の自分がぼんやり映っている。",
 	"sink": "小さな洗面台。……下に何か落ちている？",
 	"vent": "換気口。格子の奥は暗く、よく見えない。",
 	"poster": "水道修理の広告だ。連絡先は管理会社……スマホは部屋に置いてきた。",
@@ -23,6 +22,9 @@ const MESSAGES := {
 	"plunger": "ラバーカップ。ブラシと妙にきれいに並んでいる。",
 	"toilet_brush": "トイレブラシ。ここでの仕事には慣れていそうだ。",
 	"vent_sticker": "『点検済。異常なし。たぶん。』……たぶん？",
+	"face_wash": "洗顔料。泡立ちがいいらしい。",
+	"toner": "化粧水。ほとんど減っていない。",
+	"cotton_swabs": "綿棒。ぎっしり詰まっている。",
 	"driver": "ドライバーを手に入れた。",
 	"door_locked": "ドアノブが空回りする。開かない。",
 	"door_fixed": "ドライバーでドアノブのネジを締め直した。……ドアが開いた！",
@@ -39,6 +41,10 @@ const PROMPTS := {
 	"water_off": "左クリック：水を止める",
 	"plug_pull": "左クリック：栓を抜く",
 	"plug_insert": "左クリック：栓をする",
+	"tank_open": "左クリック：タンクの蓋を開ける",
+	"tank_close": "左クリック：タンクの蓋を戻す",
+	"cabinet_open": "左クリック：鏡の扉を開ける",
+	"cabinet_close": "左クリック：鏡の扉を閉める",
 }
 
 const PROMPT_EXAMINE := "左クリック：調べる"
@@ -136,8 +142,9 @@ func _on_interact_requested(target: Object) -> void:
 			hud.show_message(MESSAGES[key])
 		return
 	match id:
-		"mirror", "sink", "vent", "poster", "bath_powder", \
-		"paper_holder", "spare_roll", "toilet_cleaner", "plunger", "toilet_brush", "vent_sticker":
+		"sink", "vent", "poster", "bath_powder", \
+		"paper_holder", "spare_roll", "toilet_cleaner", "plunger", "toilet_brush", "vent_sticker", \
+		"face_wash", "toner", "cotton_swabs":
 			hud.show_message(MESSAGES[id])
 		"driver":
 			if has_driver:

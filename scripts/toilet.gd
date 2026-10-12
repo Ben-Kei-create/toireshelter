@@ -5,6 +5,8 @@ extends Node3D
 ##   Toilet/Visual            … タンク・本体・水
 ##   Toilet/SeatPivot         … 便座リング（蝶番 x=-0.645, y=0.40）。子に照準用の判定 SeatArea
 ##   Toilet/LidPivot          … 蓋（蝶番 x=-0.675, y=0.43）。子に照準用の判定 LidArea
+##   Toilet/TankLid           … 貯水タンクの陶器の蓋（蝶番なし）。子に照準用の判定 TankLidArea。
+##                              開けると持ち上げ → 浴槽側へずらす → 立てる → 向きを変える → タンクと浴槽の間の壁際に下ろす
 ##   Toilet/Collision         … 移動を止める本体とタンクの箱（interact_id = toilet）
 ##
 ## 開いた蓋はタンクの手前、上げた便座は蓋の手前に立つ（角度と蝶番の位置で重ならないようにしてある）。
@@ -21,12 +23,28 @@ const LID_OPEN_DEG := 88.0
 const SEAT_OPEN_DEG := 80.0
 const SWING_TIME := 0.4
 
+# 貯水タンク（外形 x -0.9〜-0.7, y 0.475〜0.925, z -0.2〜0.2。上の 0.025 が蓋）
+const TANK_BOTTOM := 0.475
+const TANK_BODY_TOP := 0.90
+const TANK_WALL := 0.015
+const TANK_WATER_Y := 0.80
+const TANK_LID_SIZE := Vector3(0.21, 0.025, 0.41)
+const TANK_LID_CLOSED := Vector3(WALL_X + 0.105, TANK_BODY_TOP + 0.0125, 0.0)
+# 開けた蓋の置き場所：タンク（z ≥ -0.2）と浴槽（z ≤ -0.45）の間、左の壁に立てかける。
+# 立てると 長さ0.41 が縦、幅0.21 が z、厚さ0.025 が x になる
+const TANK_LID_PARKED := Vector3(WALL_X + 0.0225, 0.206, -0.325)
+const TANK_LID_PARKED_ROT := Vector3(deg_to_rad(-90.0), deg_to_rad(90.0), 0.0)
+const TANK_LIFT_Y := 1.0     # 持ち上げる高さ（蓋の中心）。タンク上面より上、上の棚より下
+const TANK_MOVE_TIMES := [0.25, 0.3, 0.25, 0.2, 0.3]   # 持ち上げ・ずらす・立てる・向きを変える・下ろす
 var lid_open := false
 var seat_up := false
 var busy := false
+var tank_open := false
+var tank_busy := false
 
 var lid_pivot: Node3D
 var seat_pivot: Node3D
+var tank_lid: Node3D
 
 
 func _ready() -> void:
@@ -36,6 +54,7 @@ func _ready() -> void:
 	_build_body(visual)
 	_build_seat()
 	_build_lid()
+	_build_tank_lid()
 
 	var body := StaticBody3D.new()
 	body.name = "Collision"
@@ -44,7 +63,8 @@ func _ready() -> void:
 	body.set_meta("interact_id", "toilet")
 	body.set_meta("fixture", self)
 	add_child(body)
-	MeshKit.shape_box(body, Vector3(0.2, 0.45, 0.4), Vector3(WALL_X + 0.1, 0.7, 0.0))      # タンク
+	var tank_h := TANK_BODY_TOP - TANK_BOTTOM   # 蓋の部分は蓋の判定に任せる
+	MeshKit.shape_box(body, Vector3(0.2, tank_h, 0.4), Vector3(WALL_X + 0.1, TANK_BOTTOM + tank_h * 0.5, 0.0))   # タンク
 	MeshKit.shape_box(body, Vector3(0.4, RIM_Y, 0.36), Vector3(-0.5, RIM_Y * 0.5, 0.0))   # 本体
 
 
@@ -52,9 +72,9 @@ func _build_body(visual: Node3D) -> void:
 	var porcelain := MeshKit.mat("porcelain", Color(0.92, 0.92, 0.92), 0.3)
 	var inner := MeshKit.mat("bowl_inner", Color(0.82, 0.83, 0.84), 0.25)
 	var metal := MeshKit.mat("metal", Color(0.75, 0.75, 0.78), 0.25, 0.8)
-	# タンクとレバー（バスの入浴剤がタンク上面 y=0.925 に載る）
-	MeshKit.box(visual, Vector3(0.2, 0.45, 0.4), Vector3(WALL_X + 0.1, 0.7, 0.0), porcelain, "Tank")
-	MeshKit.box(visual, Vector3(0.06, 0.02, 0.03), Vector3(WALL_X + 0.17, 0.88, 0.14), metal)
+	# 貯水タンク（中空。蓋は別ノード）とレバー
+	_build_tank(visual, porcelain, metal)
+	MeshKit.box(visual, Vector3(0.06, 0.02, 0.03), Vector3(WALL_X + 0.23, 0.86, 0.14), metal, "Lever")
 	# 台座と、くぼみの底（上面 y=0.23）
 	MeshKit.box(visual, Vector3(0.26, 0.2, 0.22), Vector3(-0.53, 0.1, 0.0), porcelain, "Foot")
 	MeshKit.box(visual, Vector3(0.4, 0.05, 0.36), Vector3(-0.5, 0.205, 0.0), inner, "BowlBottom")
@@ -72,6 +92,53 @@ func _build_body(visual: Node3D) -> void:
 	# 蝶番の金具
 	for z in [-0.12, 0.12]:
 		MeshKit.box(visual, Vector3(0.04, 0.03, 0.03), Vector3(-0.665, RIM_Y + 0.015, z), metal)
+
+
+func _build_tank(visual: Node3D, porcelain: Material, metal: Material) -> void:
+	var tank := Node3D.new()
+	tank.name = "Tank"
+	visual.add_child(tank)
+	var t := TANK_WALL
+	var x0 := WALL_X
+	var x1 := WALL_X + 0.2
+	var wall_y0 := TANK_BOTTOM + 0.02
+	var wall_h := TANK_BODY_TOP - wall_y0
+	var wy := wall_y0 + wall_h * 0.5
+	MeshKit.box(tank, Vector3(0.2, 0.02, 0.4), Vector3(x0 + 0.1, TANK_BOTTOM + 0.01, 0.0), porcelain, "Bottom")
+	MeshKit.box(tank, Vector3(t, wall_h, 0.4), Vector3(x1 - t * 0.5, wy, 0.0), porcelain, "Front")
+	MeshKit.box(tank, Vector3(t, wall_h, 0.4), Vector3(x0 + t * 0.5, wy, 0.0), porcelain, "Back")
+	for zz in [-0.2 + t * 0.5, 0.2 - t * 0.5]:
+		MeshKit.box(tank, Vector3(0.2 - t * 2.0, wall_h, t), Vector3(x0 + 0.1, wy, zz), porcelain)
+
+	# 中の部品（簡略化。個別の操作はなし）
+	var inner_x := Vector2(x0 + t, x1 - t)
+	var water := MeshKit.box(tank, Vector3(inner_x.y - inner_x.x - 0.002, 0.003, 0.4 - t * 2.0 - 0.002),
+			Vector3((inner_x.x + inner_x.y) * 0.5, TANK_WATER_Y, 0.0), MeshKit.water_surface_mat(), "TankWater")
+	water.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var plastic := MeshKit.mat("tank_parts", Color(0.82, 0.84, 0.86), 0.5)
+	var rubber := MeshKit.mat("rubber", Color(0.12, 0.12, 0.13), 0.9)
+	# 給水弁（ボールタップ）：縦の給水管と、腕の先の浮き玉
+	var fill_x := x0 + 0.04
+	var fill_z := 0.14
+	MeshKit.cylinder(tank, 0.01, 0.35, Vector3(fill_x, wall_y0 + 0.175, fill_z), plastic, "FillValve")
+	MeshKit.cylinder(tank, 0.02, 0.03, Vector3(fill_x, 0.855, fill_z), plastic, "FillValveHead")
+	MeshKit.pipe(tank, [Vector3(fill_x, 0.85, fill_z), Vector3(x0 + 0.1, 0.815, 0.03)], 0.004, metal)
+	MeshKit.sphere(tank, 0.03, Vector3(x0 + 0.1, TANK_WATER_Y + 0.005, 0.02), MeshKit.mat("tank_float", Color(0.95, 0.95, 0.95), 0.4))
+	# 排水弁：底の座と黒いゴム弁、オーバーフロー管
+	var flush := Vector3(x0 + 0.1, wall_y0, -0.09)
+	MeshKit.cylinder(tank, 0.04, 0.01, flush + Vector3(0, 0.005, 0), plastic, "FlushValveSeat")
+	MeshKit.cylinder(tank, 0.033, 0.012, flush + Vector3(0.0, 0.016, 0.0), rubber, "Flapper")
+	MeshKit.cylinder(tank, 0.013, 0.33, flush + Vector3(-0.045, 0.165, 0.0), plastic, "OverflowTube")
+	# レバーの腕（外のレバーから中へ）と、ゴム弁へ下りるチェーン
+	var arm_end := Vector3(x0 + 0.1, 0.86, -0.07)
+	MeshKit.pipe(tank, [Vector3(x1 - t, 0.86, 0.14), arm_end], 0.004, metal)
+	var chain_mat := MeshKit.mat("chain", Color(0.7, 0.7, 0.72), 0.3, 0.9)
+	var chain_bottom := flush + Vector3(0.0, 0.024, 0.0)
+	for k in 30:
+		MeshKit.sphere(tank, 0.0022, arm_end.lerp(chain_bottom, float(k) / 29.0), chain_mat)
+	# 外の給水管：壁からタンクの底へ（止水栓つき）
+	MeshKit.pipe(visual, [Vector3(x0 + 0.004, 0.22, fill_z), Vector3(fill_x, 0.22, fill_z), Vector3(fill_x, TANK_BOTTOM, fill_z)], 0.008, metal)
+	MeshKit.box(visual, Vector3(0.02, 0.025, 0.03), Vector3(fill_x, 0.27, fill_z), metal, "StopValve")
 
 
 func _build_seat() -> void:
@@ -105,6 +172,43 @@ func _build_lid() -> void:
 	MeshKit.box(lid_pivot, size, center, MeshKit.mat("lid", Color(0.95, 0.95, 0.94), 0.4), "Lid")
 	var area := MeshKit.interact_area(lid_pivot, "LidArea", "toilet_lid", self)
 	MeshKit.shape_box(area, size, center)
+
+
+func _build_tank_lid() -> void:
+	tank_lid = Node3D.new()
+	tank_lid.name = "TankLid"
+	tank_lid.position = TANK_LID_CLOSED
+	add_child(tank_lid)
+	MeshKit.box(tank_lid, TANK_LID_SIZE, Vector3.ZERO, MeshKit.mat("porcelain", Color(0.92, 0.92, 0.92), 0.3), "Lid")
+	var area := MeshKit.interact_area(tank_lid, "TankLidArea", "tank_lid", self)
+	MeshKit.shape_box(area, TANK_LID_SIZE + Vector3(0.006, 0.006, 0.006), Vector3.ZERO)
+
+
+## タンクの蓋を開ける（横の壁際へ置く）／戻す。陶器の蓋なので蝶番では回さず、持ち上げて動かす。
+## 経路は上の棚・入浴剤・開いた便器の蓋・ペーパーホルダーと交わらない（テストで毎フレーム確認）。
+func toggle_tank() -> void:
+	if tank_busy:
+		return
+	tank_busy = true
+	tank_open = not tank_open
+	var lifted := Vector3(TANK_LID_CLOSED.x, TANK_LIFT_Y, TANK_LID_CLOSED.z)
+	var beside := Vector3(TANK_LID_CLOSED.x + 0.005, TANK_LIFT_Y, TANK_LID_PARKED.z)
+	var stood := Vector3(TANK_LID_PARKED_ROT.x, 0.0, 0.0)
+	var tween := _swing_tween()
+	var d: Array = TANK_MOVE_TIMES
+	if tank_open:
+		tween.tween_property(tank_lid, "position", lifted, d[0])
+		tween.tween_property(tank_lid, "position", beside, d[1])
+		tween.tween_property(tank_lid, "rotation", stood, d[2])
+		tween.tween_property(tank_lid, "rotation", TANK_LID_PARKED_ROT, d[3])
+		tween.tween_property(tank_lid, "position", TANK_LID_PARKED, d[4])
+	else:
+		tween.tween_property(tank_lid, "position", beside, d[4])
+		tween.tween_property(tank_lid, "rotation", stood, d[3])
+		tween.tween_property(tank_lid, "rotation", Vector3.ZERO, d[2])
+		tween.tween_property(tank_lid, "position", lifted, d[1])
+		tween.tween_property(tank_lid, "position", TANK_LID_CLOSED, d[0])
+	tween.tween_callback(func() -> void: tank_busy = false)
 
 
 ## 蓋を開ける／閉める。閉じるときに便座が上がっていれば、先に便座を下ろす。
@@ -147,6 +251,10 @@ func _swing_tween() -> Tween:
 func get_prompt(id: String) -> String:
 	if id == "toilet":
 		return "examine"
+	if id == "tank_lid":
+		if tank_busy:
+			return ""
+		return "tank_close" if tank_open else "tank_open"
 	if busy:
 		return ""
 	if id == "toilet_seat" and lid_open:
@@ -158,6 +266,8 @@ func interact(id: String) -> String:
 	match id:
 		"toilet":
 			return "toilet"
+		"tank_lid":
+			toggle_tank()
 		"toilet_lid":
 			toggle_lid()
 		"toilet_seat":

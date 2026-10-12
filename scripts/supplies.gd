@@ -2,7 +2,8 @@ extends Node3D
 ## トイレまわりの生活用品（TASK-06）。座標は部屋と同じ（この節点は原点に置く）。すべて調べられるが、取得はできない。
 ##
 ##   PaperHolder   … 左の壁 z=+0.30・高さ0.70。座った人の右手側。使用中のロールと垂れた紙
-##   SupplyShelf   … タンクの上の壁の棚（上面 y=1.35）。包装された予備ロール（SpareRoll）と洗剤（Cleaner）
+##   SupplyShelf   … タンクの上の壁の棚（上面 y=1.35、長さ 0.40m）。手前から見て左から入浴剤（room.gd の BathPowder、
+##                   直径0.104）・洗剤（Cleaner、幅0.085）・包装された予備ロール（SpareRoll、直径0.116）を 2〜3cm 間隔で並べる
 ##   CleaningStand … 手前左の床の隅。ラバーカップ（Plunger）とトイレブラシ（Brush）を、
 ##                   持ち手を垂直に、台の前端から同じ距離・同じ間隔で並べる
 ##   VentSticker   … 天井の換気口の横に下向きに貼った点検シール（操作距離 2.4m）
@@ -21,6 +22,9 @@ const HOLDER_POS := Vector3(WALL_X, 0.70, 0.30)
 const SHELF_TOP := 1.35
 const SHELF_DEPTH := 0.15
 const SHELF_Z := Vector2(-0.2, 0.2)
+const POWDER_Z := -0.13                 # 入浴剤（z -0.182〜-0.078）
+const CLEANER_Z := -0.01                # 洗剤（z -0.0525〜0.0325）
+const ROLL_Z := 0.12                    # 予備ロール（z 0.062〜0.178）
 const STAND_CENTER := Vector3(-0.80, 0.0, 1.06)
 const STAND_SIZE := Vector3(0.13, 0.025, 0.26)
 const ITEM_X := -0.80                   # ラバーカップとブラシの中心（台の前端から 0.065）
@@ -78,7 +82,7 @@ func _build_shelf() -> void:
 	# 包装された予備ロール：側面に包装の画像を一周巻く。文字のある中央を +x（部屋側）、継ぎ目を壁側に
 	var roll := Node3D.new()
 	roll.name = "SpareRoll"
-	roll.position = Vector3(WALL_X + 0.07, SHELF_TOP, 0.09)
+	roll.position = Vector3(WALL_X + SHELF_DEPTH * 0.5, SHELF_TOP, ROLL_Z)
 	shelf.add_child(roll)
 	var rr := 0.058
 	var rh := 0.114
@@ -95,7 +99,7 @@ func _build_shelf() -> void:
 	# トイレ用洗剤：箱形のボトル＋斜めの注ぎ口＋キャップ。正面（+x）にラベル
 	var bottle := Node3D.new()
 	bottle.name = "Cleaner"
-	bottle.position = Vector3(WALL_X + 0.07, SHELF_TOP, -0.09)
+	bottle.position = Vector3(WALL_X + SHELF_DEPTH * 0.5, SHELF_TOP, CLEANER_Z)
 	shelf.add_child(bottle)
 	var body := Vector3(0.055, 0.19, 0.085)
 	MeshKit.box(bottle, body, Vector3(0, body.y * 0.5, 0), MeshKit.mat("cleaner_body", Color(0.8, 0.9, 0.83), 0.35), "Body")
