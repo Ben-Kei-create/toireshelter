@@ -58,7 +58,8 @@ func _run() -> void:
 	check(_count(props, [CollisionObject3D, Area3D]) == 0, "雑貨スタンドに当たり判定・調べる判定がない")
 	var tv: Node = main.room.apartment.get_node("TvCorner")
 	check(tv.get_node("Tv/Screen") != null and tv.get_node("Console") != null and tv.get_node("Game05") != null, "テレビ・ゲーム機・ソフト5本がある")
-	check(_count(tv, [CollisionObject3D, Area3D]) == 0, "テレビ台まわりの飾りに個別の調べる判定がない（台の当たり判定は apartment の共通ボディ）")
+	var tv_areas := tv.find_children("*", "Area3D", true, false)
+	check(tv_areas.size() == 3 and tv_areas.all(func(a): return a.get_meta("interact_id") == "tv_play"), "テレビ台まわりの調べる判定は、ゲームを始める3つだけ（テレビ・ゲーム機・コントローラ。台の当たり判定は共通ボディ）")
 	check(main.room.apartment.get_node("HallSlippers") != null and wear.get_node("BathSlippers") != null, "スリッパが玄関ホールと浴室にある")
 	var lp: Node = main.room.apartment.get_node("LifePapers")
 	var ids := []

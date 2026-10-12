@@ -14,6 +14,7 @@ const HudScript := preload("res://scripts/hud.gd")
 const ExteriorScript := preload("res://scripts/exterior.gd")
 const ApartmentScript := preload("res://scripts/apartment.gd")
 const KotatsuScript := preload("res://scripts/kotatsu.gd")
+const SmallPropsScript := preload("res://scripts/small_props.gd")
 const SfxScript := preload("res://scripts/sfx.gd")
 const BooksScript := preload("res://scripts/books.gd")
 const CorridorScript := preload("res://scripts/corridor.gd")
@@ -94,6 +95,19 @@ const MESSAGES := {
 	"kotatsu_look": "こたつだ。座布団がある。……あったかそう。",
 	"kotatsu_inside": "こたつの中は、赤くてあたたかい。WASD で中を這える。布団の外まで進むと、抜けられる。",
 	"kotatsu_exit": "こたつの反対側へ抜けた。",
+	"rug": "厚手のじゅうたん。赤地にひし形の模様。足の裏がふかふかする。",
+	"cellar_opened": "床板の蓋を持ち上げた。冷たい空気が上がってくる。",
+	"cellar_closed": "蓋を閉めた。ぱたん、と床にもどった。",
+	"cellar_goods": "床下の貯蔵庫だ。階段はない。米袋、漬物の壺、缶詰、瓶、じゃがいも。食べ物ばかりだ。",
+	"card_box": "トランプのケース。中身は出して遊んだまま、空だ。",
+	"cup": "湯のみ。お茶はまだ少しぬるい。",
+	"tissue": "ティッシュ箱。一枚つまみ出されたままになっている。",
+	"magazines": "雑誌の山。ぜんぶ、読みかけの付箋が挟まっている。",
+	"teddy": "くまのぬいぐるみが、枕のそばに座っている。こちらをじっと見ている。",
+	"tv_on": "ピッ。テレビがついた。",
+	"tv_off": "ピッ。テレビを消した。",
+	"tv_start": "ゲームを始めた。W／S（↑／↓）でラケットを動かす。E か Esc でやめる。",
+	"tv_stop": "ゲームをやめた。",
 	"ufo_miss": "アームが降りて……景品をつかみそこねた。",
 	"ufo_win": "景品をつかんだ。取り出し口に落ちた。持ち帰れはしないらしい。",
 	"ufo_empty": "景品は、もうない。",
@@ -140,6 +154,13 @@ const PROMPTS := {
 	"shower_off": "左クリック：シャワーを止める",
 	"curtain_open": "左クリック：カーテンを開ける",
 	"kotatsu_enter": "左クリック：こたつに入る",
+	"cellar_open": "左クリック：床下の蓋を開ける",
+	"cellar_close": "左クリック：床下の蓋を閉める",
+	"cellar_examine": "左クリック：床下を調べる",
+	"tv_play": "左クリック：テレビゲームで遊ぶ",
+	"cards_draw": "左クリック：トランプを一枚めくる",
+	"dice_roll": "左クリック：サイコロを振る",
+	"tv_remote": "左クリック：テレビの電源",
 	"front_door_open": "左クリック：玄関のドアを開ける",
 	"bath_door_open": "左クリック：トイレのドアを開ける",
 	"fusuma_right": "左クリック：襖を右へ寄せる（ふとんを見る）",
@@ -179,7 +200,7 @@ const ACTION_PROMPTS := {
 const TUB_TARGETS := ["bathtub", "bath_plug", "bath_faucet", "tub_note"]   # 入浴剤を使える照準先（浴槽のどこか）
 
 ## 調べたときに鳴らす効果音（fixture のない対象）
-const INTERACT_SFX := {"guitar": "strum", "phone_black": "ring", "fridge": "thunk", "kitchen_stove": "click", "phone_mobile": "click", "kitchen_sink": "click"}
+const INTERACT_SFX := {"guitar": "strum", "phone_black": "ring", "fridge": "thunk", "kitchen_stove": "click", "phone_mobile": "click", "kitchen_sink": "click", "cards": "page", "card_box": "click", "dice": "click", "cup": "click", "tissue": "rustle", "magazines": "page", "teddy": "rustle", "tv_remote": "beep", "rug": "rustle"}
 const CLEAR_TITLES := {"legit": "正規ルートで脱出", "shortcut": "裏技ルートで脱出"}
 # 換気経路：入口で浴槽へ戻れる範囲（換気口の真上からの水平距離）、出口からベランダへ降りる経由点と着地候補
 const DUCT_BACK_RANGE := 0.75
@@ -221,6 +242,8 @@ var paused := false
 var play_time := 0.0               # 一時停止中を除くプレイ時間（秒）。空模様に使う
 var kotatsu_seat := 0              # 座っている（入っている）こたつの座布団（KotatsuScript.SEATS の番号）
 var reading := false               # 本を読む画面が開いている
+var gaming := false                # テレビゲームで遊んでいる
+var _rng := RandomNumberGenerator.new()
 var _reader_pages: Array = []
 var _reader_page := 0
 var _reader_title := ""
@@ -275,6 +298,15 @@ func _process(_delta: float) -> void:
 	if not paused and not cleared:
 		play_time += _delta
 		room.sky_clock.set_time(play_time)
+	if gaming:
+		hud.set_prompt("")
+		var dir := 0.0
+		if Input.is_action_pressed("move_forward"):
+			dir -= 1.0
+		if Input.is_action_pressed("move_back"):
+			dir += 1.0
+		room.apartment.tv_game.player_dir = dir
+		return
 	if paused or cleared or reading:
 		hud.set_prompt("")
 		return
@@ -293,6 +325,12 @@ func _process(_delta: float) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if gaming:
+		# ゲーム中：E か Esc でやめる。ほかの操作は受け付けない
+		if event.is_action_pressed("pause") or event.is_action_pressed("action"):
+			get_viewport().set_input_as_handled()
+			_stop_game()
+		return
 	if reading:
 		# 本を読んでいる間：左クリックで次のページ（最後は閉じる）、Esc で閉じる。ほかの操作は受け付けない
 		if Engine.get_process_frames() == _reader_opened_frame:
@@ -345,6 +383,34 @@ func _unhandled_input(event: InputEvent) -> void:
 			_resume()
 		else:
 			_pause()
+
+
+# ---------------------------------------------------------------- テレビゲーム
+
+func _start_game() -> void:
+	if gaming or reading or paused or cleared:
+		return
+	if player.pose != PlayerScript.Pose.WALK and player.pose != PlayerScript.Pose.CROUCH:
+		return
+	var apt = room.apartment
+	if not apt.tv_on:
+		apt.set_tv_on(true)
+	gaming = true
+	player.controls_enabled = false
+	player.look_at_point(apt.tv_screen_position())
+	apt.tv_game.start()
+	SfxScript.play("beep")
+	hud.show_message(MESSAGES["tv_start"], 4.0)
+
+
+func _stop_game() -> void:
+	if not gaming:
+		return
+	gaming = false
+	player.controls_enabled = true
+	room.apartment.tv_game.stop()
+	room.apartment.tv_game.player_dir = 0.0
+	hud.show_message(MESSAGES["tv_stop"])
 
 
 # ---------------------------------------------------------------- 本を読む
@@ -481,6 +547,14 @@ func _prompt_for(target: Object) -> String:
 			return PROMPT_EXAMINE
 		"kotatsu":
 			return PROMPTS["kotatsu_enter"] if player.pose == PlayerScript.Pose.KOTATSU_SEAT else PROMPT_EXAMINE
+		"tv_play":
+			return PROMPTS["tv_play"]
+		"cards":
+			return PROMPTS["cards_draw"]
+		"dice":
+			return PROMPTS["dice_roll"]
+		"tv_remote":
+			return PROMPTS["tv_remote"]
 		_:
 			return PROMPT_EXAMINE
 
@@ -503,8 +577,18 @@ func _on_interact_requested(target: Object) -> void:
 		"toilet_cleaner", "plunger", "toilet_brush", "vent_sticker", "bath_bucket", "shampoo", "rinse", "razor", \
 		"face_wash", "toner", "cotton_swabs", "tub_note", "towel_scratch", "shelf_note", "tank_note", \
 		"kitchen_sink", "kitchen_stove", "fridge", "guitar", "taxidermy", "phone_black", "phone_mobile", \
-		"life_paper_02", "life_paper_07":
+		"life_paper_02", "life_paper_07", "rug", "card_box", "cup", "tissue", "magazines", "teddy":
 			hud.show_message(MESSAGES[id])
+		"cards":
+			var card := SmallPropsScript.draw_card(_rng)
+			hud.show_message("トランプを一枚めくった。……%s。" % card)
+		"dice":
+			hud.show_message("サイコロを振った。%d と %d。" % [_rng.randi_range(1, 6), _rng.randi_range(1, 6)])
+		"tv_remote":
+			room.apartment.set_tv_on(not room.apartment.tv_on)
+			hud.show_message(MESSAGES["tv_on"] if room.apartment.tv_on else MESSAGES["tv_off"])
+		"tv_play":
+			_start_game()
 		"driver":
 			if has_driver:
 				return

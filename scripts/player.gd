@@ -112,6 +112,14 @@ func _unhandled_input(event: InputEvent) -> void:
 				crouch_blocked.emit()
 
 
+## 世界の点 p のほうへ視点を向ける（ゲームを始めるときなど）。
+func look_at_point(p: Vector3) -> void:
+	var d := p - camera.global_position
+	rotation.y = atan2(-d.x, -d.z)
+	_pitch = clampf(atan2(d.y, Vector2(d.x, d.z).length()), deg_to_rad(-PITCH_LIMIT_DEG), deg_to_rad(PITCH_LIMIT_DEG))
+	camera.rotation.x = _pitch
+
+
 func _process(delta: float) -> void:
 	# 立つ／しゃがむときの目の高さは滑らかに追従させる（移動演出中は Tween が動かす）
 	if pose == Pose.WALK or pose == Pose.CROUCH:

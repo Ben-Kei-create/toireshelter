@@ -19,6 +19,9 @@ const UfoCatcherScript := preload("res://scripts/ufo_catcher.gd")
 const ClosetScript := preload("res://scripts/closet.gd")
 const KitchenScript := preload("res://scripts/kitchen.gd")
 const OdditiesScript := preload("res://scripts/oddities.gd")
+const CellarScript := preload("res://scripts/cellar.gd")
+const SmallPropsScript := preload("res://scripts/small_props.gd")
+const MiniGameScript := preload("res://scripts/mini_game.gd")
 
 # 素材（docs/assets.md の ASSETS-30）
 const TEX_GRANITE := preload("res://assets/textures/surfaces/surface_01.png")
@@ -53,6 +56,11 @@ var window_open := false
 var window_busy := false
 var window_panel: Node3D   # 外側のレールの引き違い窓（開けると右へ）
 var curtain: Node3D        # 窓の内側の遮光カーテン。閉じているとベランダから部屋は見えない。窓とは別に、部屋の中からクリックで開け閉めする
+var cellar: Node3D         # 床下の貯蔵庫の蓋（cellar.gd）
+var small_props: Node3D    # じゅうたん・トランプ・サイコロなどの小物（small_props.gd）
+var tv_game: Node2D        # テレビで遊べる小さなゲーム（mini_game.gd。SubViewport の中）
+var tv_on := true          # テレビの電源（リモコンで切り替え）
+var _tv_mat: StandardMaterial3D
 var _rng := RandomNumberGenerator.new()
 var _body: StaticBody3D
 
@@ -85,6 +93,7 @@ func _ready() -> void:
 	_build_life_papers()
 	_build_ufo_catcher()
 	_build_living()
+	_build_extras()
 	_build_hall_slippers()
 	_build_lights()
 
@@ -224,7 +233,19 @@ func _build_room_shell() -> void:
 	var h := ROOM.end.y
 	var cx := (x0 + x1) * 0.5
 	var cz := (z0 + z1) * 0.5
-	_solid(Vector3(x1 - x0 + WALL_T * 2.0, WALL_T, z1 - z0 + WALL_T * 2.0), Vector3(cx, -WALL_T * 0.5, cz), floor_m, "RoomFloor")
+	# 床：床下の貯蔵庫の穴（cellar.gd の HOLE）を残して4枚に切り分ける
+	var hx0 := CellarScript.HOLE_X.x
+	var hx1 := CellarScript.HOLE_X.y
+	var hz0 := CellarScript.HOLE_Z.x
+	var hz1 := CellarScript.HOLE_Z.y
+	var fx0 := x0 - WALL_T
+	var fx1 := x1 + WALL_T
+	var fz0 := z0 - WALL_T
+	var fz1 := z1 + WALL_T
+	_solid(Vector3(hx0 - fx0, WALL_T, fz1 - fz0), Vector3((fx0 + hx0) * 0.5, -WALL_T * 0.5, cz), floor_m, "RoomFloor")
+	_solid(Vector3(fx1 - hx1, WALL_T, fz1 - fz0), Vector3((hx1 + fx1) * 0.5, -WALL_T * 0.5, cz), floor_m, "RoomFloorEast")
+	_solid(Vector3(hx1 - hx0, WALL_T, hz0 - fz0), Vector3((hx0 + hx1) * 0.5, -WALL_T * 0.5, (fz0 + hz0) * 0.5), floor_m, "RoomFloorNorth")
+	_solid(Vector3(hx1 - hx0, WALL_T, fz1 - hz1), Vector3((hx0 + hx1) * 0.5, -WALL_T * 0.5, (hz1 + fz1) * 0.5), floor_m, "RoomFloorSouth")
 	_solid(Vector3(x1 - x0 + WALL_T * 2.0, WALL_T, z1 - z0 + WALL_T * 2.0), Vector3(cx, h + WALL_T * 0.5, cz), ceil_m, "RoomCeiling")
 	_solid(Vector3(WALL_T, h, z1 - z0), Vector3(x1 + WALL_T * 0.5, h * 0.5, cz), wall)              # 右
 	_solid(Vector3(x1 - x0 + WALL_T * 2.0, h, WALL_T), Vector3(cx, h * 0.5, z1 + WALL_T * 0.5), wall)   # 手前
@@ -1190,12 +1211,23 @@ func _build_tv_corner() -> void:
 	var q := QuadMesh.new()
 	q.size = Vector2(sw, sh)
 	var sm := StandardMaterial3D.new()
-	var tex := _tv_picture()
+	# 画面の絵は SubViewport の中で動く小さなゲーム（デモ → 遊べる）。電源を切ると消える
+	var vp := SubViewport.new()
+	vp.name = "TvViewport"
+	vp.size = Vector2i(320, 180)
+	vp.disable_3d = true
+	vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	add_child(vp)
+	tv_game = MiniGameScript.new()
+	tv_game.name = "MiniGame"
+	vp.add_child(tv_game)
+	var tex: Texture2D = vp.get_texture()
 	sm.albedo_texture = tex
 	sm.emission_enabled = true
 	sm.emission_texture = tex
-	sm.emission_energy_multiplier = 0.55
+	sm.emission_energy_multiplier = 0.7
 	sm.roughness = 0.25
+	_tv_mat = sm
 	var screen := MeshInstance3D.new()
 	screen.name = "Screen"
 	screen.mesh = q
@@ -1212,9 +1244,43 @@ func _build_tv_corner() -> void:
 	MeshKit.box(pad, Vector3(0.15, 0.03, 0.09), Vector3(0, 0.015, 0), white, "Body")
 	MeshKit.box(pad, Vector3(0.04, 0.032, 0.1), Vector3(-0.05, 0.016, 0.0), black, "GripL")
 	MeshKit.box(pad, Vector3(0.04, 0.032, 0.1), Vector3(0.05, 0.016, 0.0), black, "GripR")
+	# 調べる判定：テレビ・ゲーム機・コントローラ（どれもゲームを始める。id tv_play）
+	var ta := MeshKit.interact_area(tv, "TvArea", "tv_play")
+	MeshKit.shape_box(ta, Vector3(sw + 0.03, sh + 0.03, 0.06), Vector3(0, 0.06 + (sh + 0.03) * 0.5, 0.02))
+	ta.set_meta("interact_range", 2.4)
+	var ca := MeshKit.interact_area(con, "ConsoleArea", "tv_play")
+	MeshKit.shape_box(ca, Vector3(0.36, 0.1, 0.24), Vector3(0, 0.05, 0))
+	var pa := MeshKit.interact_area(pad, "PadArea", "tv_play")
+	MeshKit.shape_box(pa, Vector3(0.16, 0.05, 0.1), Vector3(0, 0.02, 0))
 
 
-## テレビ画面の絵：空のグラデーションと、重なる丘、小さな太陽（ロゴ・文字なし）。160×90。
+## テレビ画面の中心（世界座標）。
+func tv_screen_position() -> Vector3:
+	return $TvCorner/Tv.global_position + Vector3(0.0, 0.06 + 0.2175, 0.0)
+
+
+## 床下の貯蔵庫・じゅうたん・小物（トランプなど）。
+func _build_extras() -> void:
+	cellar = CellarScript.new()
+	cellar.name = "Cellar"
+	add_child(cellar)
+	small_props = SmallPropsScript.new()
+	small_props.name = "SmallProps"
+	add_child(small_props)
+
+
+## テレビの電源。切ると画面が黒くなる。
+func set_tv_on(on: bool) -> void:
+	tv_on = on
+	if _tv_mat == null:
+		return
+	_tv_mat.albedo_color = Color.WHITE if on else Color(0.03, 0.03, 0.035)
+	_tv_mat.emission_enabled = on
+	if tv_game:
+		tv_game.process_mode = Node.PROCESS_MODE_INHERIT if on else Node.PROCESS_MODE_DISABLED
+
+
+## テレビ画面の絵（いまは使わない。SubViewport のゲーム画面に置き換えた）：空のグラデーションと、重なる丘、小さな太陽（ロゴ・文字なし）。160×90。
 func _tv_picture() -> ImageTexture:
 	var w := 160
 	var h := 90
