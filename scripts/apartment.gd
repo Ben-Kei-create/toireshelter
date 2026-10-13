@@ -1322,7 +1322,8 @@ func _build_tv_corner() -> void:
 		var ga := MeshKit.interact_area(g, "CaseArea", "game_case_%d" % i)
 		MeshKit.shape_box(ga, Vector3(0.017, 0.2, 0.14), Vector3(0, 0.1, 0))
 	# ゲームソフトのケース7つ：台の前の床に重ねてある（表紙つき。ユーザー作成・生成 AI 使用。架空のゲーム）
-	var cover_at := [[1.3, 1.9, 12.0], [1.5, 1.86, -8.0], [1.72, 1.91, 5.0], [1.93, 1.86, -14.0], [1.38, 1.66, -6.0], [1.62, 1.64, 9.0], [1.86, 1.66, -3.0]]
+	# 重ならないよう、2列（4つ＋3つ）に並べる。台（前面 z 2.08）の前の床、手前の通路（x 1.1〜）の脇
+	var cover_at := [[1.22, 1.93, 6.0], [1.42, 1.93, -4.0], [1.62, 1.93, 5.0], [1.82, 1.93, -6.0], [1.32, 1.66, -5.0], [1.52, 1.66, 4.0], [1.72, 1.66, -3.0]]
 	var cover_tex := ["game_cover_1", "game_cover_2", "game_cover_3", "game_cover_4", "jacket_kotatsu_mahjong", "jacket_chika_nanadan", "jacket_rusu_record"]
 	for i in 7:
 		var ct := MeshKit.prop_tex(cover_tex[i])
@@ -1332,11 +1333,11 @@ func _build_tv_corner() -> void:
 		cn.position = Vector3(cover_at[i][0], 0.0, cover_at[i][1])
 		cn.rotation.y = deg_to_rad(cover_at[i][2])
 		root.add_child(cn)
-		MeshKit.box(cn, Vector3(cw, 0.012, 0.2), Vector3(0, 0.006 + 0.0125 * i, 0), MeshKit.mat("game_cover_box", Color(0.08, 0.08, 0.1), 0.5), "Case")
-		var cq := MeshKit.image_quad(cn, ct, Vector2(cw, 0.2), Vector3(0, 0.0123 + 0.0125 * i, 0), Vector3.UP, "Cover", false, 0.4)
+		MeshKit.box(cn, Vector3(cw, 0.012, 0.2), Vector3(0, 0.006, 0), MeshKit.mat("game_cover_box", Color(0.08, 0.08, 0.1), 0.5), "Case")
+		var cq := MeshKit.image_quad(cn, ct, Vector2(cw, 0.2), Vector3(0, 0.0123, 0), Vector3.UP, "Cover", false, 0.4)
 		cq.rotation.y = PI   # 絵の上が奥（+z）。北から見て読める向き
 		var ca := MeshKit.interact_area(cn, "CoverArea", "game_cover_%d" % (i + 1))
-		MeshKit.shape_box(ca, Vector3(cw, 0.04, 0.2), Vector3(0, 0.02 + 0.0125 * i, 0))
+		MeshKit.shape_box(ca, Vector3(cw, 0.04, 0.2), Vector3(0, 0.02, 0))
 	# 天板：テレビ（台座つき）と白いコントローラ
 	var tv := Node3D.new()
 	tv.name = "Tv"

@@ -168,6 +168,7 @@ const MESSAGES := {
 	"book_new_6": "『昨日を売る店』。夕焼けの瓶が並ぶ店先に、猫。昨日はいくらだろう。",
 	"book_new_7": "『冷蔵庫の奥にある町』。雪の町の絵。……奥までは、まだ見ていない。",
 	"book_new_8": "『留守のあいだに増えた部屋』。扉だらけの迷路の絵。赤い扉だけが光っている。",
+	"microwave": "電子レンジ。中には何も入っていない。",
 	"game_cover_1": "ソフトのケース。『下北沢、午前二時』。赤い月の下の路地に、女の子がひとり。……架空のゲームだ。",
 	"game_cover_2": "ソフトのケース。『団地の向こう側』。空へ伸びる階段を、女の子が見上げている。……架空のゲームだ。",
 	"game_cover_3": "ソフトのケース。『最後の留守番』。陽だまりの部屋で、ロボットが床を拭いている。……架空のゲームだ。",
@@ -1026,7 +1027,7 @@ func _on_interact_requested(target: Object) -> void:
 		"toilet_cleaner", "plunger", "toilet_brush", "vent_sticker", "bath_bucket", "shampoo", "rinse", "razor", \
 		"face_wash", "toner", "cotton_swabs", "tub_note", "towel_scratch", "shelf_note", "tank_note", \
 		"kitchen_sink", "kitchen_stove", "fridge", "guitar", "taxidermy", "phone_mobile", \
-		"life_paper_02", "life_paper_07", "bed", "game_cover_1", "game_cover_2", "game_cover_3", "game_cover_4", "record_jacket_1", "record_jacket_2", "record_jacket_3", "record_jacket_4", "game_cover_5", "game_cover_6", "game_cover_7", "book_new_1", "book_new_2", "book_new_3", "book_new_4", "book_new_5", "book_new_6", "book_new_7", "book_new_8", "rug", "card_box", "magazines", "teddy", "clothes", "dumbbell", "bottle", "bag", "shoes", "toilet_slippers", "standee":
+		"life_paper_02", "life_paper_07", "bed", "microwave", "game_cover_1", "game_cover_2", "game_cover_3", "game_cover_4", "record_jacket_1", "record_jacket_2", "record_jacket_3", "record_jacket_4", "game_cover_5", "game_cover_6", "game_cover_7", "book_new_1", "book_new_2", "book_new_3", "book_new_4", "book_new_5", "book_new_6", "book_new_7", "book_new_8", "rug", "card_box", "magazines", "teddy", "clothes", "dumbbell", "bottle", "bag", "shoes", "toilet_slippers", "standee":
 			hud.show_message(MESSAGES[id])
 		"phone_black":
 			_phone_dial()

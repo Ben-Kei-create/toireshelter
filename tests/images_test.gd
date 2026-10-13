@@ -83,5 +83,76 @@ func _run() -> void:
 	check(apt.get_node("Gem").get_node_or_null("StickerCard") != null, "石焼き大魔王のシールが台座にある")
 	check(apt.get_node("Bed").get_node_or_null("StickerCard") != null, "留守番天使のシールが寝床の壁にある")
 	check(apt.get_parent().get_node("Exterior/Duct").get_node_or_null("StickerCard") != null, "配管仙人のシールが管の中にある")
+	# --- 床の物：重ならない・浮かない・埋まらない・照準を邪魔しない
+	var items := []   # [名前, 箱の幅, 箱の奥行き, 節点, 箱の厚み]
+	for n in apt.get_node("TvCorner").find_children("GameCover*", "Node3D", false, false):
+		var bx: MeshInstance3D = n.get_node("Case")
+		items.append([n.name, (bx.mesh as BoxMesh).size.x if bx.mesh is BoxMesh else 0.12, 0.2, n, 0.012, bx])
+	for g in 2:
+		for n in apt.get_node("SmallProps").get_node("NewBooks%d" % (g + 1)).get_children():
+			var bx2: MeshInstance3D = n.get_node("Body")
+			var sz := (bx2.mesh as BoxMesh).size if bx2.mesh is BoxMesh else Vector3(0.13, 0.018, 0.17)
+			items.append([n.name, sz.x, sz.z, n, sz.y, bx2])
+	for n in apt.record_player.find_children("Jacket*", "Node3D", false, false):
+		var bx3: MeshInstance3D = n.get_node("Sleeve")
+		var sz3 := (bx3.mesh as BoxMesh).size if bx3.mesh is BoxMesh else Vector3(0.19, 0.004, 0.19)
+		items.append([n.name, sz3.x, sz3.z, n, sz3.y, bx3])
+	check(items.size() == 19, "床の物は 19（ケース7・本8・ジャケット4）")
+	var polys := []
+	for it in items:
+		var nd: Node3D = it[3]
+		var box: MeshInstance3D = it[5]
+		var hw: float = it[1] * 0.5
+		var hd: float = it[2] * 0.5
+		var pts := PackedVector2Array()
+		for c in [Vector3(-hw, 0, -hd), Vector3(hw, 0, -hd), Vector3(hw, 0, hd), Vector3(-hw, 0, hd)]:
+			var wp: Vector3 = box.global_transform * c
+			pts.append(Vector2(wp.x, wp.z))
+		polys.append(pts)
+	var overlaps := []
+	for i in polys.size():
+		for j in range(i + 1, polys.size()):
+			if not Geometry2D.intersect_polygons(polys[i], polys[j]).is_empty():
+				overlaps.append("%s×%s" % [items[i][0], items[j][0]])
+	check(overlaps.is_empty(), "床の物どうしが重ならない %s" % str(overlaps))
+	var floats := []
+	for it in items:
+		var box2: MeshInstance3D = it[5]
+		var bottom: float = box2.global_position.y - float(it[4]) * 0.5
+		if bottom < -0.002 or bottom > 0.0145:
+			floats.append("%s(%.3f)" % [it[0], bottom])
+	check(floats.is_empty(), "床の物が浮いたり埋まったりしていない（底が床 0 かじゅうたん 0.0125 の上）%s" % str(floats))
+	var space3: PhysicsDirectSpaceState3D = main.player.get_world_3d().direct_space_state
+	var buried := []
+	for it in items:
+		var box3: MeshInstance3D = it[5]
+		var shape := BoxShape3D.new()
+		shape.size = Vector3(float(it[1]) - 0.01, 0.02, float(it[2]) - 0.01)
+		var qp := PhysicsShapeQueryParameters3D.new()
+		qp.shape = shape
+		qp.transform = Transform3D(box3.global_transform.basis, Vector3(box3.global_position.x, 0.04, box3.global_position.z))
+		qp.collision_mask = 1 | 16
+		if not space3.intersect_shape(qp, 1).is_empty():
+			buried.append(it[0])
+	check(buried.is_empty(), "床の物が家具や壁に重なっていない %s" % str(buried))
+	var blocked := []
+	for it in items:
+		var box4: MeshInstance3D = it[5]
+		var top := Vector3(box4.global_position.x, 1.5, box4.global_position.z)
+		var q := PhysicsRayQueryParameters3D.create(top, Vector3(top.x, 0.0, top.z), main.player.ray.collision_mask)
+		q.collide_with_areas = true
+		var h: Dictionary = space3.intersect_ray(q)
+		var hid := String(h.collider.get_meta("interact_id", "")) if h.has("collider") else ""
+		if not (hid.begins_with("game_cover_") or hid.begins_with("book_new_") or hid.begins_with("record_jacket_")):
+			blocked.append("%s→%s" % [it[0], hid])
+	check(blocked.is_empty(), "真上から狙うと、それぞれの物を調べられる（他の判定にさえぎられない）%s" % str(blocked))
+	# --- 電子レンジ：吊り戸棚の上、調べるだけ、台所の他の設備に触れない
+	var mw: Node3D = apt.kitchen.get_node("Microwave")
+	check(mw != null and mw.get_node("MicrowaveArea").get_meta("interact_id") == "microwave" and main.MESSAGES["microwave"] == "電子レンジ。中には何も入っていない。", "電子レンジがあり、調べると「中には何も入っていない」")
+	check(mw.global_position.y - 0.13 >= 2.0 and mw.global_position.y + 0.13 <= 2.4, "電子レンジは吊り戸棚の上で、天井に収まる")
+	check(mw.find_children("*", "CollisionObject3D", true, false).filter(func(c): return c is StaticBody3D).is_empty(), "電子レンジに体の当たり判定はない（設備の操作を妨げない）")
+	# 4 本の既存の台所の判定（流し・コンロ・冷蔵庫・扉）がそのまま
+	var ids: Array = apt.kitchen.find_children("*", "Area3D", true, false).map(func(a): return String(a.get_meta("interact_id", "")))
+	check(ids.has("fridge_upper") and ids.has("fridge_lower") and ids.has("fridge_inside") and ids.has("microwave"), "冷蔵庫の扉・中と電子レンジの判定がそろっている")
 	print("failures: %d" % failures)
 	quit(1 if failures > 0 else 0)

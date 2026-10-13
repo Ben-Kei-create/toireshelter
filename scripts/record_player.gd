@@ -11,6 +11,7 @@ signal disc_set
 
 const CENTER := Vector3(1.52, 0.0, 0.62)
 const WALL_LOCAL_Z := -0.234         # 低い棚の前面（ローカル z）。x=1.286
+const JACKET_Y := 0.0125               # じゅうたんの上面（パッド 1.2cm）
 const MIX := 16000
 const BPM := 120.0
 const BARS := 8
@@ -128,19 +129,25 @@ func _build_display() -> void:
 	disc.rotation.x = PI * 0.5
 	disc.position = Vector3(0, 0, 0.017)
 	_display.add_child(disc)
-	# 横に立て掛けた、レコードのジャケット4枚（ジャズのジャケット。ユーザー作成・生成 AI 使用。調べると中身は空）
-	var jk := [["lp_1", -0.34, 4.0], ["lp_2", -0.49, -5.0], ["lp_3", -0.64, 6.0], ["lp_4", -0.79, -3.0]]
+	# レコードのジャケット4枚（ジャズのジャケット。ユーザー作成・生成 AI 使用。調べると中身は空）
+	# ジャケット4枚：プレーヤーの手前（部屋側）のじゅうたんの上に、2×2 で平らに置く（立て掛ける壁の面は、盤の額で埋まる）。
+	# 位置は世界座標（x, z）で書き、台（回転 +90°）のローカルへ直す。表の上が +z（北から見て読める向き）
+	var jk := [["lp_1", 1.84, 0.03, 4.0], ["lp_2", 2.05, 0.03, -3.0], ["lp_3", 1.84, 0.25, -2.0], ["lp_4", 2.05, 0.25, 3.0]]
 	for i in jk.size():
 		var jt := MeshKit.prop_tex(jk[i][0])
-		var jh := 0.28
+		var js := 0.19
+		var jw := js * jt.get_width() / jt.get_height()
 		var jn := Node3D.new()
 		jn.name = "Jacket%d" % (i + 1)
-		jn.position = Vector3(jk[i][1], jh * 0.5 * cos(deg_to_rad(12.0)) + 0.004, WALL_LOCAL_Z + 0.03 + 0.012 * (i % 2))
-		jn.rotation = Vector3(deg_to_rad(-12.0), deg_to_rad(jk[i][2]), 0)
+		var off := Vector3(jk[i][1] - CENTER.x, 0.0, jk[i][2] - CENTER.z)   # 世界での、台の原点からのずれ
+		jn.position = Vector3(-off.z, JACKET_Y, off.x)
+		jn.rotation.y = deg_to_rad(jk[i][3]) - PI * 0.5
 		add_child(jn)
-		MeshKit.image_quad(jn, jt, Vector2(jh * jt.get_width() / jt.get_height(), jh), Vector3.ZERO, Vector3.BACK, "JacketPicture", false, 0.7)
+		MeshKit.box(jn, Vector3(jw, 0.004, js), Vector3(0, 0.002, 0), MeshKit.mat("jacket_edge", Color(0.1, 0.1, 0.12), 0.7), "Sleeve")
+		var jq := MeshKit.image_quad(jn, jt, Vector2(jw, js), Vector3(0, 0.0042, 0), Vector3.UP, "JacketPicture", false, 0.7)
+		jq.rotation.y = PI
 		var ja := MeshKit.interact_area(jn, "JacketArea", "record_jacket_%d" % (i + 1), null)
-		MeshKit.shape_box(ja, Vector3(0.28, 0.28, 0.04), Vector3.ZERO)
+		MeshKit.shape_box(ja, Vector3(jw, 0.04, js), Vector3(0, 0.02, 0))
 	var area := MeshKit.interact_area(self, "RecordDiscArea", "record_disc", null)
 	area.position = _display.position + Vector3(0, 0, 0.03)
 	MeshKit.shape_box(area, Vector3(0.3, 0.3, 0.1), Vector3.ZERO)

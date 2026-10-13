@@ -104,7 +104,55 @@ func _ready() -> void:
 	MeshKit.box(self, Vector3(0.18, 0.5, 0.18), Vector3(X0 + half * 1.5, 1.75, WALL_Z - 0.09), steel, "HoodDuct")
 	_build_stove_extras(stove_x, cz)
 	_build_fridge()
+	_build_microwave()
 	MeshKit.auto_round = true
+
+
+## 電子レンジ：吊り戸棚（流し側）の上。装飾と「調べる」だけ（加熱・扉の開閉はしない）。流し・コンロ・収納・冷蔵庫には触れない。
+## 正面の絵 assets/textures/props/microwave_front.png があればそれを貼る（なければ、扉・窓・操作部を立体で作る）。
+func _build_microwave() -> void:
+	var half := WIDTH * 0.5
+	var w := 0.40
+	var h := 0.26
+	var d := 0.29
+	var cx := X0 + half * 0.5
+	var cy := 1.72 + 0.3 + h * 0.5   # 吊り戸棚（中心 y 1.72、高さ 0.6）の天面の上
+	var cz := WALL_Z - d * 0.5
+	var fz := cz - d * 0.5   # 正面の面
+	var mw := Node3D.new()
+	mw.name = "Microwave"
+	mw.position = Vector3(cx, cy, cz)
+	add_child(mw)
+	var cream := MeshKit.mat("mw_body", Color(0.88, 0.87, 0.82), 0.4)
+	var dark := MeshKit.mat("mw_dark", Color(0.08, 0.09, 0.1), 0.2, 0.2)
+	MeshKit.box(mw, Vector3(w, h, d), Vector3.ZERO, cream, "Body")
+	for sx in [-1.0, 1.0]:
+		MeshKit.box(mw, Vector3(0.03, 0.012, 0.03), Vector3(sx * (w * 0.5 - 0.03), -h * 0.5 - 0.006, 0.0), dark, "Foot")
+	var tex_path := "res://assets/textures/props/microwave_front.png"
+	if ResourceLoader.exists(tex_path):
+		var t: Texture2D = load(tex_path)
+		MeshKit.image_quad(mw, t, Vector2(w, w * t.get_height() / t.get_width()), Vector3(0, 0, -d * 0.5 - 0.001), Vector3.FORWARD, "FrontPicture", false, 0.4)
+	else:
+		var dw := w * 0.68
+		MeshKit.box(mw, Vector3(dw, h - 0.03, 0.012), Vector3(-w * 0.5 + 0.015 + dw * 0.5, 0, -d * 0.5 - 0.004), MeshKit.mat("mw_door", Color(0.8, 0.8, 0.78), 0.4), "Door")
+		var gl := StandardMaterial3D.new()
+		gl.albedo_color = Color(0.1, 0.12, 0.14, 0.9)
+		gl.roughness = 0.1
+		MeshKit.box(mw, Vector3(dw - 0.05, h - 0.075, 0.004), Vector3(-w * 0.5 + 0.015 + dw * 0.5, 0, -d * 0.5 - 0.011), gl, "Window")
+		MeshKit.box(mw, Vector3(0.012, h * 0.6, 0.016), Vector3(-w * 0.5 + 0.015 + dw - 0.015, 0, -d * 0.5 - 0.016), MeshKit.mat("mw_handle", Color(0.7, 0.7, 0.72), 0.3, 0.7), "Handle")
+		var px := w * 0.5 - 0.045
+		var disp := StandardMaterial3D.new()
+		disp.albedo_color = Color(0.05, 0.12, 0.06)
+		disp.emission_enabled = true
+		disp.emission = Color(0.3, 1.0, 0.4)
+		disp.emission_energy_multiplier = 0.25
+		MeshKit.box(mw, Vector3(0.06, 0.03, 0.004), Vector3(px, h * 0.3, -d * 0.5 - 0.002), disp, "Display")
+		for k in 3:
+			MeshKit.box(mw, Vector3(0.05, 0.018, 0.006), Vector3(px, 0.02 - k * 0.032, -d * 0.5 - 0.003), dark, "Button%d" % (k + 1))
+		MeshKit.cylinder(mw, 0.02, 0.012, Vector3(px, -h * 0.5 + 0.045, -d * 0.5 - 0.006), dark, "Knob").rotation.x = PI * 0.5
+	var area := MeshKit.interact_area(mw, "MicrowaveArea", "microwave")
+	MeshKit.shape_box(area, Vector3(w + 0.02, h + 0.02, d + 0.02), Vector3.ZERO)
+	area.set_meta("interact_range", 3.0)
 
 
 ## レンジフードの下の操作部：「弱」「中」「狂」の3つのボタン（文字つき）と、回る羽、ランプ、音。
