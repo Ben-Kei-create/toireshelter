@@ -10,7 +10,7 @@ extends Node
 
 const AudioSettings := preload("res://scripts/audio_settings.gd")
 const MIX := 22050
-const NAMES := ["click", "thunk", "creak", "cloth", "slide", "beep", "rustle", "page", "pop", "step", "chime", "buzz", "clunk", "flush", "strum", "ring"]
+const NAMES := ["click", "thunk", "creak", "cloth", "slide", "beep", "rustle", "page", "pop", "step", "chime", "buzz", "clunk", "flush", "strum", "ring", "tick", "crack", "sizzle", "ignite", "static", "plop"]
 const MASTER_DB := -10.0
 
 static var instance: Node
@@ -19,6 +19,13 @@ var _streams := {}
 var _players: Array[AudioStreamPlayer] = []
 var _next := 0
 var _rng := RandomNumberGenerator.new()
+
+
+## 名前の音の波形（3D の音源に持たせる用）。節点がなければ null。
+static func stream_for(sound: String) -> AudioStream:
+	if instance and is_instance_valid(instance):
+		return instance._streams.get(sound)
+	return null
 
 
 static func play(sound: String, pitch := 1.0, db := 0.0) -> void:
@@ -247,4 +254,69 @@ func _make_flush() -> PackedFloat32Array:
 	for i in s.size():
 		var t := float(i) / MIX
 		s[i] = 1.1 * nz[i] * minf(1.0, t * 8.0) * exp(-pow(t / 1.1, 2.0) * 2.0) * (0.8 + 0.2 * sin(TAU * 6.0 * t))
+	return s
+
+
+func _make_tick() -> PackedFloat32Array:
+	var s := _buf(0.07)
+	var nz := _noise(s.size(), 0.5)
+	for i in s.size():
+		var t := float(i) / MIX
+		s[i] = 0.5 * nz[i] * exp(-t * 220.0) + 0.3 * sin(TAU * 2600.0 * t) * exp(-t * 260.0)
+	return s
+
+
+func _make_crack() -> PackedFloat32Array:
+	var s := _buf(0.22)
+	var nz := _noise(s.size(), 0.7)
+	var wet := _noise(s.size(), 0.1)
+	for i in s.size():
+		var t := float(i) / MIX
+		s[i] = 0.8 * nz[i] * exp(-t * 150.0) + 0.7 * wet[i] * (exp(-pow((t - 0.08) / 0.05, 2.0)))
+	return s
+
+
+func _make_sizzle() -> PackedFloat32Array:
+	var s := _buf(1.4)
+	var nz := _noise(s.size(), 0.85)
+	for i in s.size():
+		var t := float(i) / MIX
+		var crackle := 1.0 if _rng.randf() < 0.012 else 0.0
+		s[i] = (0.35 * nz[i] * (0.5 + 0.5 * sin(PI * t / 1.4)) + 0.5 * crackle * _rng.randf_range(-1.0, 1.0)) * 0.9
+	return s
+
+
+func _make_ignite() -> PackedFloat32Array:
+	var s := _buf(0.7)
+	var nz := _noise(s.size(), 0.2)
+	for i in s.size():
+		var t := float(i) / MIX
+		var tick := 0.0
+		for k in 3:
+			var tk := t - k * 0.11
+			if tk > 0.0:
+				tick += 0.5 * sin(TAU * 2200.0 * tk) * exp(-tk * 300.0)
+		var whoomp := 0.0
+		if t > 0.33:
+			whoomp = 1.1 * nz[i] * minf(1.0, (t - 0.33) * 40.0) * exp(-(t - 0.33) * 7.0)
+		s[i] = tick + whoomp
+	return s
+
+
+func _make_static() -> PackedFloat32Array:
+	var s := _buf(0.4)
+	var nz := _noise(s.size(), 0.9)
+	for i in s.size():
+		var t := float(i) / MIX
+		s[i] = 0.5 * nz[i] * sin(PI * t / 0.4) * (0.7 + 0.3 * sin(TAU * 40.0 * t))
+	return s
+
+
+func _make_plop() -> PackedFloat32Array:
+	var s := _buf(0.15)
+	var ph := 0.0
+	for i in s.size():
+		var t := float(i) / MIX
+		ph += TAU * (900.0 - 500.0 * t / 0.15) / MIX
+		s[i] = 0.4 * sin(ph) * exp(-t * 30.0)
 	return s

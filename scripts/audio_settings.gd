@@ -20,6 +20,23 @@ static func ensure_buses() -> void:
 			var i := AudioServer.bus_count - 1
 			AudioServer.set_bus_name(i, n)
 			AudioServer.set_bus_send(i, "Master")
+			var rv := AudioEffectReverb.new()   # 部屋の響き（場所ごとに wet を変える）
+			rv.room_size = 0.5
+			rv.damping = 0.6
+			rv.wet = 0.06
+			rv.dry = 1.0
+			AudioServer.add_bus_effect(i, rv, 0)
+			AudioServer.add_bus_effect(i, AudioEffectLowPassFilter.new(), 1)   # こたつの中・座っているときなど、こもらせる
+			(AudioServer.get_bus_effect(i, 1) as AudioEffectLowPassFilter).cutoff_hz = 20000.0
+
+
+## 今いる場所の響き：reverb は 0〜1（浴室は大きく、こたつの中は小さく）、cutoff はこもり（Hz。20000 でこもらない）。効果音と環境音の両方に効く。
+static func set_space(reverb: float, cutoff: float) -> void:
+	ensure_buses()
+	for n in ["SFX", "Ambient"]:
+		var i := AudioServer.get_bus_index(n)
+		(AudioServer.get_bus_effect(i, 0) as AudioEffectReverb).wet = reverb
+		(AudioServer.get_bus_effect(i, 1) as AudioEffectLowPassFilter).cutoff_hz = cutoff
 
 
 static func apply() -> void:

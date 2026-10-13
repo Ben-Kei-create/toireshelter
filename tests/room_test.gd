@@ -42,10 +42,10 @@ func _run() -> void:
 	var kit = apt.kitchen
 	var kids := []
 	for c in kit.get_children():
-		if c is StaticBody3D:
+		if c is StaticBody3D and c.has_meta("interact_id"):
 			kids.append(String(c.get_meta("interact_id")))
 	kids.sort()
-	check(kids == ["fridge", "kitchen_sink", "kitchen_stove"], "キッチンに流し台・コンロ・冷蔵庫の調べる対象がある（%s）" % str(kids))
+	check(kids == ["kitchen_sink", "kitchen_stove"], "キッチンに流し台・コンロの調べる対象がある（冷蔵庫は扉と中身の判定）（%s）" % str(kids))
 	# 小物
 	var odd = apt.oddities
 	check(odd.get_node("BlackPhone") != null and odd.get_node("WallItems/Guitar") != null, "黒電話とギターがある")
@@ -70,7 +70,7 @@ func _run() -> void:
 	check(free_east, "東の座布団から立てる位置が空いている")
 	# 通路：出入口から窓の前・東の押入れの前・キッチンの前まで体が通れる
 	var pts := [Vector3(1.0, 0.0, 1.78), Vector3(1.8, 0.0, 1.78), Vector3(1.8, 0.0, 1.0), Vector3(1.8, 0.0, 0.1), Vector3(2.0, 0.0, 0.05), Vector3(2.3, 0.0, 0.03),
-			Vector3(3.3, 0.0, 0.0), Vector3(4.7, 0.0, 0.0), Vector3(4.7, 0.0, 1.0), Vector3(4.4, 0.0, 1.5)]
+			Vector3(3.3, 0.0, 0.0), Vector3(4.7, 0.0, 0.0), Vector3(3.8, 0.0, 0.0), Vector3(3.8, 0.0, 1.25), Vector3(4.4, 0.0, 1.5)]
 	var blocked := []
 	for k in pts.size() - 1:
 		var a: Vector3 = pts[k]

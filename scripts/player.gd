@@ -161,7 +161,7 @@ func _physics_process(delta: float) -> void:
 		var stride := STEP_DISTANCE * (0.6 if pose != Pose.WALK else 1.0)
 		if _step_acc >= stride:
 			_step_acc = 0.0
-			Sfx.play("step", randf_range(0.85, 1.15), -9.0 if pose == Pose.WALK else -15.0)
+			_play_step()
 
 
 ## 立っているときの目の高さを変える（設定の「身長」）。立っていれば、目の高さは滑らかに追従する。
@@ -169,6 +169,29 @@ func set_eye_height(h: float) -> void:
 	eye_height = clampf(h, EYE_HEIGHT_MIN, EYE_HEIGHT_MAX)
 	if pose == Pose.WALK:
 		_eye_target = eye_height
+
+
+## 足元の素材ごとの足音：[音の名前, 高さの倍率, 音量の加減 dB, 重ねる音（なければ空）]。素材は surface_fn（足元 → 素材名）が返す。
+const STEP_SOUNDS := {
+	"wood": ["step", 1.0, 0.0, ""],
+	"tile": ["step", 1.4, 1.0, "tick"],
+	"rug": ["step", 0.7, -5.0, ""],
+	"hollow": ["thunk", 1.3, -14.0, ""],
+	"concrete": ["step", 1.2, 1.5, "tick"],
+	"metal": ["clunk", 1.5, -13.0, ""],
+}
+var surface_fn := Callable()   # 足元の位置 → 素材名（main.gd が設定。なければ wood）
+
+
+func _play_step() -> void:
+	var kind := "wood"
+	if surface_fn.is_valid():
+		kind = String(surface_fn.call(global_position))
+	var def: Array = STEP_SOUNDS.get(kind, STEP_SOUNDS["wood"])
+	var db := (-9.0 if pose == Pose.WALK else -15.0) + float(def[2])
+	Sfx.play(def[0], float(def[1]) * randf_range(0.9, 1.1), db)
+	if def[3] != "":
+		Sfx.play(def[3], randf_range(0.8, 1.0), db - 4.0)
 
 
 ## 自分の足で動ける姿勢（立つ／しゃがむ／換気経路で這う）か。

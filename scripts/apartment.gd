@@ -22,6 +22,9 @@ const OdditiesScript := preload("res://scripts/oddities.gd")
 const CellarScript := preload("res://scripts/cellar.gd")
 const SmallPropsScript := preload("res://scripts/small_props.gd")
 const MiniGameScript := preload("res://scripts/mini_game.gd")
+const AquariumScript := preload("res://scripts/aquarium.gd")
+const RadioScript := preload("res://scripts/radio.gd")
+const WallClockScript := preload("res://scripts/wall_clock.gd")
 
 # 素材（docs/assets.md の ASSETS-30）
 const TEX_GRANITE := preload("res://assets/textures/surfaces/surface_01.png")
@@ -58,6 +61,9 @@ var window_panel: Node3D   # 外側のレールの引き違い窓（開けると
 var curtain: Node3D        # 窓の内側の遮光カーテン。閉じているとベランダから部屋は見えない。窓とは別に、部屋の中からクリックで開け閉めする
 var cellar: Node3D         # 床下の貯蔵庫の蓋（cellar.gd）
 var small_props: Node3D    # じゅうたん・トランプ・サイコロなどの小物（small_props.gd）
+var aquarium: Node3D       # 水槽（aquarium.gd）
+var radio: Node3D          # ラジオ（radio.gd）
+var wall_clock: Node3D     # 壁掛け時計（wall_clock.gd）
 var tv_game: Node2D        # テレビで遊べる小さなゲーム（mini_game.gd。SubViewport の中）
 var tv_on := true          # テレビの電源（リモコンで切り替え）
 var _tv_mat: StandardMaterial3D
@@ -1267,6 +1273,17 @@ func _build_extras() -> void:
 	small_props = SmallPropsScript.new()
 	small_props.name = "SmallProps"
 	add_child(small_props)
+	aquarium = AquariumScript.new()
+	aquarium.name = "Aquarium"
+	add_child(aquarium)
+	radio = RadioScript.new()
+	radio.name = "Radio"
+	add_child(radio)
+	wall_clock = WallClockScript.new()
+	wall_clock.name = "WallClock"
+	wall_clock.position = Vector3(ROOM.end.x - 0.001, 2.0, 1.95)   # 東の壁、冷蔵庫の上。文字盤は部屋の中（-x）へ
+	wall_clock.rotation.y = PI * 0.5
+	add_child(wall_clock)
 
 
 ## テレビの電源。切ると画面が黒くなる。

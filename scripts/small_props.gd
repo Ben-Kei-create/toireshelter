@@ -15,6 +15,9 @@ const RANKS := ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"
 const SUIT_NAMES := {"spade": "スペード", "heart": "ハート", "diamond": "ダイヤ", "club": "クラブ"}
 
 var tv_remote_node: Node3D
+var _steam: Array = []
+var _age := 0.0
+const STEAM_TIME := 150.0
 
 
 func _ready() -> void:
@@ -23,6 +26,18 @@ func _ready() -> void:
 	_build_table_items()
 	_build_floor_items()
 	MeshKit.auto_round = true
+
+
+func _process(delta: float) -> void:
+	_age += delta
+	for i in _steam.size():
+		var p: MeshInstance3D = _steam[i]
+		p.visible = _age < STEAM_TIME
+		if p.visible:
+			var k := fmod(_age * 0.4 + i / 3.0, 1.0)
+			p.position = Vector3(sin(_age + i * 2.0) * 0.008, 0.07 + k * 0.1, cos(_age * 0.8 + i) * 0.008)
+			p.scale = Vector3.ONE * (0.6 + k)
+			(p.material_override as StandardMaterial3D).albedo_color.a = 0.28 * (1.0 - k) * clampf((STEAM_TIME - _age) / 30.0, 0.0, 1.0)
 
 
 ## 小物の調べる判定（箱）。id と、親の中での大きさ・位置。
@@ -169,6 +184,15 @@ func _build_table_items() -> void:
 	MeshKit.cylinder(cup, 0.031, 0.002, Vector3(0, 0.058, 0), MeshKit.mat("cup_tea", Color(0.45, 0.5, 0.2), 0.2), "Tea")
 	MeshKit.cylinder(cup, 0.031, 0.012, Vector3(0, 0.012, 0), MeshKit.mat("cup_foot_band", Color(0.25, 0.4, 0.55), 0.4), "Band", 0.03)
 	_area(cup, "cup", Vector3(0.08, 0.08, 0.08), Vector3(0, 0.04, 0))
+	# 湯気：はじめの 150 秒だけ、ゆらゆら昇って薄れる（そのあとお茶は冷める）
+	var sm := StandardMaterial3D.new()
+	sm.albedo_color = Color(1, 1, 1, 0.25)
+	sm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	sm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	for i in 3:
+		var puff := MeshKit.sphere(cup, 0.014, Vector3(0, 0.07, 0), sm)
+		puff.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		_steam.append(puff)
 	# テレビのリモコン
 	var rem := Node3D.new()
 	rem.name = "TvRemote"
@@ -202,7 +226,7 @@ func _build_floor_items() -> void:
 	# ティッシュ箱：北の壁ぎわ（浴室の壁ぎわの床）
 	var tis := Node3D.new()
 	tis.name = "TissueBox"
-	tis.position = Vector3(4.0, 0.0, 0.2)
+	tis.position = Vector3(3.7, 0.0, -0.25)
 	tis.rotation.y = deg_to_rad(15.0)
 	add_child(tis)
 	MeshKit.box(tis, Vector3(0.24, 0.07, 0.12), Vector3(0, 0.035, 0), MeshKit.mat("tissue_box", Color(0.55, 0.78, 0.88), 0.6), "Box")
@@ -214,7 +238,7 @@ func _build_floor_items() -> void:
 	# 雑誌の山：3冊
 	var mag := Node3D.new()
 	mag.name = "Magazines"
-	mag.position = Vector3(4.5, 0.0, 0.25)
+	mag.position = Vector3(4.97, 0.0, 0.95)
 	mag.rotation.y = deg_to_rad(-8.0)
 	add_child(mag)
 	var mcols := [Color(0.25, 0.45, 0.7), Color(0.85, 0.5, 0.25), Color(0.3, 0.6, 0.45)]

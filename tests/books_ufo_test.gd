@@ -72,8 +72,9 @@ func _run() -> void:
 		var c: Vector3 = area.get_child(0).global_position
 		# 目の位置の候補（棚から 1.1m、横に 0.5〜1.2m ずらす）のどれかで当たればよい（大きな家具の陰になる位置があるため）
 		var id := "なし"
-		for dz in [0.6, -0.6, 1.2, -1.2, 0.9, -0.9]:
-			var eye := Vector3(c.x - 1.1, 1.75, c.z + dz)
+		for cand in [Vector2(1.1, 0.6), Vector2(1.1, -0.6), Vector2(1.1, 1.2), Vector2(1.1, -1.2), Vector2(1.1, 0.9), Vector2(1.1, -0.9), Vector2(1.1, 0.25), Vector2(1.1, 0.4),
+				Vector2(0.6, 1.2), Vector2(0.6, 0.8), Vector2(0.4, 1.0)]:   # 水槽（棚の手前）の脇からも狙える
+			var eye := Vector3(c.x - cand.x, 1.75, c.z + cand.y)
 			var q := PhysicsRayQueryParameters3D.create(eye, eye + (c - eye).normalized() * 2.4, mask)
 			q.collide_with_areas = true
 			var hit: Dictionary = space.intersect_ray(q)
@@ -88,7 +89,7 @@ func _run() -> void:
 	# 背表紙の段：本の無い所を狙うと shelf_books
 	var lv: Node3D = areas.get_node("Level2")
 	var lc: Vector3 = lv.get_child(0).global_position
-	var eye2 := Vector3(lc.x - 1.1, 1.75, lc.z + 0.7)
+	var eye2 := Vector3(lc.x - 0.6, 1.75, lc.z + 1.2)
 	var q2 := PhysicsRayQueryParameters3D.create(eye2, eye2 + (Vector3(lc.x, lc.y, lc.z) - eye2).normalized() * 2.4, mask)
 	q2.collide_with_areas = true
 	var h2: Dictionary = space.intersect_ray(q2)

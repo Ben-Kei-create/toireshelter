@@ -104,6 +104,29 @@ const MESSAGES := {
 	"tissue": "ティッシュ箱。一枚つまみ出されたままになっている。",
 	"magazines": "雑誌の山。ぜんぶ、読みかけの付箋が挟まっている。",
 	"teddy": "くまのぬいぐるみが、枕のそばに座っている。こちらをじっと見ている。",
+	"aquarium": "水槽。",
+	"aquarium_fed": "えさをまくと、メダカがいっせいに水面へ寄ってきた。アロワナは、ゆっくり上から見下ろしている。",
+	"aquarium_full": "さっきあげたばかりだ。食べすぎはよくない。",
+	"fridge_upper_opened": "冷凍室を開けた。氷とアイスと冷凍の豆。",
+	"fridge_lower_opened": "冷蔵室を開けた。牛乳、ジャム、卵のパック。",
+	"fridge_closed": "ぱたん、と閉めた。",
+	"fridge_inside": "牛乳、ジャム、タッパー。電池と石も入っている。電池と石は……冷やすものではない。",
+	"egg_taken": "卵をひとつ取った。いま持っている卵：{n}個。残り{left}個。",
+	"egg_hands_full": "もう手に持てない。3つまでだ。",
+	"stove_on": "カチカチ……ボッ。コンロに火がついた。青い炎がフライパンの下で揺れる。",
+	"stove_off": "火を止めた。",
+	"stove_crack": "卵を割ってフライパンに落とした。ジュッ。",
+	"stove_wait": "まだ白身が透けている。もう少し待とう。",
+	"stove_eat_1": "目玉焼きができた。立ったまま食べた。しょうゆがほしい。",
+	"stove_eat_2": "二つ目の目玉焼き。さすがに塩気が欲しくなってきた。",
+	"stove_eat_3": "もう卵を食べすぎだ。そろそろやめよう。",
+	"stove_burnt_clear": "こげた卵を捨てた。フライパンは黒くなっている。",
+	"radio_ch1": "ラジオ。ゆったりしたピアノのコードが流れている。",
+	"radio_ch2": "ラジオ。どこかで聞いたことのあるような、ないような小曲。",
+	"radio_ch3": "ラジオ。ニュースらしい。男の人が何か言っているが、言葉は聞き取れない。",
+	"radio_ch4": "ラジオ。時報だ。ピッ、ピッ、ピッ、ポーン。",
+	"radio_off": "ラジオを消した。",
+	"wall_clock": "壁掛け時計。いまは{time}。針はちゃんと動いている。",
 	"tv_on": "ピッ。テレビがついた。",
 	"tv_off": "ピッ。テレビを消した。",
 	"tv_start": "ゲームを始めた。W／S（↑／↓）でラケットを動かす。E か Esc でやめる。",
@@ -161,6 +184,19 @@ const PROMPTS := {
 	"cards_draw": "左クリック：トランプを一枚めくる",
 	"dice_roll": "左クリック：サイコロを振る",
 	"tv_remote": "左クリック：テレビの電源",
+	"radio_on": "左クリック：ラジオをつける",
+	"radio_next": "左クリック：チャンネルを変える",
+	"aquarium_feed": "左クリック：えさをやる",
+	"fridge_open": "左クリック：冷蔵庫を開ける",
+	"fridge_close": "左クリック：冷蔵庫を閉める",
+	"fridge_look": "左クリック：中を見る",
+	"egg_take": "左クリック：卵を取る",
+	"stove_ignite": "左クリック：コンロに火をつける",
+	"stove_crack_prompt": "左クリック：卵を割って焼く",
+	"stove_off_prompt": "左クリック：火を止める",
+	"stove_wait_prompt": "左クリック：焼き上がりを見る",
+	"stove_eat_prompt": "左クリック：目玉焼きを食べる",
+	"stove_clear_prompt": "左クリック：こげた卵を捨てる",
 	"front_door_open": "左クリック：玄関のドアを開ける",
 	"bath_door_open": "左クリック：トイレのドアを開ける",
 	"fusuma_right": "左クリック：襖を右へ寄せる（ふとんを見る）",
@@ -244,6 +280,8 @@ var paused := false
 var play_time := 0.0               # 一時停止中を除くプレイ時間（秒）。空模様に使う
 var kotatsu_seat := 0              # 座っている（入っている）こたつの座布団（KotatsuScript.SEATS の番号）
 var reading := false               # 本を読む画面が開いている
+const TISSUE_SHEETS := 12
+var tissue_pulled := 0             # ティッシュを引いた回数
 var gaming := false                # テレビゲームで遊んでいる
 var _rng := RandomNumberGenerator.new()
 var _reader_pages: Array = []
@@ -278,6 +316,7 @@ func _ready() -> void:
 	add_child(player)
 	player.global_position = room.spawn_position
 	player.interact_requested.connect(_on_interact_requested)
+	player.surface_fn = _surface_at
 	room.bath_remote.notice.connect(func(key: String) -> void: hud.show_message(MESSAGES[key]))
 	player.crouch_blocked.connect(func() -> void: hud.show_message(MESSAGES["no_headroom"]))
 	var books = room.apartment.books
@@ -573,7 +612,10 @@ func _on_interact_requested(target: Object) -> void:
 		# 便器・浴槽・蛇口など状態を持つ設備は、その設備が操作し、表示する説明のキーを返す
 		var key: String = fixture.interact(id)
 		if not key.is_empty():
-			hud.show_message(MESSAGES[key])
+			var text: String = MESSAGES[key]
+			if fixture.has_method("format_message"):
+				text = fixture.format_message(key, text)
+			hud.show_message(text)
 		return
 	if not fixture and INTERACT_SFX.has(id):
 		SfxScript.play(INTERACT_SFX[id])
@@ -582,8 +624,21 @@ func _on_interact_requested(target: Object) -> void:
 		"toilet_cleaner", "plunger", "toilet_brush", "vent_sticker", "bath_bucket", "shampoo", "rinse", "razor", \
 		"face_wash", "toner", "cotton_swabs", "tub_note", "towel_scratch", "shelf_note", "tank_note", \
 		"kitchen_sink", "kitchen_stove", "fridge", "guitar", "taxidermy", "phone_black", "phone_mobile", \
-		"life_paper_02", "life_paper_07", "rug", "card_box", "cup", "tissue", "magazines", "teddy":
+		"life_paper_02", "life_paper_07", "rug", "card_box", "magazines", "teddy":
 			hud.show_message(MESSAGES[id])
+		"wall_clock":
+			hud.show_message(MESSAGES["wall_clock"].replace("{time}", room.apartment.wall_clock.time_text()))
+		"tissue":
+			tissue_pulled += 1
+			var left := maxi(0, TISSUE_SHEETS - tissue_pulled)
+			hud.show_message("ティッシュを一枚引き出した。残り%d枚。" % left if left > 0 else "ティッシュは空っぽだ。箱を振ってもなにも出ない。")
+		"cup":
+			if play_time < 150.0:
+				hud.show_message("湯のみ。湯気が立っている。まだ熱い。")
+			elif play_time < 600.0:
+				hud.show_message("湯のみ。お茶はぬるくなってきた。")
+			else:
+				hud.show_message("湯のみ。お茶はすっかり冷めている。")
 		"cards":
 			var card := SmallPropsScript.draw_card(_rng)
 			hud.show_message("トランプを一枚めくった。……%s。" % card)
@@ -785,12 +840,50 @@ func _physics_process(_delta: float) -> void:
 			SfxScript.play("rustle")
 			hud.show_message(MESSAGES["kotatsu_exit"])
 	region = _region_of(player.global_position)
+	_update_space()
 	if region.is_empty() or region == _last_region:
 		return
 	# 玄関ドアから廊下へ出た瞬間に、通ってきた経路で判定する（自室・ホールに入っただけではクリアしない）
 	if region == "corridor" and _last_region == "hall":
 		_clear("legit" if route_duct else "shortcut")
 	_last_region = region
+
+
+## 場所ごとの音の響き。浴室は大きく響き、廊下も響く。こたつの中ではこもる。
+const SPACES := {"bath": [0.32, 20000.0], "hall": [0.14, 20000.0], "room": [0.07, 20000.0], "corridor": [0.3, 20000.0],
+		"duct": [0.28, 5000.0], "balcony": [0.02, 20000.0]}
+var _space_key := ""
+
+
+func _update_space() -> void:
+	var key := region
+	if player.pose == PlayerScript.Pose.KOTATSU_IN:
+		key = "kotatsu"
+	if key == _space_key or key.is_empty():
+		return
+	_space_key = key
+	var sp: Array = SPACES.get(key, [0.07, 20000.0]) if key != "kotatsu" else [0.03, 900.0]
+	AudioSettingsScript.set_space(sp[0], sp[1])
+
+
+## 足元の素材（足音用）。
+func _surface_at(p: Vector3) -> String:
+	match _region_of(p) if not _region_of(p).is_empty() else region:
+		"bath":
+			return "tile"
+		"corridor":
+			return "concrete"
+		"duct", "balcony":
+			return "metal"
+		"room":
+			var rug: Vector3 = SmallPropsScript.RUG_CENTER
+			var hs: Vector2 = SmallPropsScript.RUG_SIZE * 0.5
+			if absf(p.x - rug.x) < hs.x and absf(p.z - rug.z) < hs.y:
+				return "rug"
+			var c = room.apartment.cellar
+			if c.is_closed() and p.x > c.HOLE_X.x and p.x < c.HOLE_X.y and p.z > c.HOLE_Z.x and p.z < c.HOLE_Z.y:
+				return "hollow"
+	return "wood"
 
 
 ## 足元の位置の区画。敷居など境目の上では空（直前の区画を保つ）。
