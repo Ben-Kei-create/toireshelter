@@ -130,12 +130,26 @@ func _run() -> void:
 	ev.pressed = true
 	main._unhandled_input(ev)
 	check(not main.peeping and not main.hud.is_peephole_open() and main.player.controls_enabled, "Esc で閉じる")
-	# 人影の有無で絵が変わる
+	# 人影は 24 時台だけ（トイレなどでも、24 時台以外には人影のメッセージは出ない）
 	ic.visitor_present = false
+	ic.hour_override = 14
+	check(not ic.figure_visible(), "午後 2 時台は、のぞき穴に人影は見えない")
 	var empty_img: Image = ic.peephole_texture().get_image()
-	ic.visitor_present = true
+	main._open_peephole()
+	check(main.hud._message_label.text.contains("誰もいない") and not main.hud._message_label.text.contains("人影"), "24 時台以外にのぞくと「誰もいない」（人影のメッセージは出ない）")
+	main._close_peephole()
+	ic.hour_override = 0
+	check(ic.figure_visible(), "24 時台は、鳴っていなくても人影が見える")
 	var vis_img: Image = ic.peephole_texture().get_image()
 	check(empty_img.get_pixel(80, 90).v > vis_img.get_pixel(80, 90).v + 0.1, "人影がいると、中央が暗く映る")
+	main._open_peephole()
+	check(main.hud._message_label.text.contains("人影"), "24 時台にのぞくと人影のメッセージ")
+	main._close_peephole()
+	ic.hour_override = 23
+	check(not ic.figure_visible(), "23 時台は見えない")
+	ic.visitor_present = true
+	check(ic.figure_visible(), "鳴った直後の 25 秒は、時刻に関係なく見える")
+	ic.hour_override = -1
 	ic.rang = true
 	main._on_interact_requested(door.mail_area)
 	check(main.hud._message_label.text.contains("封筒"), "鳴ったあとの受け箱には封筒がある")

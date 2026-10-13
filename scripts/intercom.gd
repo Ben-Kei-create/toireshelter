@@ -1,7 +1,7 @@
 extends Node3D
 ## インターホン（玄関ホールの奥の壁、出口のすぐそば）と、のぞき穴の外の景色。
 ## システム日時が 24 時（0:00:00）になると鳴る：ピンポーン → 家の明かりが 1 秒ほど点滅して元に戻る → モニターに玄関の外の人影が映る（25 秒）。
-## 鳴ったあと、扉の受け箱に封筒が一通入っている。のぞき穴からも同じ人影が見える（ぼんやり）。
+## 鳴ったあと、扉の受け箱に封筒が一通入っている。のぞき穴の人影は 24 時台（0:00〜0:59）のあいだ見える（ぼんやり）。それ以外の時刻には、誰もいない廊下が見えるだけ。
 ## 時刻の確認は毎フレーム、同じ日に 2 回は鳴らさない。テストからは ring() を直接呼ぶ。
 ## モニターの絵・のぞき穴の絵はコードで描く（廊下を一点透視で描き、樽型にゆがめて、ぼかす）。外部の画像なし。
 ## 判定：モニター（id intercom。fixture として get_prompt／interact）。のぞき穴・受け箱は front_door.gd が持つ。
@@ -16,6 +16,7 @@ const VISITOR_TIME := 25.0
 const FLICKER := [0.0, 0.18, 1.0, 0.1, 0.0, 0.25, 1.0, 0.12, 0.0, 0.2, 1.0, 0.0]   # 暗・明を交互に（秒）。最後は元の明るさ
 
 var rang := false
+var hour_override := -1      # テスト用：0〜23 を入れると、システム時刻の「時」の代わりに使う
 var visitor_present := false
 var lights_root: Node
 var front_door: Node
@@ -155,9 +156,15 @@ func interact(_id: String) -> String:
 	return "intercom_visitor" if visitor_present else ("intercom_after" if rang else "intercom_idle")
 
 
-## のぞき穴の絵（いまの人影の有無を反映）。丸く切り抜いた、ぼんやりした景色。
+## のぞき穴から人影が見えるか：24 時台（0:00〜0:59）か、インターホンが鳴って 25 秒以内。それ以外の時刻は、誰もいない廊下。
+func figure_visible() -> bool:
+	var hour: int = hour_override if hour_override >= 0 else int(Time.get_datetime_dict_from_system().hour)
+	return hour == 0 or visitor_present
+
+
+## のぞき穴の絵（人影の有無を反映）。丸く切り抜いた、ぼんやりした景色。
 func peephole_texture() -> ImageTexture:
-	return ImageTexture.create_from_image(corridor_image(160, visitor_present, Color(1.0, 0.95, 0.8), false))
+	return ImageTexture.create_from_image(corridor_image(160, figure_visible(), Color(1.0, 0.95, 0.8), false))
 
 
 # ---------------------------------------------------------------- 絵（コードで描く）

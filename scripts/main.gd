@@ -492,7 +492,7 @@ func _open_peephole() -> void:
 	player.controls_enabled = false
 	hud.show_peephole(room.apartment.intercom.peephole_texture())
 	var ic = room.apartment.intercom
-	if ic.visitor_present:
+	if ic.figure_visible():
 		hud.show_message("のぞき穴の向こうに、人影が立っている。……動かない。", 4.0)
 	else:
 		hud.show_message("のぞき穴から、ぼんやりと廊下が見える。誰もいない。", 3.0)

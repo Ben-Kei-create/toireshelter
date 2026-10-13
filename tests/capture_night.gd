@@ -47,6 +47,7 @@ func _run() -> void:
 	main._open_peephole()
 	await _shot("peephole")
 	main._close_peephole()
+	main.hud._message_panel.visible = false   # のぞいたときのメッセージが、次の絵に残らないように
 	var t = main.room.toilet
 	t.toggle_tank()
 	await create_timer(1.8).timeout
