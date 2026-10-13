@@ -24,10 +24,12 @@ const SmallPropsScript := preload("res://scripts/small_props.gd")
 const MiniGameScript := preload("res://scripts/mini_game.gd")
 const AquariumScript := preload("res://scripts/aquarium.gd")
 const RadioScript := preload("res://scripts/radio.gd")
+const RecordPlayerScript := preload("res://scripts/record_player.gd")
 const WallClockScript := preload("res://scripts/wall_clock.gd")
 const IntercomScript := preload("res://scripts/intercom.gd")
 const CalendarScript := preload("res://scripts/calendar.gd")
 const CharacterScript := preload("res://scripts/character.gd")
+const BasementScript := preload("res://scripts/basement.gd")
 
 # 素材（docs/assets.md の ASSETS-30）
 const TEX_GRANITE := preload("res://assets/textures/surfaces/surface_01.png")
@@ -68,9 +70,11 @@ var cellar: Node3D         # 床下の貯蔵庫の蓋（cellar.gd）
 var small_props: Node3D    # じゅうたん・トランプ・サイコロなどの小物（small_props.gd）
 var aquarium: Node3D       # 水槽（aquarium.gd）
 var radio: Node3D          # ラジオ（radio.gd）
+var record_player: Node3D  # レコードプレーヤーと壁のレコード盤（record_player.gd）
 var wall_clock: Node3D     # 壁掛け時計（wall_clock.gd）
 var figures: Array = []      # 棚のフィギュア（コルク銃の的）{node, out, down}
 var figures_down := 0
+var basement: Node3D       # 地下室（basement.gd。階段が現れるまで見えない）
 var standee: Node3D        # 主人公の等身大パネル（character.gd）
 var calendar: Node3D       # 壁掛けカレンダー（calendar.gd）
 var intercom: Node3D       # インターホン（intercom.gd。玄関ホールの奥の壁）
@@ -1422,6 +1426,13 @@ func _build_extras() -> void:
 	radio = RadioScript.new()
 	radio.name = "Radio"
 	add_child(radio)
+	record_player = RecordPlayerScript.new()
+	record_player.name = "RecordPlayer"
+	add_child(record_player)
+	basement = BasementScript.new()
+	basement.name = "Basement"
+	add_child(basement)
+	cellar.stairs_revealed.connect(basement.reveal)
 	standee = CharacterScript.build_standee(1.7)
 	standee.position = Vector3(3.8, 0.0, 2.08)   # 寝床と台所のあいだの隅。表は部屋の中（-x）へ
 	standee.rotation.y = -PI * 0.5

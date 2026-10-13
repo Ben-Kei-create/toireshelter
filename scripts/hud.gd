@@ -43,9 +43,16 @@ var _message_time_left := 0.0
 var _height_slider: HSlider
 var _height_value: Label
 var _catch_label: Label
+var _carry_label: Label
 var _bob_check: CheckButton
 var _peep: Control
 var _peep_tex: TextureRect
+var _mj: Control
+var _mj_tiles: Array = []   # [PanelContainer, 上のLabel, 下のLabel]
+var _mj_info: Label
+var _mj_river: Label
+var _mj_status: Label
+var _mj_help: Label
 var audio_controls := {}   # key → HSlider／CheckButton（設定画面の音の欄）
 
 
@@ -82,6 +89,14 @@ func _ready() -> void:
 	_message_panel.grow_vertical = Control.GROW_DIRECTION_BEGIN
 	_message_panel.visible = false
 
+	_carry_label = _make_label(20, HORIZONTAL_ALIGNMENT_CENTER)
+	_carry_label.name = "CarryLabel"
+	_carry_label.add_theme_color_override("font_color", Color(1.0, 0.92, 0.6))
+	_carry_label.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.9))
+	_carry_label.add_theme_constant_override("shadow_offset_x", 1)
+	_carry_label.add_theme_constant_override("shadow_offset_y", 1)
+	_place(_carry_label, 0.0, 1.0, 1.0, 1.0, 20.0, -140.0, -20.0, -112.0)   # 下端の説明文の少し上
+	_carry_label.visible = false
 	_build_inventory_bar()
 	_build_zoom()
 	_build_reader()
@@ -97,6 +112,7 @@ func _ready() -> void:
 	_place(_hint_label, 0.0, 0.0, 1.0, 0.0, 20.0, 12.0, -20.0, 38.0)   # 上端（所持品欄と重ならないよう、下から移した）
 
 	_build_peephole()
+	_build_mahjong()
 	_pause_menu = _make_menu("PauseMenu", "設定")
 	_build_settings(_pause_menu)
 	_resume_button = _add_button(_pause_menu, "再開", func() -> void: resume_pressed.emit())
@@ -229,11 +245,11 @@ func _build_inventory_bar() -> void:
 	title.add_theme_constant_override("shadow_offset_x", 1)
 	title.add_theme_constant_override("shadow_offset_y", 1)
 	_inventory_bar.add_child(title)
-	for i in 6:
-		var label := _make_label(17, HORIZONTAL_ALIGNMENT_LEFT)
+	for i in 8:
+		var label := _make_label(15, HORIZONTAL_ALIGNMENT_LEFT)
 		label.name = "Slot%dLabel" % (i + 1)
 		var panel := _make_panel("Slot%d" % (i + 1), label, 0.45)
-		panel.custom_minimum_size = Vector2(90, 46)
+		panel.custom_minimum_size = Vector2(84, 46)
 		var style := (panel.get_theme_stylebox("panel") as StyleBoxFlat).duplicate() as StyleBoxFlat
 		panel.add_theme_stylebox_override("panel", style)
 		_inventory_bar.add_child(panel)
@@ -583,6 +599,12 @@ func _build_peephole() -> void:
 	_peep.visible = false
 
 
+## 運んでいる食べ物の表示（空なら隠す）。
+func set_carry(text: String) -> void:
+	_carry_label.text = text
+	_carry_label.visible = not text.is_empty()
+
+
 ## 設定画面の「釣果」の行。
 func set_catch_text(text: String) -> void:
 	_catch_label.text = text
@@ -614,3 +636,116 @@ func _add_button(menu: Control, text: String, callback: Callable) -> Button:
 	button.pressed.connect(callback)
 	box.add_child(button)
 	return button
+
+
+# ---------------------------------------------------------------- 一人麻雀
+
+func _build_mahjong() -> void:
+	_mj = PanelContainer.new()
+	_mj.name = "Mahjong"
+	_mj.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.05, 0.22, 0.14, 0.88)
+	style.set_corner_radius_all(10)
+	style.content_margin_left = 16.0
+	style.content_margin_right = 16.0
+	style.content_margin_top = 10.0
+	style.content_margin_bottom = 10.0
+	_mj.add_theme_stylebox_override("panel", style)
+	_place(_mj, 0.5, 0.0, 0.5, 0.0, -420.0, 56.0, 420.0, 290.0)
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 6)
+	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_mj.add_child(box)
+	_mj_info = _make_label(16, HORIZONTAL_ALIGNMENT_CENTER)
+	box.add_child(_mj_info)
+	_mj_river = _make_label(14, HORIZONTAL_ALIGNMENT_LEFT)
+	_mj_river.autowrap_mode = TextServer.AUTOWRAP_ARBITRARY
+	_mj_river.custom_minimum_size = Vector2(800, 40)
+	box.add_child(_mj_river)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 3)
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	box.add_child(row)
+	for i in 14:
+		if i == 13:
+			var gap := Control.new()
+			gap.custom_minimum_size = Vector2(14, 0)
+			gap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			row.add_child(gap)
+		var tp := PanelContainer.new()
+		tp.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		tp.custom_minimum_size = Vector2(48, 68)
+		var tbox := VBoxContainer.new()
+		tbox.add_theme_constant_override("separation", -4)
+		tbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		tp.add_child(tbox)
+		var top := _make_label(24, HORIZONTAL_ALIGNMENT_CENTER)
+		var bot := _make_label(20, HORIZONTAL_ALIGNMENT_CENTER)
+		tbox.add_child(top)
+		tbox.add_child(bot)
+		row.add_child(tp)
+		_mj_tiles.append([tp, top, bot])
+	_mj_status = _make_label(17, HORIZONTAL_ALIGNMENT_CENTER)
+	box.add_child(_mj_status)
+	_mj_help = _make_label(13, HORIZONTAL_ALIGNMENT_CENTER)
+	_mj_help.modulate = Color(1, 1, 1, 0.75)
+	box.add_child(_mj_help)
+	_mj.visible = false
+
+
+func is_mahjong_open() -> bool:
+	return _mj.visible
+
+
+func hide_mahjong() -> void:
+	_mj.visible = false
+
+
+## 麻雀の画面を更新して出す。cursor は 0〜13（13 が引いた牌）。
+func show_mahjong(g: RefCounted, cursor: int, help: String) -> void:
+	_mj.visible = true
+	_mj_info.text = "一人麻雀　第%d局　山 残り%d　累計 %d点　和了 %d回" % [g.games, g.MAX_DRAWS - g.draws, g.total_points, g.wins]
+	var river := "河："
+	for t in g.discards:
+		river += g.tile_name(t) + " "
+	_mj_river.text = river
+	var all: Array = g.hand + ([g.drawn] if g.drawn >= 0 else [])
+	for i in 14:
+		var e: Array = _mj_tiles[i]
+		var tp: PanelContainer = e[0]
+		tp.visible = i < all.size()
+		if i >= all.size():
+			continue
+		var parts: Array = g.tile_parts(all[i])
+		(e[1] as Label).text = parts[0]
+		(e[2] as Label).text = parts[1]
+		(e[1] as Label).add_theme_color_override("font_color", parts[2])
+		(e[2] as Label).add_theme_color_override("font_color", parts[2])
+		var st := StyleBoxFlat.new()
+		st.bg_color = Color(1.0, 0.96, 0.8) if i != cursor else Color(1.0, 0.85, 0.35)
+		st.set_corner_radius_all(4)
+		st.border_color = Color(1, 0.4, 0.1)
+		st.set_border_width_all(3 if i == cursor else 0)
+		tp.add_theme_stylebox_override("panel", st)
+		tp.custom_minimum_size.y = 68 if i != cursor else 78
+	match g.state:
+		"playing":
+			var w: Array = []
+			if g.drawn >= 0:
+				# 引いた牌を含む14枚のとき、どれを切ると何待ちか
+				var idx := cursor
+				var t14: Array = g.hand + [g.drawn]
+				var rest := t14.duplicate()
+				rest.remove_at(idx)
+				var probe: RefCounted = g.get_script().new(1)
+				probe.hand = rest
+				w = probe.waits()
+			var wt := "待ち：" + ("　".join(w.map(func(k): return g.tile_name(k))) if w.size() > 0 else "なし")
+			_mj_status.text = "選んだ牌を切ると　" + wt
+		"won":
+			_mj_status.text = "ツモ！　%s　%d点" % ["・".join(g.yaku), g.points]
+		"exhausted":
+			_mj_status.text = "流局。山がなくなった。"
+	_mj_help.text = help

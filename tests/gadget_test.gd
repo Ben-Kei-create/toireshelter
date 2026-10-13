@@ -108,7 +108,7 @@ func _run() -> void:
 	var gun_area: Area3D = k.gun_area
 	check(gun_area.get_meta("interact_id") == "cork_gun" and k.cork_gun.position.y > 1.7 and k.cork_gun.position.z - 0.235 < 1.78, "細長いピストルが冷蔵庫の上にあり、銃口が縁から少しはみ出している")
 	check(main._prompt_for(gun_area) == main.PROMPT_PICKUP, "拾える案内")
-	check(main.hud._slot_labels.size() == 6, "持ち物欄は6つ（1〜6 キー）")
+	check(main.hud._slot_labels.size() == 8, "持ち物欄は8つ（1〜8 キー）")
 	var tgt: Array = apt.figures
 	check(tgt.size() == 40, "棚のフィギュア 40 体が的になる")
 	main._on_interact_requested(apt.figures[0].node.get_node("FigureArea"))

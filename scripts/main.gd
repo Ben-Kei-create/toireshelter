@@ -18,6 +18,9 @@ const SmallPropsScript := preload("res://scripts/small_props.gd")
 const FishingScript := preload("res://scripts/fishing.gd")
 const IntercomScript := preload("res://scripts/intercom.gd")
 const CorkGunScript := preload("res://scripts/cork_gun.gd")
+const MahjongGame := preload("res://scripts/mahjong_game.gd")
+const ClosetScriptRef := preload("res://scripts/closet.gd")
+const RecordPlayerRef := preload("res://scripts/record_player.gd")
 const MeshKit := preload("res://scripts/mesh_kit.gd")
 const SfxScript := preload("res://scripts/sfx.gd")
 const BooksScript := preload("res://scripts/books.gd")
@@ -102,14 +105,10 @@ const MESSAGES := {
 	"rug": "厚手のじゅうたん。赤地にひし形の模様。足の裏がふかふかする。",
 	"cellar_opened": "床板の蓋を持ち上げた。冷たい空気が上がってくる。",
 	"cellar_closed": "蓋を閉めた。ぱたん、と床にもどった。",
-	"cellar_can_tuna": "缶詰を開けた。ツナだ。そのまま食べた。意外とおいしい。",
-	"cellar_can_corn": "二つ目の缶詰はコーン。ひとつぶずつ食べた。",
-	"cellar_can_peach": "最後の缶詰は桃。シロップまで飲み干した。",
-	"cellar_honey": "はちみつの瓶。ひとなめした。のどにしみる甘さ。",
-	"cellar_pickle": "ピクルスの瓶。一本つまんだ。すっぱい。",
-	"cellar_crock_1": "ぬか漬けの壺だ。きゅうりを一切れ食べた。しょっぱい。",
-	"cellar_crock_2": "もう一切れ。やっぱりしょっぱい。ご飯がほしい。",
-	"cellar_crock_3": "食べすぎだ。ぬかが指にこびりついている。",
+	"cellar_carry_taken": "{food}を持った。傷まないうちに、冷蔵庫に入れよう。",
+	"cellar_carry_full": "もう両手がふさがっている。先に、いま持っているものを冷蔵庫へ入れよう。",
+	"fridge_put": "{food}を冷蔵庫に入れた。床下の食べ物は、あと{left}つ。",
+	"stairs_revealed": "床下の底板が、ごとり、と外れた。暗い階段が、下へ続いている。",
 	"cellar_sack": "米袋。生米は食べられない。炊飯器もないし。",
 	"cellar_potato": "じゃがいもが転がっている。芽が出かけている。生では食べられない。",
 	"cellar_goods": "床下の貯蔵庫だ。階段はない。米袋、漬物の壺、缶詰、瓶、じゃがいも。食べ物ばかりだ。",
@@ -148,6 +147,15 @@ const MESSAGES := {
 	"radio_ch4": "ラジオ。時報だ。ピッ、ピッ、ピッ、ポーン。",
 	"radio_off": "ラジオを消した。",
 	"wall_clock": "壁掛け時計。いまは{time}。針はちゃんと動いている。",
+	"mahjong": "ふとんの山の上に、麻雀牌のケースがのっていた。麻雀牌を手に入れた。こたつの中で F を押すと、一人麻雀が打てる。",
+	"record_disc": "壁に飾ってあったレコード盤を外した。ほんのり埃のにおいがする。",
+	"record_set": "レコード盤をターンテーブルにのせた。針を落とすと、パチパチという雑音のあとで、古いジャズが流れ出した。",
+	"record_empty": "ターンテーブルは空っぽだ。壁に飾ってあるレコード盤を使えそうだ。",
+	"record_stopped": "針を上げた。部屋が急に静かになる。",
+	"record_started": "針を落とした。パチパチという音のあとで、古いジャズが流れ出す。",
+	"mj_start": "牌をじゃらじゃらと広げる。一人麻雀のはじまりだ。",
+	"mj_quit": "牌を片づけた。",
+	"mj_need_kotatsu": "麻雀はこたつの中で打つものだ（なぜか）。",
 	"cork_gun": "冷蔵庫の上に、細長いおもちゃのピストルが寝ていた。コルク銃を手に入れた。F で撃てる。",
 	"figure": "棚のフィギュア。……撃ち落とせそうな高さだ。",
 	"standee": "等身大パネル。巨大な髪と、ワインレッドのコート。……自分の姿だ。いつ作ったのだろう。裏は、後ろ姿まできちんと印刷されている。",
@@ -218,7 +226,9 @@ const PROMPTS := {
 	"cellar_close": "左クリック：床下の蓋を閉める",
 	"cellar_examine": "左クリック：床下を調べる",
 	"hood_press": "左クリック：換気扇のボタン",
-	"cellar_eat": "左クリック：食べる",
+	"cellar_carry": "左クリック：持って運ぶ",
+	"cellar_stairs_go": "左クリック：地下へ降りる",
+	"basement_up_go": "左クリック：階段を上がる",
 	"cellar_look": "左クリック：調べる",
 	"tv_play": "左クリック：テレビゲームで遊ぶ",
 	"cards_draw": "左クリック：トランプを一枚めくる",
@@ -257,6 +267,10 @@ const PROMPTS := {
 	"fan_on": "左クリック：扇風機をつける",
 	"fan_off": "左クリック：扇風機を止める",
 	"ufo_play": "左クリック：アームを動かす",
+	"record_set": "左クリック：レコード盤をのせる",
+	"record_empty": "左クリック：調べる",
+	"record_play": "左クリック：針を落とす",
+	"record_stop": "左クリック：針を上げる",
 }
 
 ## 持ち物（拾える物）。最大2つ。1・2 キーは取った順
@@ -265,6 +279,8 @@ const ITEMS := {
 	"spare_roll": {"name": "予備ロール", "desc": "包装されたトイレットペーパー。『明日もある』。"},
 	"fishing_rod": {"name": "釣り竿", "desc": "竹色の釣り竿。リールがついている。ベランダの手すりから、下の路地へ糸を垂らせそうだ。"},
 	"cork_gun": {"name": "コルク銃", "desc": "細長いおもちゃのピストル。銃口にコルクが詰まっている。F で撃つ。棚のフィギュアを狙えそうだ。"},
+	"mahjong": {"name": "麻雀牌", "desc": "深緑のケースに入った麻雀牌。ずっしり重い。こたつの中で、F で一人麻雀が打てそうだ。"},
+	"record_disc": {"name": "レコード盤", "desc": "壁に飾ってあった黒いレコード盤。赤いラベルに、かすれた文字で『MIDNIGHT BLUE ROOM』。レコードプレーヤーにのせられそうだ。"},
 	"ufo_coin": {"name": "UFOコイン", "desc": "クレーンゲーム用のコイン。表にエイリアンの絵。1回ぶん。"},
 	"bath_powder": {"name": "ユブロマン", "desc": "ゆずの香りの粉末入浴剤。1回分。"},
 }
@@ -335,6 +351,9 @@ const TISSUE_SHEETS := 12
 var coin_count := 0                # 持っている UFOコインの枚数
 var tissue_pulled := 0             # ティッシュを引いた回数
 var gaming := false                # テレビゲームで遊んでいる
+var mj_playing := false            # 一人麻雀を打っている
+var mj_cursor := 13
+var mahjong: RefCounted
 var _rng := RandomNumberGenerator.new()
 var _reader_pages: Array = []
 var _reader_page := 0
@@ -391,6 +410,10 @@ func _ready() -> void:
 	room.apartment.intercom.notice.connect(func(text: String) -> void: hud.show_message(text, 5.0))
 	room.apartment.ufo_catcher.coin_check = spend_coin
 	room.toilet.coin_taken.connect(add_coin)
+	room.apartment.cellar.descend_requested.connect(_descend)
+	room.apartment.basement.ascend_requested.connect(_ascend)
+	room.apartment.cellar.stairs_revealed.connect(func() -> void: hud.show_message(MESSAGES["stairs_revealed"], 5.0))
+	room.apartment.record_player.disc_set.connect(func() -> void: remove_item("record_disc"))
 	fishing = FishingScript.new()
 	fishing.name = "Fishing"
 	room.add_child(fishing)
@@ -405,9 +428,16 @@ func _ready() -> void:
 
 
 func _process(_delta: float) -> void:
+	var carried: String = room.apartment.cellar.carrying_name
+	hud.set_carry("運んでいる：%s（冷蔵庫の中を狙って、左クリックで入れる）" % carried if not carried.is_empty() else "")
 	if not paused and not cleared:
 		play_time += _delta
 		room.sky_clock.set_time(play_time)
+	room.apartment.record_player.holding = selected_item() == "record_disc"
+	if mj_playing:
+		hud.set_prompt("")
+		_refresh_mahjong()
+		return
 	if peeping:
 		hud.set_prompt("")
 		return
@@ -438,6 +468,9 @@ func _process(_delta: float) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if mj_playing:
+		_mahjong_input(event)
+		return
 	if peeping:
 		# のぞき穴を見ている間：クリックか Esc でやめる
 		if event.is_action_pressed("pause") or (event is InputEventMouseButton and event.pressed and (event as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT):
@@ -493,6 +526,12 @@ func _unhandled_input(event: InputEvent) -> void:
 			return
 		if event.is_action_pressed("item_6"):
 			select_item(5)
+			return
+		if event.is_action_pressed("item_7"):
+			select_item(6)
+			return
+		if event.is_action_pressed("item_8"):
+			select_item(7)
 			return
 		if event.is_action_pressed("inspect_item"):
 			toggle_zoom()
@@ -559,6 +598,34 @@ func _select_game(i: int) -> void:
 		hud.show_message("ソフトを入れ替えた。ラベルがはがれたディスクだ。画面に「NO DISC」と出た……読み込めないらしい。")
 	else:
 		hud.show_message("ソフト『%s』を入れた。テレビ・ゲーム機・コントローラを調べると遊べる。" % GAME_NAMES[i])
+
+
+# ---------------------------------------------------------------- 地下室
+
+const BASEMENT_LETTER := [
+	"拝啓\n\nこの手紙を読んでいるあなたは、きっと、冷蔵庫をきちんと片づけられる人です。\n\nだから、ここには何も置いていません。お宝も、出口も、ありません。",
+	"あるのは、この手紙が一枚だけです。\n\n明日もあります。ごはんを食べて、よく寝てください。\n\n　　　　　　　　　　　　　　　　前の住人より",
+]
+
+
+## 貯蔵庫の穴から階段を降りて、地下室へ。穴の真上から階段の下までの経路を、滑らかに移る。
+func _descend() -> void:
+	if player.pose != PlayerScript.Pose.WALK and player.pose != PlayerScript.Pose.CROUCH:
+		return
+	var b = room.apartment.basement
+	SfxScript.play("creak", 0.8)
+	player.move_to(PlayerScript.Pose.WALK, b.FEET, PI * 0.5, player.eye_height, b.PATH_DOWN, true, PlayerScript.BODY_HEIGHT, PlayerScript.BODY_RADIUS)
+
+
+func _ascend() -> void:
+	if player.pose != PlayerScript.Pose.WALK and player.pose != PlayerScript.Pose.CROUCH:
+		return
+	var b = room.apartment.basement
+	var up: Array = b.PATH_DOWN.duplicate()
+	up.reverse()
+	up.append(Vector3(4.3, 0.0, 1.3))
+	SfxScript.play("creak", 0.9)
+	player.move_to(PlayerScript.Pose.WALK, b.STAIR_EXIT, 0.0, player.eye_height, up, true, PlayerScript.BODY_HEIGHT, PlayerScript.BODY_RADIUS)
 
 
 # ---------------------------------------------------------------- 黒電話
@@ -646,6 +713,74 @@ func _stop_game() -> void:
 	room.apartment.tv_game.stop()
 	room.apartment.tv_game.input = Vector2.ZERO
 	hud.show_message(MESSAGES["tv_stop"])
+
+
+# ---------------------------------------------------------------- 一人麻雀
+
+func _start_mahjong() -> void:
+	if mj_playing or reading or paused or cleared or gaming or peeping:
+		return
+	if player.pose != PlayerScript.Pose.KOTATSU_IN:
+		hud.show_message(MESSAGES["mj_need_kotatsu"])
+		return
+	mj_playing = true
+	player.controls_enabled = false
+	if mahjong == null:
+		mahjong = MahjongGame.new()
+	mahjong.start()
+	mj_cursor = 13 if mahjong.state == "playing" else 0
+	SfxScript.play("click")
+	hud.show_message(MESSAGES["mj_start"], 3.0)
+	_refresh_mahjong()
+
+
+func _stop_mahjong() -> void:
+	if not mj_playing:
+		return
+	mj_playing = false
+	player.controls_enabled = true
+	hud.hide_mahjong()
+	hud.show_message(MESSAGES["mj_quit"])
+
+
+func _refresh_mahjong() -> void:
+	var help := "A／D：選ぶ　左クリック・Space：切る　E／Esc：やめる"
+	if mahjong.state != "playing":
+		help = "左クリック・Space：もう一局　E／Esc：やめる"
+	hud.show_mahjong(mahjong, mj_cursor, help)
+
+
+func _mahjong_input(event: InputEvent) -> void:
+	if event.is_action_pressed("pause") or event.is_action_pressed("action"):
+		get_viewport().set_input_as_handled()
+		_stop_mahjong()
+		return
+	var left: bool = event.is_action_pressed("move_left") or (event is InputEventKey and event.pressed and (event as InputEventKey).keycode == KEY_LEFT)
+	var right: bool = event.is_action_pressed("move_right") or (event is InputEventKey and event.pressed and (event as InputEventKey).keycode == KEY_RIGHT)
+	var confirm: bool = (event is InputEventMouseButton and event.pressed and (event as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT) or (event is InputEventKey and event.pressed and not event.echo and (event as InputEventKey).keycode in [KEY_ENTER, KEY_KP_ENTER, KEY_SPACE])
+	if mahjong.state != "playing":
+		if confirm:
+			get_viewport().set_input_as_handled()
+			mahjong.start()
+			mj_cursor = 13 if mahjong.state == "playing" else 0
+			SfxScript.play("click")
+		return
+	var count := 14 if mahjong.drawn >= 0 else 13
+	if left:
+		get_viewport().set_input_as_handled()
+		mj_cursor = posmod(mj_cursor - 1, count)
+		SfxScript.play("tick")
+	elif right:
+		get_viewport().set_input_as_handled()
+		mj_cursor = posmod(mj_cursor + 1, count)
+		SfxScript.play("tick")
+	elif confirm:
+		get_viewport().set_input_as_handled()
+		mahjong.discard(mj_cursor)
+		SfxScript.play("click")
+		mj_cursor = 13 if mahjong.state == "playing" else 0
+		if mahjong.state == "won":
+			SfxScript.play("pop")
 
 
 # ---------------------------------------------------------------- 本を読む
@@ -778,7 +913,7 @@ func _prompt_for(target: Object) -> String:
 	match id:
 		"":
 			return ""
-		"driver", "spare_roll", "bath_powder", "fishing_rod", "cork_gun":
+		"driver", "spare_roll", "bath_powder", "fishing_rod", "cork_gun", "mahjong", "record_disc":
 			return PROMPT_PICKUP
 		"door":
 			return PROMPT_EXAMINE
@@ -801,6 +936,15 @@ func _on_interact_requested(target: Object) -> void:
 		return
 	var id := String(target.get_meta("interact_id", ""))
 	var fixture: Object = target.get_meta("fixture") if target.has_meta("fixture") else null
+	# 床下の食べ物を持っているとき、開けた冷蔵室の中を狙うと、棚に入れる（全部入れると階段が現れる）
+	var cellar_c = room.apartment.cellar
+	if not cellar_c.carrying_id.is_empty() and id == "fridge_inside":
+		var name_c: String = cellar_c.carrying_name
+		if room.apartment.kitchen.put_food(cellar_c.carrying_id):
+			var left_after: int = cellar_c.FOODS.size() - cellar_c.stored.size() - 1
+			hud.show_message(MESSAGES["fridge_put"].replace("{food}", name_c).replace("{left}", str(left_after)))
+			cellar_c.food_stored()
+		return
 	if fixture:
 		# 便器・浴槽・蛇口など状態を持つ設備は、その設備が操作し、表示する説明のキーを返す
 		var key: String = fixture.interact(id)
@@ -831,11 +975,27 @@ func _on_interact_requested(target: Object) -> void:
 			room.apartment.kitchen.remove_gun()
 			add_item("cork_gun")
 			hud.show_message(MESSAGES["cork_gun"])
+		"mahjong":
+			if inventory.has("mahjong"):
+				return
+			_item_models["mahjong"] = ClosetScriptRef.mahjong_zoom_model()
+			room.apartment.closet.take_mahjong()
+			add_item("mahjong")
+			hud.show_message(MESSAGES["mahjong"])
+		"record_disc":
+			if inventory.has("record_disc"):
+				return
+			_item_models["record_disc"] = RecordPlayerRef.zoom_model()
+			room.apartment.record_player.take_display()
+			add_item("record_disc")
+			hud.show_message(MESSAGES["record_disc"])
 		"figure":
 			if selected_item() == "cork_gun":
 				_fire(target)
 			else:
 				hud.show_message(MESSAGES["figure"])
+		"basement_letter":
+			_open_reader("手紙", BASEMENT_LETTER, null, Color(0.95, 0.9, 0.78))
 		"peephole":
 			_open_peephole()
 		"mail_catcher":
@@ -1005,6 +1165,8 @@ func _use_prompt(target: Object) -> String:
 	var id := selected_item()
 	if id == "cork_gun" and player.pose != PlayerScript.Pose.TRANSITION:
 		return "F：コルク銃を撃つ"
+	if id == "mahjong" and player.pose == PlayerScript.Pose.KOTATSU_IN:
+		return "F：一人麻雀を打つ"
 	if id.is_empty() or target == null or player.pose == PlayerScript.Pose.TRANSITION:
 		return ""
 	var tid := String(target.get_meta("interact_id", ""))
@@ -1028,6 +1190,9 @@ func use_selected() -> void:
 	var tid := String(target.get_meta("interact_id", "")) if target else ""
 	if id == "cork_gun":
 		_fire(target)
+		return
+	if id == "mahjong":
+		_start_mahjong()
 		return
 	if id == "driver" and tid in ["mirror_door", "mirror_lock"] and (room.mirror_cabinet.locked or room.mirror_cabinet.unlocking):
 		if room.mirror_cabinet.unlock():
@@ -1246,6 +1411,8 @@ func _setup_input_map() -> void:
 	_add_key_action("item_4", [KEY_4])
 	_add_key_action("item_5", [KEY_5])
 	_add_key_action("item_6", [KEY_6])
+	_add_key_action("item_7", [KEY_7])
+	_add_key_action("item_8", [KEY_8])
 	_add_key_action("inspect_item", [KEY_Q])
 	if not InputMap.has_action("interact"):
 		InputMap.add_action("interact")

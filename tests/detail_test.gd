@@ -31,25 +31,20 @@ func _run() -> void:
 	k.interact("fridge_lower")
 	await create_timer(0.8).timeout
 	check(player.is_space_free(Vector3(4.85, 0.0, 1.45), 1.6), "閉めるとまた通れる")
-	# --- 床下の中身
+	# --- 床下の中身（食べ物は食べず、運んで冷蔵庫へ入れる）
 	var c = apt.cellar
 	c.set_open(true, false)
-	check(c.cans_left == 3 and c.get_node("Item_cellar_can_0").collision_layer == 2, "床下を開けると中身ひとつずつが狙える")
-	var keys := []
-	for i in 3:
-		keys.append(c.interact("cellar_can_%d" % i))
-	check(keys == ["cellar_can_tuna", "cellar_can_corn", "cellar_can_peach"] and c.cans_left == 0 and not c.get_node("CanB0").visible, "缶詰は3つ（ツナ・コーン・桃）食べられて、棚から消える")
-	check(c.interact("cellar_can_0") == "", "食べた缶詰はもう食べられない")
-	check(c.interact("cellar_potato") == "cellar_potato" and c.interact("cellar_sack") == "cellar_sack" and c.interact("cellar_honey") == "cellar_honey" and c.interact("cellar_pickle") == "cellar_pickle", "じゃがいも・米・はちみつ・ピクルスを調べられる")
-	var crocks := [c.interact("cellar_crock"), c.interact("cellar_crock"), c.interact("cellar_crock"), c.interact("cellar_crock")]
-	check(crocks == ["cellar_crock_1", "cellar_crock_2", "cellar_crock_2", "cellar_crock_3"], "漬物は食べるたびに感想が変わる")
-	for key in keys + crocks + ["cellar_honey", "cellar_pickle", "cellar_sack", "cellar_potato"]:
+	check(c.get_node("Item_cellar_can_0").collision_layer == 2 and c.get_node("Item_cellar_potato").collision_layer == 2, "床下を開けると中身ひとつずつが狙える")
+	check(c.interact("cellar_can_0") == "cellar_carry_taken" and c.carrying_id == "cellar_can_0" and not c.get_node("CanB0").visible, "缶詰を持つと棚から消える")
+	check(c.interact("cellar_can_1") == "cellar_carry_full", "一度にひとつしか運べない")
+	check(c.interact("cellar_sack") == "cellar_sack" and c.interact("cellar_goods") == "cellar_goods", "米袋は運べず、調べるだけ")
+	for key in ["cellar_carry_taken", "cellar_carry_full", "cellar_sack", "cellar_goods", "fridge_put", "stairs_revealed"]:
 		check(main.MESSAGES.has(key), "%s の文章" % key)
-	check(main.PROMPTS[c.get_prompt("cellar_can_1")] == "左クリック：食べる" and main.PROMPTS[c.get_prompt("cellar_sack")] == "左クリック：調べる", "案内「食べる」「調べる」")
+	check(main.PROMPTS[c.get_prompt("cellar_can_1")] == "左クリック：持って運ぶ" and main.PROMPTS[c.get_prompt("cellar_sack")] == "左クリック：調べる", "案内「持って運ぶ」「調べる」")
 	c.set_open(false, false)
 	check(c.get_node("Item_cellar_potato").collision_layer == 0, "閉めると中身の判定は消える")
 	c.set_open(true, false)
-	check(c.get_node("Item_cellar_can_0").collision_layer == 0 and c.get_node("Item_cellar_can_1").collision_layer == 0, "もう一度開けても、食べた缶詰の判定は戻らない")
+	check(c.get_node("Item_cellar_can_0").collision_layer == 0, "もう一度開けても、運んだ物の判定は戻らない")
 	# --- 黒電話
 	var calls := []
 	for i in 6:

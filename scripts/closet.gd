@@ -23,6 +23,7 @@ const SLIDE_X := 0.375   # 襖の中心（左 -0.375、右 +0.375）
 var crane_visible := true   # 襖が左に寄っていて、右半分（クレーンゲーム）が見える
 var busy := false
 var ufo: Node3D
+var mahjong_box: Node3D
 var _panels: Array = []
 var _area: Area3D
 
@@ -59,6 +60,13 @@ func _ready() -> void:
 		m2.albedo_color = zab_cols[k]
 		var z := MeshKit.box(self, Vector3(0.46, 0.07, 0.46), Vector3(-half * 0.5 - 0.02 + (k % 2) * 0.04, FLOOR_T + 0.035 + k * 0.075, 0.0), m2, "Zabuton")
 		z.rotation.y = deg_to_rad(-6.0 + k * 5.0)
+	# ふとんの山の上に、麻雀牌の箱
+	mahjong_box = build_mahjong_box()
+	mahjong_box.position = Vector3(-half * 0.5 - 0.02, 1.0125 + 0.0875 + 0.35 + 0.085, 0.03)
+	mahjong_box.rotation.y = deg_to_rad(8.0)
+	add_child(mahjong_box)
+	var ma := MeshKit.interact_area(mahjong_box, "MahjongArea", "mahjong", null)
+	MeshKit.shape_box(ma, Vector3(0.3, 0.14, 0.2), Vector3(0, 0.05, 0))
 	# 右の仕切り：クレーンゲーム（向きは部屋側 +z）
 	ufo = UfoCatcherScript.new()
 	ufo.name = "UfoCatcher"
@@ -141,3 +149,41 @@ func interact(_id: String) -> String:
 		busy = false
 		_place_area())
 	return ""
+
+
+func take_mahjong() -> void:
+	if mahjong_box:
+		mahjong_box.queue_free()
+		mahjong_box = null
+
+
+## 麻雀牌の箱（深緑のケース、金の留め具、ふたの上にこぼれた牌が2枚）。拡大表示にも使う。
+static func build_mahjong_box() -> Node3D:
+	var n := Node3D.new()
+	n.name = "MahjongBox"
+	var green := MeshKit.mat("mj_case", Color(0.12, 0.3, 0.2), 0.5)
+	var gold := MeshKit.mat("mj_gold", Color(0.85, 0.7, 0.3), 0.3, 0.7)
+	MeshKit.box(n, Vector3(0.26, 0.06, 0.17), Vector3(0, 0.03, 0), green, "Case")
+	MeshKit.box(n, Vector3(0.265, 0.004, 0.175), Vector3(0, 0.035, 0), MeshKit.mat("mj_seam", Color(0.05, 0.12, 0.08), 0.6), "Seam")
+	for sx in [-0.06, 0.06]:
+		MeshKit.box(n, Vector3(0.02, 0.014, 0.004), Vector3(sx, 0.04, 0.087), gold, "Clasp")
+	MeshKit.box(n, Vector3(0.05, 0.012, 0.03), Vector3(0, 0.066, 0), gold, "Plate")
+	var ivory := MeshKit.mat("mj_ivory", Color(0.95, 0.93, 0.82), 0.4)
+	var back := MeshKit.mat("mj_back", Color(0.18, 0.5, 0.35), 0.5)
+	for k in 2:
+		var t := Node3D.new()
+		t.position = Vector3(-0.1 + k * 0.045, 0.06 + 0.009, 0.03)
+		t.rotation.y = deg_to_rad(20.0 - k * 55.0)
+		n.add_child(t)
+		MeshKit.box(t, Vector3(0.024, 0.017, 0.032), Vector3(0, 0, 0), ivory, "Tile")
+		MeshKit.box(t, Vector3(0.024, 0.006, 0.032), Vector3(0, -0.0055, 0), back, "TileBack")
+	return n
+
+
+static func mahjong_zoom_model() -> Node3D:
+	var holder := Node3D.new()
+	holder.name = "MahjongModel"
+	var b := build_mahjong_box()
+	b.scale = Vector3.ONE * 2.2
+	holder.add_child(b)
+	return holder

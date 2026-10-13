@@ -13,6 +13,7 @@ extends Node3D
 const MeshKit := preload("res://scripts/mesh_kit.gd")
 const Sfx := preload("res://scripts/sfx.gd")
 const CorkGunScript := preload("res://scripts/cork_gun.gd")
+const CellarScript := preload("res://scripts/cellar.gd")
 const TEX_DIR := "res://assets/textures/kitchen/kitchen_%s.png"
 
 const WALL_Z := 2.4
@@ -51,6 +52,7 @@ var _goods_areas: Array = []
 var _door_tween := {}
 # 換気扇（レンジフード）：ボタンは 弱・中・狂 の3つ。同じボタンをもう一度押すと止まる
 var hood_level := 0
+var food_nodes := {}          # 床下から運んで入れた食べ物（id → 冷蔵庫の中の見た目。入れるまで隠れている）
 var cork_gun: Node3D          # 冷蔵庫の上のコルク銃（拾うと消える）
 var gun_area: Area3D
 var _hood: MeshInstance3D
@@ -322,6 +324,7 @@ func _build_fridge() -> void:
 		MeshKit.shape_box(area, Vector3(0.05, 0.06, 0.05), Vector3(ex, ey + 0.045, ez))
 		area.collision_layer = 0
 		_eggs.append({"node": egg, "area": area, "taken": false})
+	_build_food_shelf(cx, zc, d, w)
 	# 冷凍室：氷の皿・冷凍食品・アイス
 	MeshKit.box(self, Vector3(0.16, 0.025, 0.1), Vector3(cx - 0.1, 1.17 + 0.0125, zc + 0.05), MeshKit.mat("fridge_ice", Color(0.75, 0.88, 0.98), 0.2), "IceTray")
 	MeshKit.box(self, Vector3(0.12, 0.05, 0.1), Vector3(cx + 0.12, 1.17 + 0.025, zc + 0.05), MeshKit.mat("fridge_peas", Color(0.4, 0.7, 0.35), 0.7), "FrozenPeas")
@@ -370,6 +373,49 @@ func _build_fridge() -> void:
 	_build_gun()
 	_goods_areas = _eggs.map(func(e): return e.area)
 	_goods_areas.append(_inside_area)
+
+
+## 惣菜の棚：冷蔵室の上のほうの空いた段（y 1.0）。床下の貯蔵庫から運んだ食べ物7つ分の場所が空いていて、入れるとそこに現れる。
+func _build_food_shelf(cx: float, zc: float, d: float, w: float) -> void:
+	MeshKit.box(self, Vector3(w - 0.04, 0.012, d - 0.04), Vector3(cx, 1.0, zc - 0.01), MeshKit.mat("fridge_glass", Color(0.8, 0.9, 0.95), 0.2), "FoodShelf")
+	var metal := MeshKit.mat("food_can", Color(0.78, 0.78, 0.8), 0.3, 0.6)
+	var y := 1.0 + 0.006
+	var ids := CellarScript.FOODS.keys()
+	for i in ids.size():
+		var id: String = ids[i]
+		var n := Node3D.new()
+		n.name = "Food_" + id
+		n.position = Vector3(cx + (i - 3) * 0.075, y, zc + 0.04)
+		n.visible = false
+		add_child(n)
+		match id:
+			"cellar_can_0", "cellar_can_1", "cellar_can_2":
+				var lab: Color = [Color(0.3, 0.5, 0.85), Color(0.95, 0.8, 0.2), Color(0.95, 0.6, 0.3)][int(id.substr(11))]
+				MeshKit.cylinder(n, 0.035, 0.1, Vector3(0, 0.05, 0), metal, "Can")
+				MeshKit.cylinder(n, 0.0362, 0.05, Vector3(0, 0.05, 0), MeshKit.mat("food_label_%d" % i, lab, 0.6), "Label")
+			"cellar_honey":
+				MeshKit.cylinder(n, 0.033, 0.1, Vector3(0, 0.05, 0), MeshKit.mat("food_honey", Color(0.9, 0.6, 0.15), 0.3), "Jar")
+				MeshKit.cylinder(n, 0.028, 0.012, Vector3(0, 0.106, 0), MeshKit.mat("food_lid", Color(0.85, 0.8, 0.5), 0.4, 0.5), "Lid")
+			"cellar_pickle":
+				MeshKit.cylinder(n, 0.033, 0.1, Vector3(0, 0.05, 0), MeshKit.mat("food_pickle", Color(0.45, 0.6, 0.25), 0.3), "Jar")
+				MeshKit.cylinder(n, 0.028, 0.012, Vector3(0, 0.106, 0), metal, "Lid")
+			"cellar_crock":
+				MeshKit.cylinder(n, 0.05, 0.1, Vector3(0, 0.05, 0), MeshKit.mat("cellar_crock", Color(0.4, 0.27, 0.16), 0.5), "Crock")
+				MeshKit.cylinder(n, 0.045, 0.015, Vector3(0, 0.107, 0), MeshKit.mat("cellar_crock_lid", Color(0.55, 0.4, 0.25), 0.6), "Lid")
+			_:
+				var pm := MeshKit.mat("cellar_potato", Color(0.7, 0.55, 0.35), 0.9)
+				for k in 3:
+					MeshKit.sphere(n, 0.026, Vector3((k - 1) * 0.03, 0.026, (k % 2) * 0.02), pm)
+		food_nodes[id] = n
+
+
+## 床下から運んだ食べ物を冷蔵庫に入れる（冷蔵室の扉が開いているとき）。入れたら true。
+func put_food(id: String) -> bool:
+	if not food_nodes.has(id) or not lower_open:
+		return false
+	(food_nodes[id] as Node3D).visible = true
+	Sfx.play("pop", 0.8, -3.0)
+	return true
 
 
 ## コルク銃：冷蔵庫の天板（y 1.7）に、銃口を前の縁から 3cm はみ出させて寝かせてある。下から見上げると、筒の先だけがちらりと見える。
