@@ -178,7 +178,10 @@ func _run() -> void:
 			blocked.append("%s→%s" % [it[0], hid])
 	check(blocked.is_empty(), "真上から狙うと、それぞれの物を調べられる（他の判定にさえぎられない）%s" % str(blocked))
 	# --- 電子レンジ：吊り戸棚の上、調べるだけ、台所の他の設備に触れない
+	check(apt.kitchen.get_node("Door_upper").get_node_or_null("DoorFront") != null and apt.kitchen.get_node("Door_lower").get_node_or_null("DoorFront") != null, "冷蔵庫の上下の扉に、それぞれ別の正面の絵が貼ってあり、扉といっしょに動く")
+	check(ResourceLoader.exists("res://assets/textures/props/fridge_door_upper.png") and ResourceLoader.exists("res://assets/textures/props/fridge_door_lower.png") and ResourceLoader.exists("res://assets/textures/props/microwave_front.png"), "冷蔵庫の扉 2 枚と電子レンジの正面の画像がある")
 	var mw: Node3D = apt.kitchen.get_node("Microwave")
+	check(mw.get_node_or_null("FrontPicture") != null, "電子レンジの正面に絵が貼ってある")
 	check(mw != null and mw.get_node("MicrowaveArea").get_meta("interact_id") == "microwave" and main.MESSAGES["microwave"] == "電子レンジ。中には何も入っていない。", "電子レンジがあり、調べると「中には何も入っていない」")
 	check(mw.global_position.y - 0.13 >= 2.0 and mw.global_position.y + 0.13 <= 2.4, "電子レンジは吊り戸棚の上で、天井に収まる")
 	check(mw.find_children("*", "CollisionObject3D", true, false).filter(func(c): return c is StaticBody3D).is_empty(), "電子レンジに体の当たり判定はない（設備の操作を妨げない）")

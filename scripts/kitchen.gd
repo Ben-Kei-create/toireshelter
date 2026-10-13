@@ -400,8 +400,8 @@ func _build_fridge() -> void:
 		pivot.position = Vector3(FRIDGE_X.x, y0, FRIDGE_FRONT)
 		add_child(pivot)
 		MeshKit.box(pivot, Vector3(w, h, 0.05), Vector3(w * 0.5, h * 0.5, 0.025), white, "DoorLeaf")
-		var hy := h - 0.2 if key == "upper" else h * 0.65
-		MeshKit.box(pivot, Vector3(0.015, 0.4 if key == "lower" else 0.3, 0.02), Vector3(w - 0.07, hy, -0.01), steel, "Handle")
+		# 扉の外側の絵（ユーザー作成・生成 AI 使用。上下の扉ごとに別の画像。取っ手も絵に描いてある）。扉といっしょに動く
+		MeshKit.image_quad(pivot, MeshKit.prop_tex("fridge_door_" + key), Vector2(w, h), Vector3(w * 0.5, h * 0.5, -0.0008), Vector3.FORWARD, "DoorFront", false, 0.5)
 		if key == "upper":
 			# 冷凍室の扉（上）の外側：ポスター『冷蔵庫の奥にある町』（絵は扉ごとに分ける）。マグネットで留めてある
 			MeshKit.image_quad(pivot, MeshKit.prop_tex("fridge_poster"), Vector2(0.27, 0.27 * 768.0 / 499.0), Vector3(0.3, 0.27, -0.0015), Vector3.FORWARD, "DoorPoster", false, 0.5)
