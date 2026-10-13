@@ -21,7 +21,7 @@ const FILES := {
 	"chime": ["クイズ正解2.mp3", 0.0], "buzz": ["キャンセル6.mp3", 0.0], "clunk": ["金属.mp3", 0.0],
 	"flush": ["トイレを流す1.mp3", 0.0], "ring": ["黒電話のベルが鳴る.mp3", 4.0], "crack": ["卵を割る.mp3", 0.0],
 	"sizzle": ["目玉焼きを焼く.mp3", 0.0], "ignite": ["ガスコンロ点火.mp3", 3.0], "static": ["マイクのホワイトノイズ.mp3", 0.6],
-	"plop": ["水滴1.mp3", 0.0], "intercom": ["ドアチャイム2.mp3", 0.0],
+	"plop": ["水滴3.mp3", 0.0], "intercom": ["ドアチャイム2.mp3", 0.0],
 }
 
 static var instance: Node
