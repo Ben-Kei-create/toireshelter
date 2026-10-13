@@ -10,7 +10,7 @@ extends Node
 
 const AudioSettings := preload("res://scripts/audio_settings.gd")
 const MIX := 22050
-const NAMES := ["click", "thunk", "creak", "cloth", "slide", "beep", "rustle", "page", "pop", "step", "chime", "buzz", "clunk", "flush", "strum", "ring", "tick", "crack", "sizzle", "ignite", "static", "plop"]
+const NAMES := ["click", "thunk", "creak", "cloth", "slide", "beep", "rustle", "page", "pop", "step", "chime", "buzz", "clunk", "flush", "strum", "ring", "tick", "crack", "sizzle", "ignite", "static", "plop", "intercom"]
 const MASTER_DB := -10.0
 
 static var instance: Node
@@ -319,4 +319,18 @@ func _make_plop() -> PackedFloat32Array:
 		var t := float(i) / MIX
 		ph += TAU * (900.0 - 500.0 * t / 0.15) / MIX
 		s[i] = 0.4 * sin(ph) * exp(-t * 30.0)
+	return s
+
+
+## インターホンの「ピンポーン」：高い音のあと、低い音が長く残る。
+func _make_intercom() -> PackedFloat32Array:
+	var s := _buf(1.4)
+	for i in s.size():
+		var t := float(i) / MIX
+		var a := 0.45 * sin(TAU * 987.8 * t) * exp(-t * 6.0) * (1.0 if t < 0.45 else 0.0)
+		var tb := t - 0.45
+		var b := 0.0
+		if tb > 0.0:
+			b = 0.45 * (sin(TAU * 740.0 * tb) + 0.25 * sin(TAU * 1480.0 * tb)) * exp(-tb * 3.2)
+		s[i] = a + b
 	return s

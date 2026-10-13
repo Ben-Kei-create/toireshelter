@@ -99,6 +99,7 @@ func _run() -> void:
 	var ufo = apt.ufo_catcher
 	check(ufo.get_prompt("ufo_catcher") == "ufo_play" and main.PROMPTS.has("ufo_play"), "クレーンゲームを狙うと「アームを動かす」")
 	var msgs := []
+	main.add_coin(3)   # クレーンゲームはコイン制
 	for k in 3:
 		var key: String = ufo.interact("ufo_catcher")
 		msgs.append(key)

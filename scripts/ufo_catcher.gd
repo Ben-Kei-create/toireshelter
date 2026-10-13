@@ -27,6 +27,7 @@ const CLAW_DOWN_Y := 0.88
 const SUCCESS_EVERY := [false, false, true, false, true, false, false, true]
 
 var busy := false
+var coin_check := Callable()   # 遊ぶ前に呼ぶ。コインを1枚使えたら true（main.gd が設定。なければ無料＝テスト用）
 var plays := 0
 var prizes: Array = []        # [{node, spot: Vector2, taken}]
 var taken := 0
@@ -195,6 +196,8 @@ func interact(_id: String) -> String:
 		return ""
 	if taken >= prizes.size():
 		return "ufo_empty"
+	if coin_check.is_valid() and not coin_check.call():
+		return "ufo_no_coin"
 	busy = true
 	Sfx.play("beep")
 	var win: bool = SUCCESS_EVERY[plays % SUCCESS_EVERY.size()]

@@ -28,18 +28,18 @@ func _run() -> void:
 	var unit: Node3D = main.get_node("Room").find_child("AirConUnit", true, false)
 	check(unit != null and absf(f.get_node("RodProp").global_position.x - unit.global_position.x) < 0.4 and f.get_node("RodProp").global_position.x > unit.global_position.x, "室外機のすぐ東（後ろ側）にある")
 	check(main.PROMPT_PICKUP == main._prompt_for(rod_area), "拾える案内が出る")
-	check(F.CATCHES.size() == 27 and main.ITEMS.has("fishing_rod"), "釣れる物は 27 種類。釣り竿は持ち物")
+	check(F.CATCHES.size() == 28 and main.ITEMS.has("fishing_rod"), "釣れる物は 28 種類。釣り竿は持ち物")
 	# 竿を拾う前は釣れない
 	var spot: Area3D = f.get_node("SpotArea")
 	check(main.PROMPTS[f.get_prompt("fish_spot")] == "左クリック：調べる" and f.interact("fish_spot") == "fish_need_rod" and f.state == "idle", "竿がないうちは手すりを調べるだけ")
 	main._on_interact_requested(rod_area)
 	check(main.inventory.has("fishing_rod") and f.has_rod and not f.get_node("RodProp").visible and rod_area.collision_layer == 0, "拾うと持ち物に入り、ベランダの竿は消える")
-	check(main.inventory.size() == 1 and main.hud._slot_labels.size() == 4, "持ち物欄は4つ")
+	check(main.inventory.size() == 1 and main.hud._slot_labels.size() == 5, "持ち物欄は5つ")
 	# 4つ持てる
 	main.add_item("driver")
 	main.add_item("spare_roll")
 	main.add_item("bath_powder")
-	check(main.inventory.size() == 4 and main.hud._slot_labels[3].text.contains("ユブロマン"), "4つ目まで持てる（4 キー）")
+	check(main.inventory.size() == 4 and main.hud._slot_labels[3].text.contains("ユブロマン"), "4つ持てる")
 	main.remove_item("driver")
 	main.remove_item("spare_roll")
 	main.remove_item("bath_powder")
@@ -60,10 +60,10 @@ func _run() -> void:
 	var key: String = f.interact("fish_spot")
 	check(key == "fishing_text" and f.state == "reeling" and f.caught.size() == 1, "引き上げると何か釣れる")
 	var txt: String = f.format_message(key, main.MESSAGES[key])
-	check(txt.contains("釣り上げた") and txt.contains("釣果：1 / 27") and txt.contains("（はじめて）"), "文章に名前と説明と釣果が出る")
+	check(txt.contains("釣り上げた") and txt.contains("釣果：1 / 28") and txt.contains("（はじめて）"), "文章に名前と説明と釣果が出る")
 	await create_timer(1.6).timeout
 	check(f.state == "idle" and not f._line.visible, "引き上げが終わると、また釣れる状態")
-	check(main.hud._catch_label.text.begins_with("釣果：1 / 27"), "設定画面の釣果が更新される")
+	check(main.hud._catch_label.text.begins_with("釣果：1 / 28"), "設定画面の釣果が更新される")
 	# 逃げられる
 	f.interact("fish_spot")
 	f._wait = 0.0
@@ -88,13 +88,13 @@ func _run() -> void:
 		kinds[p[0]] += 1
 		seen[p[1]] = true
 	check(kinds["ゴミ"] > kinds["アイテム"] and kinds["アイテム"] > kinds["お宝"] and kinds["お宝"] > 200, "ゴミが多く、アイテム、お宝の順に少ない（%s）" % str(kinds))
-	check(seen.size() == 27, "27 種類ぜんぶ釣れる（%d）" % seen.size())
+	check(seen.size() == 28, "28 種類ぜんぶ釣れる（%d）" % seen.size())
 	var kinds_ok := true
 	for c in F.CATCHES:
 		kinds_ok = kinds_ok and c[0] in ["ゴミ", "お宝", "アイテム"] and String(c[2]).length() > 5 and int(c[3]) > 0
 	check(kinds_ok, "どの釣れる物にも種類・説明・重みがある")
 	var treasure := F.CATCHES.filter(func(c): return c[0] == "お宝").size()
 	var junk := F.CATCHES.filter(func(c): return c[0] == "ゴミ").size()
-	check(junk == 12 and treasure == 7, "ゴミ12・お宝7・アイテム8")
+	check(junk == 12 and treasure == 7 and F.CATCHES.size() - junk - treasure == 9, "ゴミ12・お宝7・アイテム9")
 	print("fishing_test: ", "OK" if failures == 0 else "%d FAILED" % failures)
 	quit(1 if failures > 0 else 0)

@@ -16,6 +16,7 @@ const ApartmentScript := preload("res://scripts/apartment.gd")
 const KotatsuScript := preload("res://scripts/kotatsu.gd")
 const SmallPropsScript := preload("res://scripts/small_props.gd")
 const FishingScript := preload("res://scripts/fishing.gd")
+const IntercomScript := preload("res://scripts/intercom.gd")
 const SfxScript := preload("res://scripts/sfx.gd")
 const BooksScript := preload("res://scripts/books.gd")
 const CorridorScript := preload("res://scripts/corridor.gd")
@@ -122,6 +123,8 @@ const MESSAGES := {
 	"stove_eat_2": "二つ目の目玉焼き。さすがに塩気が欲しくなってきた。",
 	"stove_eat_3": "もう卵を食べすぎだ。そろそろやめよう。",
 	"stove_burnt_clear": "こげた卵を捨てた。フライパンは黒くなっている。",
+	"coin_pickup": "タンクの底から、金色のコインを拾った。表にエイリアンの絵。クレーンゲームのコインだ。",
+	"ufo_no_coin": "コインの投入口がある。コインがないと動かない。",
 	"fishing_rod": "室外機のうしろに立てかけてあった釣り竿を手に入れた。ベランダの手すりから、下の路地へ糸を垂らせそうだ。",
 	"fish_need_rod": "手すりの下は路地だ。ここから釣り糸を垂らしたら、何か釣れるかもしれない。釣り竿があれば……。",
 	"fish_cast_msg": "手すりから、釣り糸を路地へ垂らした。浮きが跳ねるまで待とう。",
@@ -137,6 +140,9 @@ const MESSAGES := {
 	"dumbbell": "ダンベル。持ち上げようとしたが、やめた。三日坊主のあとだ。",
 	"bottle": "空のペットボトルが転がっている。",
 	"bag": "コンビニの袋から、ネギが飛び出している。買った覚えはない。",
+	"intercom_idle": "インターホンのモニター。画面は暗い。呼び出しがあると、玄関の外が映るらしい。",
+	"intercom_visitor": "モニターに、玄関の外の人影が映っている。じっとこちらを見ている。……インターホンは、鳴らしただけだ。",
+	"intercom_after": "インターホンのモニター。画面には、誰もいない廊下が映っている。",
 	"tv_on": "ピッ。テレビがついた。",
 	"tv_off": "ピッ。テレビを消した。",
 	"tv_start": "ゲームを始めた。W／S（↑／↓）でラケットを動かす。E か Esc でやめる。",
@@ -194,6 +200,8 @@ const PROMPTS := {
 	"cards_draw": "左クリック：トランプを一枚めくる",
 	"dice_roll": "左クリック：サイコロを振る",
 	"tv_remote": "左クリック：テレビの電源",
+	"coin_take": "左クリック：コインを拾う",
+	"catch_look": "左クリック：調べる",
 	"fish_need_rod_prompt": "左クリック：調べる",
 	"fish_cast": "左クリック：釣り糸を垂らす",
 	"fish_wait": "左クリック：引き上げる（まだ早いかも）",
@@ -231,6 +239,7 @@ const ITEMS := {
 	"driver": {"name": "ドライバー", "desc": "赤橙の柄のドライバー。先はプラス。"},
 	"spare_roll": {"name": "予備ロール", "desc": "包装されたトイレットペーパー。『明日もある』。"},
 	"fishing_rod": {"name": "釣り竿", "desc": "竹色の釣り竿。リールがついている。ベランダの手すりから、下の路地へ糸を垂らせそうだ。"},
+	"ufo_coin": {"name": "UFOコイン", "desc": "クレーンゲーム用のコイン。表にエイリアンの絵。1回ぶん。"},
 	"bath_powder": {"name": "ユブロマン", "desc": "ゆずの香りの粉末入浴剤。1回分。"},
 }
 
@@ -294,8 +303,10 @@ var cleared := false
 var paused := false
 var play_time := 0.0               # 一時停止中を除くプレイ時間（秒）。空模様に使う
 var kotatsu_seat := 0              # 座っている（入っている）こたつの座布団（KotatsuScript.SEATS の番号）
+var peeping := false               # のぞき穴の画面が開いている
 var reading := false               # 本を読む画面が開いている
 const TISSUE_SHEETS := 12
+var coin_count := 0                # 持っている UFOコインの枚数
 var tissue_pulled := 0             # ティッシュを引いた回数
 var gaming := false                # テレビゲームで遊んでいる
 var _rng := RandomNumberGenerator.new()
@@ -349,10 +360,15 @@ func _ready() -> void:
 	hud.eye_height_changed.connect(_on_eye_height_changed)
 	hud.audio_changed.connect(_on_audio_changed)
 	_load_settings()
+	room.apartment.intercom.front_door = room.front_door
+	room.apartment.intercom.notice.connect(func(text: String) -> void: hud.show_message(text, 5.0))
+	room.apartment.ufo_catcher.coin_check = spend_coin
+	room.toilet.coin_taken.connect(add_coin)
 	fishing = FishingScript.new()
 	fishing.name = "Fishing"
 	room.add_child(fishing)
 	fishing.player = player
+	fishing.coin_caught.connect(func() -> void: add_coin(1))
 	fishing.notice.connect(func(text: String) -> void: hud.show_message(text))
 	hud.set_catch_text(fishing.collection_text())
 	fishing.collection_changed.connect(hud.set_catch_text)
@@ -365,6 +381,9 @@ func _process(_delta: float) -> void:
 	if not paused and not cleared:
 		play_time += _delta
 		room.sky_clock.set_time(play_time)
+	if peeping:
+		hud.set_prompt("")
+		return
 	if gaming:
 		hud.set_prompt("")
 		var dir := 0.0
@@ -392,6 +411,12 @@ func _process(_delta: float) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if peeping:
+		# のぞき穴を見ている間：クリックか Esc でやめる
+		if event.is_action_pressed("pause") or (event is InputEventMouseButton and event.pressed and (event as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT):
+			get_viewport().set_input_as_handled()
+			_close_peephole()
+		return
 	if gaming:
 		# ゲーム中：E か Esc でやめる。ほかの操作は受け付けない
 		if event.is_action_pressed("pause") or event.is_action_pressed("action"):
@@ -436,6 +461,9 @@ func _unhandled_input(event: InputEvent) -> void:
 		if event.is_action_pressed("item_4"):
 			select_item(3)
 			return
+		if event.is_action_pressed("item_5"):
+			select_item(4)
+			return
 		if event.is_action_pressed("inspect_item"):
 			toggle_zoom()
 			return
@@ -453,6 +481,29 @@ func _unhandled_input(event: InputEvent) -> void:
 			_resume()
 		else:
 			_pause()
+
+
+# ---------------------------------------------------------------- のぞき穴
+
+func _open_peephole() -> void:
+	if peeping or reading or gaming or paused or cleared:
+		return
+	peeping = true
+	player.controls_enabled = false
+	hud.show_peephole(room.apartment.intercom.peephole_texture())
+	var ic = room.apartment.intercom
+	if ic.visitor_present:
+		hud.show_message("のぞき穴の向こうに、人影が立っている。……動かない。", 4.0)
+	else:
+		hud.show_message("のぞき穴から、ぼんやりと廊下が見える。誰もいない。", 3.0)
+
+
+func _close_peephole() -> void:
+	if not peeping:
+		return
+	peeping = false
+	hud.hide_peephole()
+	player.controls_enabled = true
 
 
 # ---------------------------------------------------------------- テレビゲーム
@@ -652,6 +703,10 @@ func _on_interact_requested(target: Object) -> void:
 		"kitchen_sink", "kitchen_stove", "fridge", "guitar", "taxidermy", "phone_black", "phone_mobile", \
 		"life_paper_02", "life_paper_07", "rug", "card_box", "magazines", "teddy", "clothes", "dumbbell", "bottle", "bag":
 			hud.show_message(MESSAGES[id])
+		"peephole":
+			_open_peephole()
+		"mail_catcher":
+			hud.show_message("ミニポストの受け箱に、チラシが数枚。それと、宛名のない封筒が一通。" if room.apartment.intercom.rang else "ミニポストの受け箱に、ピザ屋と引っ越し屋のチラシが数枚。")
 		"wall_clock":
 			hud.show_message(MESSAGES["wall_clock"].replace("{time}", room.apartment.wall_clock.time_text()))
 		"tissue":
@@ -759,7 +814,31 @@ func select_item(i: int) -> void:
 		_show_zoom()
 
 
+## UFOコインを n 枚ふやす（持ち物には1つの欄に「×枚数」でまとめる）。
+func add_coin(n := 1) -> void:
+	coin_count += n
+	if not inventory.has("ufo_coin"):
+		_item_models["ufo_coin"] = FishingScript.coin_model()
+		add_item("ufo_coin")
+	else:
+		select_item(inventory.find("ufo_coin"))
+
+
+## クレーンゲームで1枚使う。なければ false。
+func spend_coin() -> bool:
+	if coin_count <= 0:
+		return false
+	coin_count -= 1
+	if coin_count == 0:
+		remove_item("ufo_coin")
+	else:
+		select_item(inventory.find("ufo_coin"))
+	return true
+
+
 func item_name(id: String) -> String:
+	if id == "ufo_coin":
+		return "UFOコイン×%d" % coin_count
 	if id == "bath_powder" and powder_used:
 		return "ユブロマン（空）"
 	return ITEMS[id]["name"]
@@ -1015,6 +1094,7 @@ func _setup_input_map() -> void:
 	_add_key_action("item_2", [KEY_2])
 	_add_key_action("item_3", [KEY_3])
 	_add_key_action("item_4", [KEY_4])
+	_add_key_action("item_5", [KEY_5])
 	_add_key_action("inspect_item", [KEY_Q])
 	if not InputMap.has_action("interact"):
 		InputMap.add_action("interact")

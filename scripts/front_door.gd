@@ -19,6 +19,9 @@ const SWING_TIME := 0.8
 var is_open := false
 var busy := false
 var pivot: Node3D
+var mail_envelope: MeshInstance3D   # 受け箱の中の封筒（インターホンが鳴ったあと、見えるようになる）
+var peephole_area: Area3D
+var mail_area: Area3D
 
 
 func _ready() -> void:
@@ -67,6 +70,46 @@ func _ready() -> void:
 	num.position = Vector3(-0.0265, 1.68, -leaf_w * 0.5)
 	num.rotation.y = -PI * 0.5   # 表を廊下側（-x）へ
 	pivot.add_child(num)
+	_build_inside(leaf_w, metal)
+
+
+## 扉の部屋側（+x の面）：のぞき穴のレンズ（ぼんやり）と、郵便受けの下に吊るしたミニポスト（受け箱）。扉といっしょに動く。
+func _build_inside(leaf_w: float, metal: Material) -> void:
+	var zc := -leaf_w * 0.5
+	# のぞき穴：金属のリングと、ぼんやり光る小さなレンズ（調べると外が見える）
+	var ring := MeshKit.cylinder(pivot, 0.02, 0.012, Vector3(0.026, 1.5, zc), metal, "PeepRing")
+	ring.rotation.z = deg_to_rad(90.0)
+	var lens_m := StandardMaterial3D.new()
+	lens_m.albedo_color = Color(0.55, 0.65, 0.7, 0.9)
+	lens_m.roughness = 0.1
+	lens_m.emission_enabled = true
+	lens_m.emission = Color(0.45, 0.6, 0.55)
+	lens_m.emission_energy_multiplier = 0.5
+	var lens := MeshKit.sphere(pivot, 0.012, Vector3(0.032, 1.5, zc), lens_m)
+	lens.name = "PeepLens"
+	lens.scale = Vector3(0.5, 1.0, 1.0)
+	peephole_area = MeshKit.interact_area(pivot, "PeepholeArea", "peephole")
+	MeshKit.shape_box(peephole_area, Vector3(0.1, 0.1, 0.1), Vector3(0.04, 1.5, zc))
+	peephole_area.set_meta("interact_range", 1.8)
+	# ミニポスト：郵便受け（y 0.95）の真下に、扉に取りつけた小さな受け箱
+	var tin := MeshKit.mat("mailbox_tin", Color(0.55, 0.28, 0.2), 0.5, 0.4)
+	var inside := MeshKit.mat("mailbox_inside", Color(0.15, 0.1, 0.08), 0.9)
+	var bx := 0.06
+	var by := 0.82
+	MeshKit.box(pivot, Vector3(0.09, 0.012, 0.3), Vector3(bx, by - 0.07, zc), tin, "MailBottom")
+	MeshKit.box(pivot, Vector3(0.012, 0.14, 0.3), Vector3(bx + 0.039, by, zc), tin, "MailFront")
+	for sz in [-1.0, 1.0]:
+		MeshKit.box(pivot, Vector3(0.09, 0.14, 0.012), Vector3(bx, by, zc + sz * 0.144), tin, "MailSide")
+	MeshKit.box(pivot, Vector3(0.002, 0.14, 0.3), Vector3(0.022, by, zc), inside, "MailBack")
+	var flyer_cols := [Color(0.9, 0.85, 0.3), Color(0.55, 0.8, 0.9), Color(0.95, 0.6, 0.6)]
+	for i in 3:
+		var fl := MeshKit.box(pivot, Vector3(0.005, 0.12, 0.09), Vector3(0.035 + i * 0.012, by - 0.01, zc - 0.08 + i * 0.075), MeshKit.mat("flyer_%d" % i, flyer_cols[i], 0.8), "Flyer%d" % i)
+		fl.rotation.x = deg_to_rad(-6.0 + i * 5.0)
+	mail_envelope = MeshKit.box(pivot, Vector3(0.004, 0.1, 0.16), Vector3(0.062, by - 0.03, zc + 0.02), MeshKit.mat("envelope", Color(0.97, 0.96, 0.93), 0.9), "Envelope")
+	mail_envelope.visible = false
+	mail_area = MeshKit.interact_area(pivot, "MailArea", "mail_catcher")
+	MeshKit.shape_box(mail_area, Vector3(0.14, 0.2, 0.34), Vector3(bx, by, zc))
+	mail_area.set_meta("interact_range", 1.8)
 
 
 func get_prompt(_id: String) -> String:

@@ -22,6 +22,7 @@ const MeshKit := preload("res://scripts/mesh_kit.gd")
 const Sfx := preload("res://scripts/sfx.gd")
 
 const WALL_X := -0.9
+const COIN_POS := Vector3(WALL_X + 0.1, 0.838, 0.02)   # 浮き球（水面 0.80 の上）のてっぺん
 const RIM_Y := 0.40            # 便器の縁の高さ（便座の下面）
 const LID_HINGE := Vector3(-0.675, 0.43, 0.0)
 const SEAT_HINGE := Vector3(-0.645, RIM_Y, 0.0)
@@ -47,6 +48,10 @@ const BOWL_WATER_Y := 0.236
 const LEVER_DOWN_DEG := 25.0    # 取っ手の先（+z）が下がる向き
 const FLUSH_DRAIN_TIME := 1.2
 const FLUSH_REFILL_TIME := 3.0
+signal coin_taken   # タンクの中のコインを拾った（main.gd が持ち物に入れる）
+var coin_taken_already := false
+var coin_area: Area3D
+var coin_root: Node3D
 var lid_open := false
 var seat_up := false
 var busy := false
@@ -74,6 +79,7 @@ func _ready() -> void:
 	_build_seat()
 	_build_lid()
 	_build_tank_lid()
+	_build_coin()
 
 	var body := StaticBody3D.new()
 	body.name = "Collision"
@@ -83,7 +89,15 @@ func _ready() -> void:
 	body.set_meta("fixture", self)
 	add_child(body)
 	var tank_h := TANK_BODY_TOP - TANK_BOTTOM   # 蓋の部分は蓋の判定に任せる
-	MeshKit.shape_box(body, Vector3(0.2, tank_h, 0.4), Vector3(WALL_X + 0.1, TANK_BOTTOM + tank_h * 0.5, 0.0))   # タンク
+	# タンク：中の空いた箱（底・前後・左右の壁）。蓋を外したとき、照準が中のコインに届くように中身は空ける
+	var tw := TANK_WALL
+	var tcy := TANK_BOTTOM + tank_h * 0.5
+	var tcx := WALL_X + 0.1
+	MeshKit.shape_box(body, Vector3(0.2, 0.02, 0.4), Vector3(tcx, TANK_BOTTOM + 0.01, 0.0))
+	MeshKit.shape_box(body, Vector3(tw, tank_h, 0.4), Vector3(WALL_X + 0.2 - tw * 0.5, tcy, 0.0))
+	MeshKit.shape_box(body, Vector3(tw, tank_h, 0.4), Vector3(WALL_X + tw * 0.5, tcy, 0.0))
+	for zz in [-0.2 + tw * 0.5, 0.2 - tw * 0.5]:
+		MeshKit.shape_box(body, Vector3(0.2 - tw * 2.0, tank_h, tw), Vector3(tcx, tcy, zz))
 	MeshKit.shape_box(body, Vector3(0.4, RIM_Y, 0.36), Vector3(-0.5, RIM_Y * 0.5, 0.0))   # 本体
 
 
@@ -213,6 +227,8 @@ func flush() -> void:
 func _set_tank_level(y: float) -> void:
 	tank_water.position.y = y
 	tank_float.position.y = y + 0.005
+	if coin_root:
+		coin_root.position.y = y + 0.038
 
 
 ## 座れる状態か：蓋が開き、便座が下りていて、動いていない。
@@ -253,6 +269,28 @@ func _build_lid() -> void:
 	MeshKit.shape_box(area, size, center)
 
 
+## タンクの中のコイン：浮き球（フロート）の上に、UFOキャッチャー用のコインが1枚のっている。蓋を外したときだけ狙える。
+## 水位（流すと下がる）に合わせて浮き球ごと上下する。底に置くと手前の壁の陰になり、立った目の高さからは見えないので、水面の浮き球の上にした。
+func _build_coin() -> void:
+	coin_root = Node3D.new()
+	coin_root.name = "CoinRoot"
+	coin_root.position = COIN_POS
+	add_child(coin_root)
+	var gold := MeshKit.mat("ufo_coin", Color(0.95, 0.78, 0.25), 0.25, 0.8)
+	gold.emission_enabled = true   # 水まわりでも見つけられるよう、うっすら光らせる
+	gold.emission = Color(0.9, 0.65, 0.15)
+	gold.emission_energy_multiplier = 0.6
+	MeshKit.cylinder(coin_root, 0.02, 0.003, Vector3.ZERO, gold, "UfoCoin")
+	MeshKit.cylinder(coin_root, 0.013, 0.0034, Vector3.ZERO, MeshKit.mat("ufo_coin_mark", Color(0.65, 0.45, 0.1), 0.3, 0.7), "UfoCoinMark")
+	coin_area = MeshKit.interact_area(coin_root, "CoinArea", "tank_coin", self)
+	MeshKit.shape_box(coin_area, Vector3(0.07, 0.06, 0.07), Vector3(0, 0.02, 0))
+	coin_area.collision_layer = 0
+
+
+func _update_coin_area() -> void:
+	coin_area.collision_layer = MeshKit.LAYER_INTERACT if (tank_open and not coin_taken_already) else 0
+
+
 func _build_tank_lid() -> void:
 	tank_lid = Node3D.new()
 	tank_lid.name = "TankLid"
@@ -287,7 +325,9 @@ func toggle_tank() -> void:
 		tween.tween_property(tank_lid, "rotation", Vector3.ZERO, d[2])
 		tween.tween_property(tank_lid, "position", lifted, d[1])
 		tween.tween_property(tank_lid, "position", TANK_LID_CLOSED, d[0])
-	tween.tween_callback(func() -> void: tank_busy = false)
+	tween.tween_callback(func() -> void:
+		tank_busy = false
+		_update_coin_area())
 
 
 ## 蓋を開ける／閉める。閉じるときに便座が上がっていれば、先に便座を下ろす。
@@ -328,6 +368,8 @@ func _swing_tween() -> Tween:
 # ---------------------------------------------------------------- main.gd から呼ばれる
 
 func get_prompt(id: String) -> String:
+	if id == "tank_coin":
+		return "coin_take"
 	if id == "toilet":
 		return "examine"
 	if id == "flush_lever":
@@ -345,6 +387,14 @@ func get_prompt(id: String) -> String:
 
 func interact(id: String) -> String:
 	match id:
+		"tank_coin":
+			if coin_taken_already:
+				return ""
+			coin_taken_already = true
+			coin_root.visible = false
+			_update_coin_area()
+			coin_taken.emit()
+			return "coin_pickup"
 		"toilet":
 			return "toilet"
 		"tank_lid":

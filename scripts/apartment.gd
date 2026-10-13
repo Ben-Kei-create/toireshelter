@@ -25,6 +25,7 @@ const MiniGameScript := preload("res://scripts/mini_game.gd")
 const AquariumScript := preload("res://scripts/aquarium.gd")
 const RadioScript := preload("res://scripts/radio.gd")
 const WallClockScript := preload("res://scripts/wall_clock.gd")
+const IntercomScript := preload("res://scripts/intercom.gd")
 
 # 素材（docs/assets.md の ASSETS-30）
 const TEX_GRANITE := preload("res://assets/textures/surfaces/surface_01.png")
@@ -64,6 +65,7 @@ var small_props: Node3D    # じゅうたん・トランプ・サイコロなど
 var aquarium: Node3D       # 水槽（aquarium.gd）
 var radio: Node3D          # ラジオ（radio.gd）
 var wall_clock: Node3D     # 壁掛け時計（wall_clock.gd）
+var intercom: Node3D       # インターホン（intercom.gd。玄関ホールの奥の壁）
 var tv_game: Node2D        # テレビで遊べる小さなゲーム（mini_game.gd。SubViewport の中）
 var tv_on := true          # テレビの電源（リモコンで切り替え）
 var _tv_mat: StandardMaterial3D
@@ -1279,6 +1281,10 @@ func _build_extras() -> void:
 	radio = RadioScript.new()
 	radio.name = "Radio"
 	add_child(radio)
+	intercom = IntercomScript.new()
+	intercom.name = "Intercom"
+	intercom.lights_root = get_parent()
+	add_child(intercom)
 	wall_clock = WallClockScript.new()
 	wall_clock.name = "WallClock"
 	wall_clock.position = Vector3(ROOM.end.x - 0.001, 2.0, 1.95)   # 東の壁、冷蔵庫の上。文字盤は部屋の中（-x）へ

@@ -1,7 +1,9 @@
 extends Node3D
 ## ベランダの釣り。室外機の後ろに立てかけた釣り竿を拾うと、手すりの前から下の路地へ釣り糸を垂らせる。
 ## 操作は左クリックだけ：手すりを狙ってクリック＝糸を垂らす → 浮きが跳ねたらクリック＝引き上げる。
-## 釣れるのは、ゴミ・お宝・ほかのアイテム（合わせて 27 種類）。持ち物にはならず、「釣果」として数えるだけ（設定画面で確認できる）。
+## 釣れるのは、ゴミ・お宝・ほかのアイテム（合わせて 28 種類）。釣った物は「釣果」として数える（設定画面で確認できる）。
+## UFOキャッチャーのコインを釣ったときだけ持ち物になる（main.gd が受け取る）。ほかの物は、釣った順にベランダの床へランダムに置かれていく。
+## 置き物は調べられ、最初の 5 個だけは簡単な当たり判定がある（それ以降は見た目だけ。置けるのは 24 個まで、古い物から消える）。
 ## 脱出や謎解きとは関係ない遊び。座標は部屋と同じ（ベランダの床は y 0、手すりは z -2.1）。
 ## 判定：釣り竿（id fishing_rod、拾う）と、手すり沿いの釣り場（id fish_spot。fixture として get_prompt／interact を持つ）。
 
@@ -9,6 +11,7 @@ const MeshKit := preload("res://scripts/mesh_kit.gd")
 const Sfx := preload("res://scripts/sfx.gd")
 
 signal notice(text: String)
+signal coin_caught   # UFOコインが釣れた（持ち物に入る）
 signal collection_changed(text: String)   # 釣果が変わった（設定画面の行を更新する）
 
 const ROD_POS := Vector3(3.64, 0.0, -1.68)      # 室外機のうしろ、右端の隔て板との隙間に立てかけてある
@@ -17,6 +20,10 @@ const RAIL_Z := -2.1
 const SPOT_X := Vector2(1.5, 3.1)
 const GROUND_Y := -6.7                           # 路地の地面（2 階ぶん下）
 const WAIT_RANGE := Vector2(2.5, 6.0)
+const MAX_SOLID := 5          # 当たり判定のある置き物の数
+const MAX_PLACED := 24
+const SANDAL := Vector2(2.8, -1.5)
+const POT := Vector2(1.45, -1.98)
 
 ## 釣れる物 [種類, 名前, 説明, 重み]
 const CATCHES := [
@@ -47,6 +54,7 @@ const CATCHES := [
 	["アイテム", "折りたたんだ地図", "広げると、見たことのない街の地図だった。", 2],
 	["アイテム", "ミニ双眼鏡", "のぞくと、ベランダの手すりが大きく見えた。", 2],
 	["アイテム", "おもちゃのメダル", "『よくがんばりました』と書いてある。", 4],
+	["アイテム", "UFOキャッチャーのコイン", "表にエイリアンの絵。クレーンゲームで使えそうだ。持ち物に入れた。", 3, "coin"],
 ]
 const KIND_WEIGHTS := {"ゴミ": 50, "アイテム": 30, "お宝": 20}
 const KIND_COLORS := {"ゴミ": Color(0.45, 0.45, 0.42), "アイテム": Color(0.35, 0.6, 0.85), "お宝": Color(1.0, 0.8, 0.2)}
@@ -69,6 +77,9 @@ var _line_len := 0.0
 var _top := Vector3.ZERO      # 竿の先（糸の出る所）
 var _tween: Tween
 var _t := 0.0
+var placed: Array = []       # 置いた物 {node, id, name, kind, desc, solid}
+var _placed_serial := 0
+var _pending: Array = []
 
 
 func _ready() -> void:
@@ -146,6 +157,17 @@ static func build_rod(length: float) -> Node3D:
 	return n
 
 
+## UFOコインの拡大表示用モデル。
+static func coin_model() -> Node3D:
+	var holder := Node3D.new()
+	holder.name = "CoinModel"
+	var c := MeshKit.cylinder(holder, 0.05, 0.008, Vector3.ZERO, MeshKit.mat("ufo_coin", Color(0.95, 0.78, 0.25), 0.25, 0.8), "Coin")
+	c.rotation.x = PI * 0.5
+	var m := MeshKit.cylinder(holder, 0.032, 0.0086, Vector3.ZERO, MeshKit.mat("ufo_coin_mark", Color(0.65, 0.45, 0.1), 0.3, 0.7), "Mark")
+	m.rotation.x = PI * 0.5
+	return holder
+
+
 ## 持ち物の拡大表示用：短くして横に寝かせた釣り竿。
 static func zoom_model() -> Node3D:
 	var holder := Node3D.new()
@@ -179,7 +201,9 @@ func collection_text() -> String:
 
 # ---------------------------------------------------------------- 釣り（fixture）
 
-func get_prompt(_id: String) -> String:
+func get_prompt(id: String) -> String:
+	if id.begins_with("catch_"):
+		return "catch_look"
 	if not has_rod:
 		return "fish_need_rod_prompt"
 	match state:
@@ -192,7 +216,13 @@ func get_prompt(_id: String) -> String:
 	return ""
 
 
-func interact(_id: String) -> String:
+func interact(id: String) -> String:
+	if id.begins_with("catch_"):
+		for p in placed:
+			if "catch_%d" % p.id == id:
+				last_text = "【%s】%s\n%s" % [p.kind, p.name, p.desc]
+				return "fishing_text"
+		return ""
 	if not has_rod:
 		return "fish_need_rod"
 	match state:
@@ -298,12 +328,64 @@ func _reel() -> void:
 		_tween.kill()
 	_tween = create_tween()
 	_tween.tween_method(_set_line_len, _line_len, 0.2, 1.4).set_trans(Tween.TRANS_SINE)
+	_pending = pick
 	_tween.tween_callback(func() -> void:
 		state = "idle"
 		_line.visible = false
 		_hook_item.visible = false
 		_cast_rod.visible = false
-		Sfx.play("chime" if last_kind == "お宝" else "click", 1.2, -6.0))
+		Sfx.play("chime" if last_kind == "お宝" else "click", 1.2, -6.0)
+		_land(_pending))
+
+
+## 釣れた物を手に入れる：コインは持ち物へ、それ以外はベランダの床へ置く。
+func _land(pick: Array) -> void:
+	if pick.size() > 4 and pick[4] == "coin":
+		coin_caught.emit()
+		return
+	_place(pick)
+
+
+## ベランダの床へランダムに置く。最初の MAX_SOLID 個は手すりぎわ（体の通り道の外）に置いて当たり判定をつける。
+func _place(pick: Array) -> void:
+	var solid := placed.filter(func(p): return p.solid).size() < MAX_SOLID
+	var size := Vector3(_rng.randf_range(0.07, 0.12), _rng.randf_range(0.04, 0.09), _rng.randf_range(0.07, 0.12))
+	var pos := Vector3.ZERO
+	for _try in 30:
+		var x := _rng.randf_range(1.6, 3.1)
+		var z := _rng.randf_range(-2.0, -1.9) if solid else _rng.randf_range(-2.0, -1.45)
+		pos = Vector3(x, size.y * 0.5, z)
+		var ok := Vector2(x, z).distance_to(SANDAL) > 0.2 and Vector2(x, z).distance_to(POT) > 0.2
+		for p in placed:
+			if Vector2(x, z).distance_to(Vector2(p.node.position.x, p.node.position.z)) < 0.16:
+				ok = false
+		if ok:
+			break
+	var col: Color = KIND_COLORS[pick[0]]
+	var n := Node3D.new()
+	n.name = "Catch%02d" % _placed_serial
+	n.position = pos
+	n.rotation.y = _rng.randf_range(0.0, TAU)
+	add_child(n)
+	var mat := MeshKit.mat("catch_%s" % pick[0], col.darkened(0.2) if pick[0] == "ゴミ" else col, 0.6, 0.3 if pick[0] == "お宝" else 0.0)
+	if pick[0] == "お宝":
+		MeshKit.sphere(n, size.y * 0.55, Vector3.ZERO, mat)
+	else:
+		MeshKit.box(n, size, Vector3.ZERO, mat, "Body")
+	var area := MeshKit.interact_area(n, "CatchArea", "catch_%d" % _placed_serial, self)
+	MeshKit.shape_box(area, size + Vector3(0.04, 0.04, 0.04), Vector3.ZERO)
+	if solid:
+		var body := StaticBody3D.new()
+		body.name = "Solid"
+		body.collision_layer = MeshKit.LAYER_WORLD
+		body.collision_mask = 0
+		n.add_child(body)
+		MeshKit.shape_box(body, size, Vector3.ZERO)
+	placed.append({"node": n, "id": _placed_serial, "name": pick[1], "kind": pick[0], "desc": pick[2], "solid": solid})
+	_placed_serial += 1
+	if placed.size() > MAX_PLACED:
+		var old: Dictionary = placed.pop_front()
+		(old.node as Node3D).queue_free()
 
 
 func _pick() -> Array:

@@ -42,6 +42,8 @@ var _message_time_left := 0.0
 var _height_slider: HSlider
 var _height_value: Label
 var _catch_label: Label
+var _peep: Control
+var _peep_tex: TextureRect
 var audio_controls := {}   # key → HSlider／CheckButton（設定画面の音の欄）
 
 
@@ -92,6 +94,7 @@ func _ready() -> void:
 	_hint_label.add_theme_font_size_override("font_size", 15)
 	_place(_hint_label, 0.0, 0.0, 1.0, 0.0, 20.0, 12.0, -20.0, 38.0)   # 上端（所持品欄と重ならないよう、下から移した）
 
+	_build_peephole()
 	_pause_menu = _make_menu("PauseMenu", "設定")
 	_build_settings(_pause_menu)
 	_resume_button = _add_button(_pause_menu, "再開", func() -> void: resume_pressed.emit())
@@ -131,7 +134,7 @@ func set_prompt(text: String) -> void:
 		_prompt_panel.visible = not text.is_empty()
 
 
-## 所持品欄を更新する。names：持っている物の名前（最大4つ、順に 1〜4 キー）、selected：選択中の番号（なければ -1）。
+## 所持品欄を更新する。names：持っている物の名前（最大5つ、順に 1〜5 キー）、selected：選択中の番号（なければ -1）。
 func set_inventory(names: Array, selected: int) -> void:
 	for i in _slot_labels.size():
 		var has := i < names.size()
@@ -224,11 +227,11 @@ func _build_inventory_bar() -> void:
 	title.add_theme_constant_override("shadow_offset_x", 1)
 	title.add_theme_constant_override("shadow_offset_y", 1)
 	_inventory_bar.add_child(title)
-	for i in 4:
+	for i in 5:
 		var label := _make_label(17, HORIZONTAL_ALIGNMENT_LEFT)
 		label.name = "Slot%dLabel" % (i + 1)
 		var panel := _make_panel("Slot%d" % (i + 1), label, 0.45)
-		panel.custom_minimum_size = Vector2(104, 46)
+		panel.custom_minimum_size = Vector2(96, 46)
 		var style := (panel.get_theme_stylebox("panel") as StyleBoxFlat).duplicate() as StyleBoxFlat
 		panel.add_theme_stylebox_override("panel", style)
 		_inventory_bar.add_child(panel)
@@ -441,7 +444,7 @@ func _build_settings(menu: Control) -> void:
 	var box := menu.get_node("Center/Box") as VBoxContainer
 	var help := _make_label(20, HORIZONTAL_ALIGNMENT_LEFT)
 	help.name = "Controls"
-	help.text = "操作説明\n移動：W A S D（矢印キーも可）　　視点：マウス\n調べる・使う：左クリック　　座る・入る・立つ：E\nしゃがむ：C　　持ち物を使う：F　　選ぶ：1〜4・ホイール　　拡大：Q\n釣り：釣り竿を拾い、ベランダの手すりを狙ってクリック。浮きが跳ねたらもう一度\nテレビゲーム中：W／S でラケット、E でやめる\n設定を開く・閉じる：Esc"
+	help.text = "操作説明\n移動：W A S D（矢印キーも可）　　視点：マウス\n調べる・使う：左クリック　　座る・入る・立つ：E\nしゃがむ：C　　持ち物を使う：F　　選ぶ：1〜5・ホイール　　拡大：Q\n釣り：釣り竿を拾い、ベランダの手すりを狙ってクリック。浮きが跳ねたらもう一度\nテレビゲーム中：W／S でラケット、E でやめる\n設定を開く・閉じる：Esc"
 	box.add_child(help)
 	_catch_label = _make_label(18, HORIZONTAL_ALIGNMENT_LEFT)
 	_catch_label.name = "CatchLabel"
@@ -506,6 +509,46 @@ func _build_settings(menu: Control) -> void:
 	_height_slider.value_changed.connect(func(v: float) -> void:
 		_height_value.text = "%d cm" % int(v)
 		eye_height_changed.emit(v / 100.0))
+
+
+## のぞき穴の画面：暗い背景の中央に、丸くぼんやりした景色（tex は丸く切り抜いた絵）。
+func show_peephole(tex: Texture2D) -> void:
+	_peep_tex.texture = tex
+	_peep.visible = true
+
+
+func hide_peephole() -> void:
+	_peep.visible = false
+
+
+func is_peephole_open() -> bool:
+	return _peep.visible
+
+
+func _build_peephole() -> void:
+	_peep = ColorRect.new()
+	(_peep as ColorRect).color = Color(0.0, 0.0, 0.0, 0.92)
+	_peep.name = "Peephole"
+	_peep.mouse_filter = Control.MOUSE_FILTER_STOP
+	_root.add_child(_peep)
+	_peep.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	var center := CenterContainer.new()
+	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_peep.add_child(center)
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 8)
+	center.add_child(box)
+	_peep_tex = TextureRect.new()
+	_peep_tex.custom_minimum_size = Vector2(520, 520)
+	_peep_tex.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_peep_tex.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	_peep_tex.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+	box.add_child(_peep_tex)
+	var cap := _make_label(18, HORIZONTAL_ALIGNMENT_CENTER)
+	cap.text = "のぞき穴　（クリックか Esc でやめる）"
+	box.add_child(cap)
+	_peep.visible = false
 
 
 ## 設定画面の「釣果」の行。
