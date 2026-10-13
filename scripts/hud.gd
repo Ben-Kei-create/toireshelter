@@ -8,6 +8,7 @@ signal eye_height_changed(value: float)
 signal audio_changed(key: String, value: Variant)
 signal head_bob_changed(on: bool)
 signal body_visible_changed(on: bool)
+signal sensitivity_changed(value: float)
 
 const JP_FONTS := [
 	"Hiragino Sans", "Hiragino Kaku Gothic ProN", "Hiragino Kaku Gothic Pro",
@@ -51,6 +52,14 @@ var _peep: Control
 var _peep_tex: TextureRect
 var _mj: Control
 var _fade: ColorRect
+var _dot: ColorRect
+var _log: Control
+var _log_label: Label
+var _messages: Array[String] = []   # 最近のメッセージ（読み返せる）
+var _sens_slider: HSlider
+var _sens_value: Label
+var _last_item_count := 0
+var _pulse_tween: Tween
 var _card_pop: TextureRect
 var _card_tween: Tween
 var _fade_tween: Tween
@@ -134,6 +143,32 @@ func _ready() -> void:
 	_fade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_fade.modulate.a = 0.0
 	_build_mahjong()
+	_log = PanelContainer.new()
+	_log.name = "MessageLog"
+	_log.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var lstyle := StyleBoxFlat.new()
+	lstyle.bg_color = Color(0.03, 0.04, 0.06, 0.88)
+	lstyle.set_corner_radius_all(10)
+	lstyle.content_margin_left = 22.0
+	lstyle.content_margin_right = 22.0
+	lstyle.content_margin_top = 14.0
+	lstyle.content_margin_bottom = 14.0
+	_log.add_theme_stylebox_override("panel", lstyle)
+	_place(_log, 0.5, 0.0, 0.5, 1.0, -360.0, 60.0, 360.0, -100.0)
+	var lbox := VBoxContainer.new()
+	lbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_log.add_child(lbox)
+	var ltitle := _make_label(18, HORIZONTAL_ALIGNMENT_LEFT)
+	ltitle.text = "最近のメッセージ（新しい順）　H か Esc で閉じる"
+	ltitle.modulate = Color(1, 1, 1, 0.7)
+	lbox.add_child(ltitle)
+	_log_label = _make_label(18, HORIZONTAL_ALIGNMENT_LEFT)
+	_log_label.autowrap_mode = TextServer.AUTOWRAP_ARBITRARY
+	_log_label.vertical_alignment = VERTICAL_ALIGNMENT_TOP
+	_log_label.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_log_label.clip_text = true
+	lbox.add_child(_log_label)
+	_log.visible = false
 	_pause_menu = _make_menu("PauseMenu", "設定")
 	_build_settings(_pause_menu)
 	_resume_button = _add_button(_pause_menu, "再開", func() -> void: resume_pressed.emit())
@@ -163,6 +198,10 @@ func show_message(text: String, seconds: float = -1.0) -> void:
 		# 日本語を読める時間：最低2.5秒、1文字あたり約0.12秒
 		seconds = maxf(2.5, 1.0 + text.length() * 0.12)
 	_message_label.text = text
+	if _messages.is_empty() or _messages[_messages.size() - 1] != text:
+		_messages.append(text)
+		if _messages.size() > 30:
+			_messages.pop_front()
 	_message_panel.visible = true
 	_message_time_left = seconds
 
@@ -175,6 +214,10 @@ func set_prompt(text: String) -> void:
 
 ## 所持品欄を更新する。names：持っている物の名前（最大6つ、順に 1〜6 キー）、selected：選択中の番号（なければ -1）。
 func set_inventory(names: Array, selected: int) -> void:
+	var new_count := names.size()
+	if new_count > _last_item_count and selected >= 0 and selected < _slot_panels.size() and is_inside_tree():
+		_pulse_slot(selected)   # 新しく持ち物に加わった欄を、ちょっと光らせる
+	_last_item_count = new_count
 	for i in _slot_labels.size():
 		var has := i < names.size()
 		_slot_labels[i].text = "%d  %s" % [i + 1, names[i] if has else "―"]
@@ -184,6 +227,46 @@ func set_inventory(names: Array, selected: int) -> void:
 		style.bg_color = Color(0.0, 0.0, 0.0, 0.72 if on else 0.45)
 		style.border_color = Color(1.0, 0.86, 0.55) if on else Color(1, 1, 1, 0.0)
 		style.set_border_width_all(2 if on else 0)
+
+
+func _pulse_slot(i: int) -> void:
+	var p := _slot_panels[i]
+	if _pulse_tween:
+		_pulse_tween.kill()
+		for q in _slot_panels:
+			q.scale = Vector2.ONE
+	p.pivot_offset = p.size * 0.5
+	p.scale = Vector2(1.18, 1.18)
+	_pulse_tween = create_tween()
+	_pulse_tween.tween_property(p, "scale", Vector2.ONE, 0.45).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+
+
+## 照準が調べられる物に乗っているとき、点を少し大きく温かい色にする。
+func set_aim(on: bool) -> void:
+	if _dot == null:
+		return
+	var target_color := Color(1.0, 0.86, 0.45, 1.0) if on else Color(1, 1, 1, 0.9)
+	if _dot.color != target_color:
+		_dot.color = target_color
+		var h := 3.5 if on else 2.0
+		_dot.offset_left = -h
+		_dot.offset_top = -h
+		_dot.offset_right = h
+		_dot.offset_bottom = h
+
+
+## メッセージの履歴（H）。
+func toggle_log() -> void:
+	_log.visible = not _log.visible
+	if _log.visible:
+		var lines := PackedStringArray()
+		for i in range(_messages.size() - 1, -1, -1):
+			lines.append("・" + _messages[i])
+		_log_label.text = "\n\n".join(lines) if not lines.is_empty() else "（まだ何もない）"
+
+
+func is_log_open() -> bool:
+	return _log.visible
 
 
 ## 持ち物の拡大表示。model：表示する3Dモデル（複製して使う）。null なら閉じる。
@@ -407,6 +490,7 @@ func _build_crosshair() -> void:
 	_place(outline, 0.5, 0.5, 0.5, 0.5, -4.0, -4.0, 4.0, 4.0)
 	var dot := ColorRect.new()
 	dot.name = "Crosshair"
+	_dot = dot
 	dot.color = Color(1, 1, 1, 0.9)
 	dot.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_place(dot, 0.5, 0.5, 0.5, 0.5, -2.0, -2.0, 2.0, 2.0)
@@ -499,7 +583,7 @@ func _build_settings(menu: Control) -> void:
 	var box := menu.get_node("Center/Box") as VBoxContainer
 	var help := _make_label(20, HORIZONTAL_ALIGNMENT_LEFT)
 	help.name = "Controls"
-	help.text = "操作説明\n移動：W A S D（矢印キーも可）　　視点：マウス\n調べる・使う：左クリック　　座る・入る・立つ：E\nしゃがむ：C　　持ち物を使う：F　　選ぶ：1〜6・ホイール　　拡大：Q\n釣り：釣り竿を拾い、ベランダの手すりを狙ってクリック。浮きが跳ねたらもう一度\nテレビゲーム中：W／A／S／D で操作、E でやめる\n設定を開く・閉じる：Esc"
+	help.text = "操作説明\n移動：W A S D（矢印キーも可）　　視点：マウス\n調べる・使う：左クリック　　座る・入る・立つ：E\nしゃがむ：C　　持ち物を使う：F　　選ぶ：1〜8・ホイール　　拡大：Q　　メッセージの履歴：H\n釣り：釣り竿を拾い、ベランダの手すりを狙ってクリック。浮きが跳ねたらもう一度\nテレビゲーム中：W／A／S／D で操作、E でやめる\n設定を開く・閉じる：Esc"
 	box.add_child(help)
 	_catch_label = _make_label(18, HORIZONTAL_ALIGNMENT_LEFT)
 	_catch_label.name = "CatchLabel"
@@ -573,6 +657,27 @@ func _build_settings(menu: Control) -> void:
 		_bob_check.text = "視点のゆれ（歩くとき・呼吸）%s" % ("オン" if on else "オフ")
 		head_bob_changed.emit(on))
 	box.add_child(_bob_check)
+	var srow := HBoxContainer.new()
+	srow.name = "SensitivityRow"
+	box.add_child(srow)
+	var slabel := _make_label(20, HORIZONTAL_ALIGNMENT_LEFT)
+	slabel.text = "視点の感度"
+	srow.add_child(slabel)
+	_sens_slider = HSlider.new()
+	_sens_slider.name = "Slider_sensitivity"
+	_sens_slider.min_value = 40.0
+	_sens_slider.max_value = 250.0
+	_sens_slider.step = 5.0
+	_sens_slider.value = 100.0
+	_sens_slider.custom_minimum_size = Vector2(240, 28)
+	_sens_slider.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	srow.add_child(_sens_slider)
+	_sens_value = _make_label(20, HORIZONTAL_ALIGNMENT_LEFT)
+	_sens_value.text = "100 %"
+	srow.add_child(_sens_value)
+	_sens_slider.value_changed.connect(func(v: float) -> void:
+		_sens_value.text = "%d %%" % int(v)
+		sensitivity_changed.emit(v / 100.0))
 	_body_check = CheckButton.new()
 	_body_check.name = "BodyToggle"
 	_body_check.text = "自分の体（雑な3D）オフ"
@@ -581,6 +686,11 @@ func _build_settings(menu: Control) -> void:
 		_body_check.text = "自分の体（雑な3D）%s" % ("オン" if on else "オフ")
 		body_visible_changed.emit(on))
 	box.add_child(_body_check)
+
+
+func set_sensitivity_ui(mult: float) -> void:
+	_sens_slider.set_value_no_signal(mult * 100.0)
+	_sens_value.text = "%d %%" % int(mult * 100.0)
 
 
 func set_body_ui(on: bool) -> void:

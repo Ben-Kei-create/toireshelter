@@ -25,6 +25,8 @@ const CharacterBodyScript := preload("res://scripts/character_body.gd")
 const SPEED := 1.8
 const CROUCH_SPEED := 0.8
 const MOUSE_SENSITIVITY := 0.0022
+const SENS_MIN := 0.4
+const SENS_MAX := 2.5
 const GRAVITY := 9.8
 const INTERACT_RANGE := 1.8       # 通常の対象を調べられる距離
 const INTERACT_RANGE_MAX := 2.4   # レイの長さ。対象ごとの interact_range メタの上限
@@ -59,6 +61,7 @@ var _shape: CollisionShape3D
 var _capsule: CapsuleShape3D
 var _eye_target := EYE_HEIGHT
 var show_body := false             # 自分の体（ちょー雑な3D）を見せる。設定で切り替え（初期はオフ）
+var sensitivity := 1.0              # 視点の感度の倍率（設定で変える。SENS_MIN〜SENS_MAX）
 var head_bob := true               # 視点のゆれ（歩くときの上下・呼吸）。設定で切れる
 var body_rig: Node3D            # 自分の目から見える体（ちょー雑な3D。character_body.gd）
 var _last_bob := 0.0
@@ -108,8 +111,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		var motion := event as InputEventMouseMotion
-		rotate_y(-motion.relative.x * MOUSE_SENSITIVITY)
-		_pitch = clampf(_pitch - motion.relative.y * MOUSE_SENSITIVITY,
+		rotate_y(-motion.relative.x * MOUSE_SENSITIVITY * sensitivity)
+		_pitch = clampf(_pitch - motion.relative.y * MOUSE_SENSITIVITY * sensitivity,
 				deg_to_rad(-PITCH_LIMIT_DEG), deg_to_rad(PITCH_LIMIT_DEG))
 		camera.rotation.x = _pitch
 	elif event.is_action_pressed("interact"):

@@ -437,6 +437,7 @@ func _ready() -> void:
 	hud.audio_changed.connect(_on_audio_changed)
 	hud.head_bob_changed.connect(_on_head_bob_changed)
 	hud.body_visible_changed.connect(_on_body_visible_changed)
+	hud.sensitivity_changed.connect(_on_sensitivity_changed)
 	_load_settings()
 	room.apartment.intercom.front_door = room.front_door
 	room.apartment.intercom.notice.connect(func(text: String) -> void: hud.show_message(text, 5.0))
@@ -484,8 +485,10 @@ func _process(_delta: float) -> void:
 		return
 	if paused or cleared or reading:
 		hud.set_prompt("")
+		hud.set_aim(false)
 		return
 	var focused := player.get_focused()
+	hud.set_aim(focused != null and not _prompt_for(focused).is_empty())
 	var parts := []
 	var click := _prompt_for(focused)
 	if not click.is_empty():
@@ -499,7 +502,23 @@ func _process(_delta: float) -> void:
 	hud.set_prompt("　／　".join(parts))
 
 
+## ウィンドウが選ばれなくなったら自動で一時停止（ゲーム中に別のウィンドウへ移ったとき、勝手に進まないように）
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_APPLICATION_FOCUS_OUT and is_node_ready() and not paused and not cleared and not mj_playing and not gaming and not peeping:
+		_pause()
+
+
 func _unhandled_input(event: InputEvent) -> void:
+	# メッセージの履歴（H）。開いている間は Esc か H で閉じる
+	if hud.is_log_open():
+		if event.is_action_pressed("pause") or event.is_action_pressed("message_log"):
+			get_viewport().set_input_as_handled()
+			hud.toggle_log()
+		return
+	if event.is_action_pressed("message_log") and not paused and not cleared and not mj_playing and not reading and not gaming and not peeping:
+		get_viewport().set_input_as_handled()
+		hud.toggle_log()
+		return
 	if mj_playing:
 		_mahjong_input(event)
 		return
@@ -1448,6 +1467,8 @@ func _load_settings() -> void:
 	hud.set_head_bob_ui(player.head_bob)
 	player.show_body = bool(cfg.get_value("player", "show_body", false))
 	hud.set_body_ui(player.show_body)
+	player.sensitivity = clampf(float(cfg.get_value("player", "sensitivity", 1.0)), PlayerScript.SENS_MIN, PlayerScript.SENS_MAX)
+	hud.set_sensitivity_ui(player.sensitivity)
 	AudioSettingsScript.load_from(cfg)
 	hud.set_audio_ui({"master": AudioSettingsScript.master, "sfx": AudioSettingsScript.sfx, "ambient": AudioSettingsScript.ambient,
 			"sfx_on": AudioSettingsScript.sfx_on, "ambient_on": AudioSettingsScript.ambient_on})
@@ -1468,6 +1489,14 @@ func _on_head_bob_changed(on: bool) -> void:
 	var cfg := ConfigFile.new()
 	cfg.load(SETTINGS_PATH)
 	cfg.set_value("player", "head_bob", on)
+	cfg.save(SETTINGS_PATH)
+
+
+func _on_sensitivity_changed(value: float) -> void:
+	player.sensitivity = clampf(value, PlayerScript.SENS_MIN, PlayerScript.SENS_MAX)
+	var cfg := ConfigFile.new()
+	cfg.load(SETTINGS_PATH)
+	cfg.set_value("player", "sensitivity", player.sensitivity)
 	cfg.save(SETTINGS_PATH)
 
 
@@ -1502,6 +1531,7 @@ func _setup_input_map() -> void:
 	_add_key_action("crouch", [KEY_C])
 	_add_key_action("action", [KEY_E])
 	_add_key_action("use_item", [KEY_F])
+	_add_key_action("message_log", [KEY_H])
 	_add_key_action("item_1", [KEY_1])
 	_add_key_action("item_2", [KEY_2])
 	_add_key_action("item_3", [KEY_3])
