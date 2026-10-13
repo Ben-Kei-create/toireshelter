@@ -15,6 +15,7 @@ const ExteriorScript := preload("res://scripts/exterior.gd")
 const ApartmentScript := preload("res://scripts/apartment.gd")
 const KotatsuScript := preload("res://scripts/kotatsu.gd")
 const SmallPropsScript := preload("res://scripts/small_props.gd")
+const FishingScript := preload("res://scripts/fishing.gd")
 const SfxScript := preload("res://scripts/sfx.gd")
 const BooksScript := preload("res://scripts/books.gd")
 const CorridorScript := preload("res://scripts/corridor.gd")
@@ -121,6 +122,11 @@ const MESSAGES := {
 	"stove_eat_2": "二つ目の目玉焼き。さすがに塩気が欲しくなってきた。",
 	"stove_eat_3": "もう卵を食べすぎだ。そろそろやめよう。",
 	"stove_burnt_clear": "こげた卵を捨てた。フライパンは黒くなっている。",
+	"fishing_rod": "室外機のうしろに立てかけてあった釣り竿を手に入れた。ベランダの手すりから、下の路地へ糸を垂らせそうだ。",
+	"fish_need_rod": "手すりの下は路地だ。ここから釣り糸を垂らしたら、何か釣れるかもしれない。釣り竿があれば……。",
+	"fish_cast_msg": "手すりから、釣り糸を路地へ垂らした。浮きが跳ねるまで待とう。",
+	"fish_early": "まだ何もかかっていない。糸をたぐり寄せた。",
+	"fishing_text": "{text}",
 	"radio_ch1": "ラジオ。ゆったりしたピアノのコードが流れている。",
 	"radio_ch2": "ラジオ。どこかで聞いたことのあるような、ないような小曲。",
 	"radio_ch3": "ラジオ。ニュースらしい。男の人が何か言っているが、言葉は聞き取れない。",
@@ -184,6 +190,10 @@ const PROMPTS := {
 	"cards_draw": "左クリック：トランプを一枚めくる",
 	"dice_roll": "左クリック：サイコロを振る",
 	"tv_remote": "左クリック：テレビの電源",
+	"fish_need_rod_prompt": "左クリック：調べる",
+	"fish_cast": "左クリック：釣り糸を垂らす",
+	"fish_wait": "左クリック：引き上げる（まだ早いかも）",
+	"fish_reel": "左クリック：引き上げる！",
 	"radio_on": "左クリック：ラジオをつける",
 	"radio_next": "左クリック：チャンネルを変える",
 	"aquarium_feed": "左クリック：えさをやる",
@@ -216,6 +226,7 @@ const PROMPTS := {
 const ITEMS := {
 	"driver": {"name": "ドライバー", "desc": "赤橙の柄のドライバー。先はプラス。"},
 	"spare_roll": {"name": "予備ロール", "desc": "包装されたトイレットペーパー。『明日もある』。"},
+	"fishing_rod": {"name": "釣り竿", "desc": "竹色の釣り竿。リールがついている。ベランダの手すりから、下の路地へ糸を垂らせそうだ。"},
 	"bath_powder": {"name": "ユブロマン", "desc": "ゆずの香りの粉末入浴剤。1回分。"},
 }
 
@@ -292,6 +303,7 @@ var _reader_tint := Color.WHITE
 var _reader_opened_frame := -1
 
 var room: RoomScript
+var fishing: Node3D                # ベランダの釣り（fishing.gd）
 var player: PlayerScript
 var hud: HudScript
 
@@ -333,6 +345,13 @@ func _ready() -> void:
 	hud.eye_height_changed.connect(_on_eye_height_changed)
 	hud.audio_changed.connect(_on_audio_changed)
 	_load_settings()
+	fishing = FishingScript.new()
+	fishing.name = "Fishing"
+	room.add_child(fishing)
+	fishing.player = player
+	fishing.notice.connect(func(text: String) -> void: hud.show_message(text))
+	hud.set_catch_text(fishing.collection_text())
+	fishing.collection_changed.connect(hud.set_catch_text)
 
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	hud.show_message(MESSAGES["start"], 5.0)
@@ -409,6 +428,9 @@ func _unhandled_input(event: InputEvent) -> void:
 			return
 		if event.is_action_pressed("item_3"):
 			select_item(2)
+			return
+		if event.is_action_pressed("item_4"):
+			select_item(3)
 			return
 		if event.is_action_pressed("inspect_item"):
 			toggle_zoom()
@@ -585,7 +607,7 @@ func _prompt_for(target: Object) -> String:
 	match id:
 		"":
 			return ""
-		"driver", "spare_roll", "bath_powder":
+		"driver", "spare_roll", "bath_powder", "fishing_rod":
 			return PROMPT_PICKUP
 		"door":
 			return PROMPT_EXAMINE
@@ -657,6 +679,14 @@ func _on_interact_requested(target: Object) -> void:
 			room.remove_driver()
 			add_item("driver")
 			hud.show_message(MESSAGES["driver"])
+		"fishing_rod":
+			if inventory.has("fishing_rod"):
+				return
+			_item_models["fishing_rod"] = FishingScript.zoom_model()
+			fishing.has_rod = true
+			fishing.remove_prop()
+			add_item("fishing_rod")
+			hud.show_message(MESSAGES["fishing_rod"])
 		"spare_roll":
 			if inventory.has("spare_roll") or room.supplies.spare_roll_taken:
 				return
@@ -980,6 +1010,7 @@ func _setup_input_map() -> void:
 	_add_key_action("item_1", [KEY_1])
 	_add_key_action("item_2", [KEY_2])
 	_add_key_action("item_3", [KEY_3])
+	_add_key_action("item_4", [KEY_4])
 	_add_key_action("inspect_item", [KEY_Q])
 	if not InputMap.has_action("interact"):
 		InputMap.add_action("interact")

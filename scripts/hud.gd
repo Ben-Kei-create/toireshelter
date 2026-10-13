@@ -41,6 +41,7 @@ var _retry_button: Button
 var _message_time_left := 0.0
 var _height_slider: HSlider
 var _height_value: Label
+var _catch_label: Label
 var audio_controls := {}   # key → HSlider／CheckButton（設定画面の音の欄）
 
 
@@ -130,7 +131,7 @@ func set_prompt(text: String) -> void:
 		_prompt_panel.visible = not text.is_empty()
 
 
-## 所持品欄を更新する。names：持っている物の名前（最大3つ、順に 1・2・3 キー）、selected：選択中の番号（なければ -1）。
+## 所持品欄を更新する。names：持っている物の名前（最大4つ、順に 1〜4 キー）、selected：選択中の番号（なければ -1）。
 func set_inventory(names: Array, selected: int) -> void:
 	for i in _slot_labels.size():
 		var has := i < names.size()
@@ -223,11 +224,11 @@ func _build_inventory_bar() -> void:
 	title.add_theme_constant_override("shadow_offset_x", 1)
 	title.add_theme_constant_override("shadow_offset_y", 1)
 	_inventory_bar.add_child(title)
-	for i in 3:
+	for i in 4:
 		var label := _make_label(17, HORIZONTAL_ALIGNMENT_LEFT)
 		label.name = "Slot%dLabel" % (i + 1)
 		var panel := _make_panel("Slot%d" % (i + 1), label, 0.45)
-		panel.custom_minimum_size = Vector2(112, 46)
+		panel.custom_minimum_size = Vector2(104, 46)
 		var style := (panel.get_theme_stylebox("panel") as StyleBoxFlat).duplicate() as StyleBoxFlat
 		panel.add_theme_stylebox_override("panel", style)
 		_inventory_bar.add_child(panel)
@@ -440,8 +441,13 @@ func _build_settings(menu: Control) -> void:
 	var box := menu.get_node("Center/Box") as VBoxContainer
 	var help := _make_label(20, HORIZONTAL_ALIGNMENT_LEFT)
 	help.name = "Controls"
-	help.text = "操作説明\n移動：W A S D（矢印キーも可）　　視点：マウス\n調べる・使う：左クリック　　座る・入る・立つ：E\nしゃがむ：C　　持ち物を使う：F　　選ぶ：1〜3・ホイール　　拡大：Q\nテレビゲーム中：W／S でラケット、E でやめる\n設定を開く・閉じる：Esc"
+	help.text = "操作説明\n移動：W A S D（矢印キーも可）　　視点：マウス\n調べる・使う：左クリック　　座る・入る・立つ：E\nしゃがむ：C　　持ち物を使う：F　　選ぶ：1〜4・ホイール　　拡大：Q\n釣り：釣り竿を拾い、ベランダの手すりを狙ってクリック。浮きが跳ねたらもう一度\nテレビゲーム中：W／S でラケット、E でやめる\n設定を開く・閉じる：Esc"
 	box.add_child(help)
+	_catch_label = _make_label(18, HORIZONTAL_ALIGNMENT_LEFT)
+	_catch_label.name = "CatchLabel"
+	_catch_label.text = "釣果：まだ何も釣っていない"
+	_catch_label.add_theme_color_override("font_color", Color(0.85, 0.95, 1.0))
+	box.add_child(_catch_label)
 	box.add_theme_constant_override("separation", 8)
 	var grid := GridContainer.new()
 	grid.name = "AudioGrid"
@@ -500,6 +506,11 @@ func _build_settings(menu: Control) -> void:
 	_height_slider.value_changed.connect(func(v: float) -> void:
 		_height_value.text = "%d cm" % int(v)
 		eye_height_changed.emit(v / 100.0))
+
+
+## 設定画面の「釣果」の行。
+func set_catch_text(text: String) -> void:
+	_catch_label.text = text
 
 
 ## 設定画面の音の欄を、保存されていた値に合わせる（信号は出さない）。
