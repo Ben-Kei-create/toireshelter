@@ -38,7 +38,7 @@ func _run() -> void:
 		for f in aq.fish:
 			var p: Vector3 = f.node.position
 			if f.kind == "medaka":
-				if p.z < 0.06 or p.z > 0.16 or p.y > 1.0:
+				if p.z < 0.02 or p.z > 0.11 or p.y > 1.0:
 					medaka_ok = false
 				med_z.append(p.z)
 			else:
@@ -47,7 +47,7 @@ func _run() -> void:
 				arowana_y = p.y
 	for f in aq.fish:
 		moved[f.node.name] = (f.node.position - start[f.node.name]).length()
-	check(medaka_ok, "メダカは手前のガラスのそば（z 0.06〜0.16）の、水面より下を泳ぐ")
+	check(medaka_ok, "メダカは手前のガラスのそば（z 0.02〜0.11）の、水面より下を泳ぐ")
 	check(arowana_ok and arowana_y > 0.95, "アロワナは水面近くの上のほうを泳ぐ（y %.2f）" % arowana_y)
 	check(moved.values().all(func(d): return d > 0.02), "魚は自動で動いている")
 	check(aq.interact("aquarium") == "aquarium_fed" and aq.feed_left > 9.0, "えさをやれる")
@@ -59,6 +59,11 @@ func _run() -> void:
 		if f.node.position.y > 0.95:
 			top += 1
 	check(top >= 6, "えさのあいだ魚は水面に集まる（%d匹）" % top)
+	# 水槽は本棚の上。床には置かない（歩ける場所を空ける）
+	var bottom_y: float = aq.global_position.y + aq.STAND_H
+	check(absf(bottom_y - 1.191) < 0.02 and aq.global_position.x > 5.2, "水槽は本棚の天板（高さ 1.19m）に載っている")
+	check(player.is_space_free(Vector3(4.5, 0.0, 0.55), 1.6) and player.is_space_free(Vector3(4.5, 0.0, 0.35), 1.6), "水槽があった床は空いていて歩ける")
+	check(aq.get_node("Collision").get_child(0).global_position.y > 1.2, "水槽の当たり判定は床の高さにない")
 	# --- 冷蔵庫と卵
 	var k = apt.kitchen
 	check(k.eggs_held == 0 and not k.lower_open, "最初は卵を持っておらず、冷蔵庫は閉まっている")

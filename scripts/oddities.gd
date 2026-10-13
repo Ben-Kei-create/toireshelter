@@ -73,7 +73,7 @@ func _build_shelf_books() -> void:
 	root.name = "ShelfTopBooks"
 	add_child(root)
 	var basis := Basis(Vector3(0, 0, -1), Vector3(-1, 0, 0), Vector3(0, 1, 0))   # 表紙を上に。背が -x（壁と反対側 … 下の注記）
-	var zs := [0.75, 0.97, 1.19]
+	var zs := [-0.12, 1.29, 1.43]   # 水槽が棚の中ほどに載るので、両端に分けて置く
 	for i in 3:
 		var n: int = [13, 14, 15][i]
 		var tex: Texture2D = load("res://assets/textures/books/book_cover_%02d.png" % n)

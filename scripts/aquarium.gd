@@ -1,24 +1,26 @@
 extends Node3D
-## 水槽（木の台の上の 80cm 水槽）。メダカ7匹は手前のガラスのそばを、アロワナ1匹は水面近くの上のほうを、それぞれ自動で泳ぐ。
-## 原点は水槽の中心の床（部屋の x 4.5・z 0.55。押入れの前と、こたつ側に通路を残す。本棚の表紙（z 0.65 など）を手前の斜めから狙えるよう、棚とのあいだを 0.24m あけた）。長辺が x（0.8m）、奥行き z（0.38m）、前（見る側）は +z。台の高さ 0.7m、水面は 1.06m。
+## 水槽（本棚の天板に載せた 80cm の薄い水槽）。メダカ7匹は手前のガラスのそばを、アロワナ1匹は水面近くの上のほうを、それぞれ自動で泳ぐ。
+## 水槽自体の座標は、長辺が x（0.8m）、奥行き z（0.27m）、前（見る側）は +z、底が y 0.7、水面が 1.06（本棚の上に回して置くので、置き場の座標はこの節点の位置と向きで決まる）。
 ## 左クリックでえさをやる：魚がみな水面に集まり、薄片が沈みながら消える（10 秒）。
 ## 泳ぎ方は群れの計算なしの「ゾーンの中で目的地を決めて、向きをなめらかに変える」だけ（魚 8 匹・毎フレーム軽い計算のみ）。
-## 判定：水槽と台の箱（体を止める。調べる対象 aquarium。fixture として get_prompt／interact を持つ）。
+## 判定：水槽の箱（体を止める。調べる対象 aquarium。fixture として get_prompt／interact を持つ）。
 
 const MeshKit := preload("res://scripts/mesh_kit.gd")
 const Sfx := preload("res://scripts/sfx.gd")
 
-const CENTER := Vector3(4.5, 0.0, 0.55)
+## 本棚の上（高さ 1.18m の天板）に置く。床に置いていた台つきの水槽をやめて、歩ける場所を空けた。台はなく、底の枠が天板に載る。
+const SHELF_TOP := 1.18 + 0.011
+const CENTER := Vector3(5.34, SHELF_TOP - 0.7, 0.82)   # y は水槽の底を天板に合わせる（STAND_H ぶん下げる）
 const W := 0.8
-const D := 0.38
+const D := 0.27
 const STAND_H := 0.7
 const WATER_TOP := 1.06
 const WATER_BOTTOM := 0.78
 const FEED_TIME := 10.0
 
 ## 魚の泳ぐ範囲（水槽の中の座標）。メダカは手前（+z）のガラスのそば、アロワナは水面近くの上の層
-const MEDAKA_ZONE := AABB(Vector3(-0.33, 0.80, 0.07), Vector3(0.66, 0.17, 0.08))
-const AROWANA_ZONE := AABB(Vector3(-0.16, 0.96, -0.06), Vector3(0.32, 0.06, 0.1))
+const MEDAKA_ZONE := AABB(Vector3(-0.33, 0.80, 0.03), Vector3(0.66, 0.17, 0.07))
+const AROWANA_ZONE := AABB(Vector3(-0.16, 0.96, -0.04), Vector3(0.32, 0.06, 0.07))
 
 var fish: Array = []          # {node, tail, zone, speed, turn, target, vel, phase, kind}
 var feed_left := 0.0
@@ -31,6 +33,7 @@ var _rng := RandomNumberGenerator.new()
 
 func _ready() -> void:
 	position = CENTER
+	rotation.y = -PI * 0.5   # 前（+z）を部屋の中（-x）へ
 	_rng.seed = 4242
 	MeshKit.auto_round = false
 	_build_stand_and_tank()
@@ -43,18 +46,12 @@ func _ready() -> void:
 	body.set_meta("interact_id", "aquarium")
 	body.set_meta("fixture", self)
 	add_child(body)
-	MeshKit.shape_box(body, Vector3(W + 0.04, 1.2, D + 0.04), Vector3(0, 0.6, 0))
+	MeshKit.shape_box(body, Vector3(W + 0.04, 0.5, D + 0.04), Vector3(0, STAND_H + 0.25, 0))
 	MeshKit.auto_round = true
 
 
 func _build_stand_and_tank() -> void:
-	var wood := MeshKit.tiled_mat("aquarium_wood", load("res://assets/textures/surfaces/surface_09.png"), 0.5, Color(0.55, 0.45, 0.38), 0.6)
 	var black := MeshKit.mat("aquarium_black", Color(0.06, 0.06, 0.07), 0.4)
-	MeshKit.box(self, Vector3(W + 0.02, STAND_H, D + 0.02), Vector3(0, STAND_H * 0.5, 0), wood, "Stand")
-	for sx in [-1.0, 1.0]:
-		MeshKit.box(self, Vector3(0.006, STAND_H - 0.08, 0.004), Vector3(sx * 0.2, STAND_H * 0.5, D * 0.5 + 0.011), black, "DoorSeam")
-		MeshKit.cylinder(self, 0.012, 0.012, Vector3(sx * 0.03 + 0.0, STAND_H * 0.55, D * 0.5 + 0.016), MeshKit.mat("aquarium_knob", Color(0.7, 0.65, 0.5), 0.3, 0.6), "Knob").rotation.x = PI * 0.5
-	MeshKit.box(self, Vector3(0.006, STAND_H - 0.08, 0.004), Vector3(0, STAND_H * 0.5, D * 0.5 + 0.011), black, "DoorSeamMid")
 	# 水槽：黒いフレーム（底・上）と角の柱、ガラス、水、背面の青い板
 	var y0 := STAND_H
 	var gh := 0.4
@@ -101,12 +98,12 @@ func _build_decor() -> void:
 	var y0 := STAND_H + 0.02
 	MeshKit.box(self, Vector3(W - 0.03, 0.045, D - 0.03), Vector3(0, y0 + 0.0225, 0), sand, "Sand")
 	var rock := MeshKit.mat("aquarium_rock", Color(0.42, 0.4, 0.38), 0.9)
-	for r in [[-0.22, 0.0, 0.05, 0.06], [-0.15, 0.06, 0.03, 0.05], [0.24, -0.04, 0.04, 0.07]]:
+	for r in [[-0.22, 0.0, 0.05, 0.05], [-0.15, 0.04, 0.03, 0.04], [0.24, -0.03, 0.04, 0.06]]:
 		var m := MeshKit.sphere(self, r[3], Vector3(r[0], y0 + 0.045 + r[3] * 0.4, r[1]), rock)
 		m.scale = Vector3(1.2, 0.7, 0.9)
 	var green := MeshKit.mat("aquarium_plant", Color(0.2, 0.55, 0.25), 0.8)
 	var green2 := MeshKit.mat("aquarium_plant2", Color(0.3, 0.65, 0.3), 0.8)
-	var spots := [[-0.3, -0.08], [-0.26, 0.1], [0.1, -0.11], [0.29, 0.08], [0.33, -0.1], [-0.05, -0.12]]
+	var spots := [[-0.3, -0.06], [-0.26, 0.07], [0.1, -0.08], [0.29, 0.06], [0.33, -0.07], [-0.05, -0.09]]
 	for i in spots.size():
 		var cl := Node3D.new()
 		cl.name = "Plant%d" % i
@@ -122,10 +119,10 @@ func _build_decor() -> void:
 	bm.albedo_color = Color(0.9, 0.97, 1.0, 0.35)
 	bm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	for i in 5:
-		var b := MeshKit.sphere(self, 0.006 + 0.002 * (i % 2), Vector3(-0.36, y0 + 0.05, -0.12), bm)
+		var b := MeshKit.sphere(self, 0.006 + 0.002 * (i % 2), Vector3(-0.36, y0 + 0.05, -0.09), bm)
 		b.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		_bubbles.append({"node": b, "t": i * 0.45})
-	MeshKit.cylinder(self, 0.012, 0.02, Vector3(-0.36, y0 + 0.055, -0.12), MeshKit.mat("aquarium_stone", Color(0.5, 0.5, 0.55), 0.8), "AirStone")
+	MeshKit.cylinder(self, 0.012, 0.02, Vector3(-0.36, y0 + 0.055, -0.09), MeshKit.mat("aquarium_stone", Color(0.5, 0.5, 0.55), 0.8), "AirStone")
 
 
 func _build_fish() -> void:
@@ -205,7 +202,7 @@ func _process(delta: float) -> void:
 	for b in _bubbles:
 		b.t += delta * 0.35
 		var k: float = fmod(b.t, 1.0)
-		(b.node as Node3D).position = Vector3(-0.36 + sin(k * 14.0) * 0.004, STAND_H + 0.07 + k * (WATER_TOP - STAND_H - 0.08), -0.12)
+		(b.node as Node3D).position = Vector3(-0.36 + sin(k * 14.0) * 0.004, STAND_H + 0.07 + k * (WATER_TOP - STAND_H - 0.08), -0.09)
 	for fl in _flakes.duplicate():
 		var n: Node3D = fl.node
 		n.position.y -= fl.vy * delta
@@ -223,7 +220,7 @@ func _swim(f: Dictionary, dt: float) -> void:
 	var feeding := feed_left > 0.0
 	if feeding:
 		# 水面近くへ集まる（えさの落ちる中央あたり）
-		var top := Vector3(_rng.randf_range(-0.12, 0.12), WATER_TOP - 0.03 - (0.0 if f.kind == "arowana" else _rng.randf() * 0.04), _rng.randf_range(-0.04, 0.12))
+		var top := Vector3(_rng.randf_range(-0.12, 0.12), WATER_TOP - 0.03 - (0.0 if f.kind == "arowana" else _rng.randf() * 0.04), _rng.randf_range(-0.03, 0.08))
 		if pos.distance_to(f.target) < 0.03 or f.target.y < WATER_TOP - 0.1:
 			f.target = top
 		speed *= 1.8
@@ -235,7 +232,7 @@ func _swim(f: Dictionary, dt: float) -> void:
 	if not feeding:
 		pos = Vector3(clampf(pos.x, zone.position.x, zone.end.x), clampf(pos.y, zone.position.y, zone.end.y), clampf(pos.z, zone.position.z, zone.end.z))
 	else:
-		pos = Vector3(clampf(pos.x, -0.35, 0.35), clampf(pos.y, WATER_BOTTOM, WATER_TOP - 0.02), clampf(pos.z, -0.15, 0.15))
+		pos = Vector3(clampf(pos.x, -0.35, 0.35), clampf(pos.y, WATER_BOTTOM, WATER_TOP - 0.02), clampf(pos.z, -0.1, 0.1))
 	node.position = pos
 	var v: Vector3 = f.vel
 	if v.length() > 0.004:
@@ -259,7 +256,7 @@ func interact(_id: String) -> String:
 	Sfx.play("plop", 1.3, -6.0)
 	var fm := MeshKit.mat("fish_food", Color(0.85, 0.7, 0.25), 0.8)
 	for i in 8:
-		var fl := MeshKit.box(self, Vector3(0.008, 0.001, 0.008), Vector3(_rng.randf_range(-0.1, 0.1), WATER_TOP - 0.01 - i * 0.012, _rng.randf_range(-0.04, 0.1)), fm, "Flake")
+		var fl := MeshKit.box(self, Vector3(0.008, 0.001, 0.008), Vector3(_rng.randf_range(-0.1, 0.1), WATER_TOP - 0.01 - i * 0.012, _rng.randf_range(-0.03, 0.08)), fm, "Flake")
 		fl.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		_flakes.append({"node": fl, "vy": 0.02 + _rng.randf() * 0.015})
 	return "aquarium_fed"

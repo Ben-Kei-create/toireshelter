@@ -33,14 +33,14 @@ func _run() -> void:
 	p = main.player
 	p.set_physics_process(false)
 	var apt = main.room.apartment
-	_look(Vector3(4.5, 0, 1.4), Vector3(4.5, 0.95, 0.55))
+	_look(Vector3(4.1, 0, 0.82), Vector3(5.3, 1.4, 0.82))
 	await create_timer(1.5).timeout
 	await _shot("aquarium")
 	apt.aquarium.interact("aquarium")
 	await create_timer(3.0).timeout
 	await _shot("aquarium_feeding")
-	_look(Vector3(3.8, 0, 1.0), Vector3(4.5, 0.9, 0.55))
-	await _shot("aquarium_side")
+	_look(Vector3(3.9, 0, 0.0), Vector3(4.7, 0.05, 0.6))
+	await _shot("floor_props")
 	var k = apt.kitchen
 	k.interact("fridge_lower")
 	k.interact("fridge_upper")

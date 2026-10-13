@@ -74,7 +74,7 @@ func _run() -> void:
 	check(tgt != null and String(tgt.get_meta("interact_id")) == "cellar", "蓋を照準で狙える（手前から見下ろす）")
 	# --- 小物
 	var ids := _ids(apt.small_props)
-	for id in ["cards", "card_box", "dice", "cup", "tv_remote", "tissue", "magazines", "teddy", "rug"]:
+	for id in ["cards", "card_box", "dice", "cup", "tv_remote", "tissue", "magazines", "teddy", "rug", "clothes", "dumbbell", "bottle", "bag"]:
 		check(id in ids, "小物 %s の調べる判定" % id)
 		check(id == "cards" or id == "dice" or id == "tv_remote" or main.MESSAGES.has(id), "小物 %s の文章" % id)
 	var rng := RandomNumberGenerator.new()

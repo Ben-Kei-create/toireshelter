@@ -249,6 +249,48 @@ func _build_floor_items() -> void:
 	MeshKit.box(mag, Vector3(0.1, 0.001, 0.02), Vector3(0.012, 0.0265, -0.02), MeshKit.mat("mag_sub", Color(0.2, 0.2, 0.25), 0.6), "Sub")
 	_area(mag, "magazines", Vector3(0.24, 0.05, 0.32), Vector3(0, 0.025, 0))
 
+	# 床の「またげる」小物（体を止めない）：脱ぎ捨てた服・ダンベル・ペットボトル・レジ袋。水槽を本棚の上へ移して空いた床に
+	var cl := Node3D.new()
+	cl.name = "Clothes"
+	cl.position = Vector3(4.45, 0.0, 0.5)
+	cl.rotation.y = deg_to_rad(25.0)
+	add_child(cl)
+	MeshKit.box(cl, Vector3(0.34, 0.025, 0.28), Vector3(0, 0.0125, 0), MeshKit.mat("cloth_shirt", Color(0.3, 0.45, 0.65), 0.95), "Shirt").rotation.y = deg_to_rad(10.0)
+	MeshKit.box(cl, Vector3(0.2, 0.04, 0.34), Vector3(0.06, 0.04, 0.02), MeshKit.mat("cloth_pants", Color(0.28, 0.28, 0.32), 0.95), "Pants").rotation.y = deg_to_rad(-30.0)
+	MeshKit.box(cl, Vector3(0.1, 0.03, 0.06), Vector3(-0.13, 0.065, 0.04), MeshKit.mat("cloth_sock", Color(0.9, 0.9, 0.85), 0.95), "Sock")
+	_area(cl, "clothes", Vector3(0.4, 0.14, 0.38), Vector3(0, 0.07, 0))
+	var db := Node3D.new()
+	db.name = "Dumbbell"
+	db.position = Vector3(4.8, 0.0, 0.62)
+	db.rotation.y = deg_to_rad(70.0)
+	add_child(db)
+	var iron := MeshKit.mat("dumbbell_iron", Color(0.12, 0.12, 0.14), 0.4, 0.7)
+	var bar := MeshKit.cylinder(db, 0.012, 0.3, Vector3(0, 0.05, 0), iron, "Bar")
+	bar.rotation.z = PI * 0.5
+	for sx in [-1.0, 1.0]:
+		MeshKit.cylinder(db, 0.05, 0.05, Vector3(sx * 0.13, 0.05, 0), iron, "Weight").rotation.z = PI * 0.5
+	_area(db, "dumbbell", Vector3(0.36, 0.12, 0.12), Vector3(0, 0.06, 0))
+	var bt := Node3D.new()
+	bt.name = "Bottle"
+	bt.position = Vector3(4.2, 0.0, 0.38)
+	bt.rotation.y = deg_to_rad(-40.0)
+	add_child(bt)
+	var bm := MeshKit.cylinder(bt, 0.035, 0.2, Vector3(0, 0.035, 0), MeshKit.mat("bottle_body", Color(0.65, 0.85, 0.9), 0.3), "Body")
+	bm.rotation.z = PI * 0.5
+	var cap := MeshKit.cylinder(bt, 0.016, 0.03, Vector3(0.115, 0.035, 0), MeshKit.mat("bottle_cap", Color(0.2, 0.45, 0.8), 0.4), "Cap")
+	cap.rotation.z = PI * 0.5
+	_area(bt, "bottle", Vector3(0.26, 0.1, 0.1), Vector3(0.0, 0.04, 0))
+	var bag := Node3D.new()
+	bag.name = "ShoppingBag"
+	bag.position = Vector3(3.95, 0.0, 1.35)
+	bag.rotation.y = deg_to_rad(15.0)
+	add_child(bag)
+	var bagm := MeshKit.sphere(bag, 0.12, Vector3(0, 0.1, 0), MeshKit.mat("bag_white", Color(0.95, 0.95, 0.92), 0.85))
+	bagm.scale = Vector3(1.0, 0.9, 0.8)
+	var leek := MeshKit.cylinder(bag, 0.012, 0.3, Vector3(0.05, 0.28, 0.0), MeshKit.mat("bag_leek", Color(0.55, 0.78, 0.4), 0.7), "Leek")
+	leek.rotation.z = deg_to_rad(-18.0)
+	_area(bag, "bag", Vector3(0.3, 0.4, 0.26), Vector3(0, 0.2, 0))
+
 	# くま：寝床の上、枕のそばに座っている（本棚の前だと本の表紙を隠すので）
 	var bear := Node3D.new()
 	bear.name = "Teddy"

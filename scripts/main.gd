@@ -133,6 +133,10 @@ const MESSAGES := {
 	"radio_ch4": "ラジオ。時報だ。ピッ、ピッ、ピッ、ポーン。",
 	"radio_off": "ラジオを消した。",
 	"wall_clock": "壁掛け時計。いまは{time}。針はちゃんと動いている。",
+	"clothes": "脱ぎっぱなしのシャツとズボン、靴下。そろそろ洗濯しないと。",
+	"dumbbell": "ダンベル。持ち上げようとしたが、やめた。三日坊主のあとだ。",
+	"bottle": "空のペットボトルが転がっている。",
+	"bag": "コンビニの袋から、ネギが飛び出している。買った覚えはない。",
 	"tv_on": "ピッ。テレビがついた。",
 	"tv_off": "ピッ。テレビを消した。",
 	"tv_start": "ゲームを始めた。W／S（↑／↓）でラケットを動かす。E か Esc でやめる。",
@@ -247,7 +251,7 @@ const ACTION_PROMPTS := {
 const TUB_TARGETS := ["bathtub", "bath_plug", "bath_faucet", "tub_note"]   # 入浴剤を使える照準先（浴槽のどこか）
 
 ## 調べたときに鳴らす効果音（fixture のない対象）
-const INTERACT_SFX := {"guitar": "strum", "phone_black": "ring", "fridge": "thunk", "kitchen_stove": "click", "phone_mobile": "click", "kitchen_sink": "click", "cards": "page", "card_box": "click", "dice": "click", "cup": "click", "tissue": "rustle", "magazines": "page", "teddy": "rustle", "tv_remote": "beep", "rug": "rustle"}
+const INTERACT_SFX := {"guitar": "strum", "phone_black": "ring", "fridge": "thunk", "kitchen_stove": "click", "phone_mobile": "click", "kitchen_sink": "click", "cards": "page", "card_box": "click", "dice": "click", "cup": "click", "tissue": "rustle", "magazines": "page", "teddy": "rustle", "clothes": "rustle", "bag": "rustle", "dumbbell": "clunk", "bottle": "click", "tv_remote": "beep", "rug": "rustle"}
 const CLEAR_TITLES := {"legit": "正規ルートで脱出", "shortcut": "裏技ルートで脱出"}
 # 換気経路：入口で浴槽へ戻れる範囲（換気口の真上からの水平距離）、出口からベランダへ降りる経由点と着地候補
 const DUCT_BACK_RANGE := 0.75
@@ -646,7 +650,7 @@ func _on_interact_requested(target: Object) -> void:
 		"toilet_cleaner", "plunger", "toilet_brush", "vent_sticker", "bath_bucket", "shampoo", "rinse", "razor", \
 		"face_wash", "toner", "cotton_swabs", "tub_note", "towel_scratch", "shelf_note", "tank_note", \
 		"kitchen_sink", "kitchen_stove", "fridge", "guitar", "taxidermy", "phone_black", "phone_mobile", \
-		"life_paper_02", "life_paper_07", "rug", "card_box", "magazines", "teddy":
+		"life_paper_02", "life_paper_07", "rug", "card_box", "magazines", "teddy", "clothes", "dumbbell", "bottle", "bag":
 			hud.show_message(MESSAGES[id])
 		"wall_clock":
 			hud.show_message(MESSAGES["wall_clock"].replace("{time}", room.apartment.wall_clock.time_text()))
