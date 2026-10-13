@@ -100,6 +100,16 @@ const MESSAGES := {
 	"rug": "厚手のじゅうたん。赤地にひし形の模様。足の裏がふかふかする。",
 	"cellar_opened": "床板の蓋を持ち上げた。冷たい空気が上がってくる。",
 	"cellar_closed": "蓋を閉めた。ぱたん、と床にもどった。",
+	"cellar_can_tuna": "缶詰を開けた。ツナだ。そのまま食べた。意外とおいしい。",
+	"cellar_can_corn": "二つ目の缶詰はコーン。ひとつぶずつ食べた。",
+	"cellar_can_peach": "最後の缶詰は桃。シロップまで飲み干した。",
+	"cellar_honey": "はちみつの瓶。ひとなめした。のどにしみる甘さ。",
+	"cellar_pickle": "ピクルスの瓶。一本つまんだ。すっぱい。",
+	"cellar_crock_1": "ぬか漬けの壺だ。きゅうりを一切れ食べた。しょっぱい。",
+	"cellar_crock_2": "もう一切れ。やっぱりしょっぱい。ご飯がほしい。",
+	"cellar_crock_3": "食べすぎだ。ぬかが指にこびりついている。",
+	"cellar_sack": "米袋。生米は食べられない。炊飯器もないし。",
+	"cellar_potato": "じゃがいもが転がっている。芽が出かけている。生では食べられない。",
 	"cellar_goods": "床下の貯蔵庫だ。階段はない。米袋、漬物の壺、缶詰、瓶、じゃがいも。食べ物ばかりだ。",
 	"card_box": "トランプのケース。中身は出して遊んだまま、空だ。",
 	"cup": "湯のみ。お茶はまだ少しぬるい。",
@@ -136,6 +146,7 @@ const MESSAGES := {
 	"radio_ch4": "ラジオ。時報だ。ピッ、ピッ、ピッ、ポーン。",
 	"radio_off": "ラジオを消した。",
 	"wall_clock": "壁掛け時計。いまは{time}。針はちゃんと動いている。",
+	"shoes": "玄関に靴。スニーカーは片方が倒れている。革靴はきちんとそろっている。……履く機会はまだない。",
 	"clothes": "脱ぎっぱなしのシャツとズボン、靴下。そろそろ洗濯しないと。",
 	"dumbbell": "ダンベル。持ち上げようとしたが、やめた。三日坊主のあとだ。",
 	"bottle": "空のペットボトルが転がっている。",
@@ -145,7 +156,7 @@ const MESSAGES := {
 	"intercom_after": "インターホンのモニター。画面には、誰もいない廊下が映っている。",
 	"tv_on": "ピッ。テレビがついた。",
 	"tv_off": "ピッ。テレビを消した。",
-	"tv_start": "ゲームを始めた。W／S（↑／↓）でラケットを動かす。E か Esc でやめる。",
+	"tv_start": "ゲームを始めた。W／A／S／D（矢印キー）で操作する。E か Esc でやめる。",
 	"tv_stop": "ゲームをやめた。",
 	"ufo_miss": "アームが降りて……景品をつかみそこねた。",
 	"ufo_win": "景品をつかんだ。取り出し口に落ちた。持ち帰れはしないらしい。",
@@ -196,10 +207,13 @@ const PROMPTS := {
 	"cellar_open": "左クリック：床下の蓋を開ける",
 	"cellar_close": "左クリック：床下の蓋を閉める",
 	"cellar_examine": "左クリック：床下を調べる",
+	"cellar_eat": "左クリック：食べる",
+	"cellar_look": "左クリック：調べる",
 	"tv_play": "左クリック：テレビゲームで遊ぶ",
 	"cards_draw": "左クリック：トランプを一枚めくる",
 	"dice_roll": "左クリック：サイコロを振る",
 	"tv_remote": "左クリック：テレビの電源",
+	"game_case": "左クリック：このソフトに入れ替える",
 	"coin_take": "左クリック：コインを拾う",
 	"catch_look": "左クリック：調べる",
 	"fish_need_rod_prompt": "左クリック：調べる",
@@ -260,7 +274,7 @@ const ACTION_PROMPTS := {
 const TUB_TARGETS := ["bathtub", "bath_plug", "bath_faucet", "tub_note"]   # 入浴剤を使える照準先（浴槽のどこか）
 
 ## 調べたときに鳴らす効果音（fixture のない対象）
-const INTERACT_SFX := {"guitar": "strum", "phone_black": "ring", "fridge": "thunk", "kitchen_stove": "click", "phone_mobile": "click", "kitchen_sink": "click", "cards": "page", "card_box": "click", "dice": "click", "cup": "click", "tissue": "rustle", "magazines": "page", "teddy": "rustle", "clothes": "rustle", "bag": "rustle", "dumbbell": "clunk", "bottle": "click", "tv_remote": "beep", "rug": "rustle"}
+const INTERACT_SFX := {"guitar": "strum", "fridge": "thunk", "kitchen_stove": "click", "phone_mobile": "click", "kitchen_sink": "click", "cards": "page", "card_box": "click", "dice": "click", "cup": "click", "tissue": "rustle", "magazines": "page", "teddy": "rustle", "shoes": "click", "clothes": "rustle", "bag": "rustle", "dumbbell": "clunk", "bottle": "click", "tv_remote": "beep", "rug": "rustle"}
 const CLEAR_TITLES := {"legit": "正規ルートで脱出", "shortcut": "裏技ルートで脱出"}
 # 換気経路：入口で浴槽へ戻れる範囲（換気口の真上からの水平距離）、出口からベランダへ降りる経由点と着地候補
 const DUCT_BACK_RANGE := 0.75
@@ -359,6 +373,7 @@ func _ready() -> void:
 	hud.retry_pressed.connect(_retry)
 	hud.eye_height_changed.connect(_on_eye_height_changed)
 	hud.audio_changed.connect(_on_audio_changed)
+	hud.head_bob_changed.connect(_on_head_bob_changed)
 	_load_settings()
 	room.apartment.intercom.front_door = room.front_door
 	room.apartment.intercom.notice.connect(func(text: String) -> void: hud.show_message(text, 5.0))
@@ -391,7 +406,7 @@ func _process(_delta: float) -> void:
 			dir -= 1.0
 		if Input.is_action_pressed("move_back"):
 			dir += 1.0
-		room.apartment.tv_game.player_dir = dir
+		room.apartment.tv_game.input = Input.get_vector("move_left", "move_right", "move_forward", "move_back")
 		return
 	if paused or cleared or reading:
 		hud.set_prompt("")
@@ -483,6 +498,54 @@ func _unhandled_input(event: InputEvent) -> void:
 			_pause()
 
 
+# ---------------------------------------------------------------- ゲームソフトの入れ替え
+
+const GAME_NAMES := ["ラケット対戦（PONG）", "ブロック崩し（BLOCKS）", "へび（SNAKE）", "よけゲー（DODGE）", "ラベルのはがれたディスク"]
+
+
+func _select_game(i: int) -> void:
+	var apt = room.apartment
+	apt.tv_game.select(i)
+	SfxScript.play("click", 1.3)
+	if i == 4:
+		hud.show_message("ソフトを入れ替えた。ラベルがはがれたディスクだ。画面に「NO DISC」と出た……読み込めないらしい。")
+	else:
+		hud.show_message("ソフト『%s』を入れた。テレビ・ゲーム機・コントローラを調べると遊べる。" % GAME_NAMES[i])
+
+
+# ---------------------------------------------------------------- 黒電話
+
+## 黒電話：クリックのたびに、次の番号を回す（時報・天気予報・110・119・自宅・でたらめ）。
+var phone_index := 0
+const PHONE_CALLS := ["117", "177", "110", "119", "home", "0000"]
+
+
+func _phone_dial() -> void:
+	var which: String = PHONE_CALLS[phone_index % PHONE_CALLS.size()]
+	phone_index += 1
+	match which:
+		"117":
+			var t: Dictionary = Time.get_datetime_dict_from_system()
+			var h: int = t.hour
+			SfxScript.play("beep", 1.0)
+			hud.show_message("「1・1・7」と回した。『%s %d時%d分%d秒を、お知らせします。……ポッ、ポッ、ポッ、ポーン』" % ["午前" if h < 12 else "午後", h % 12, t.minute, t.second], 6.0)
+		"177":
+			SfxScript.play("static", 0.8)
+			hud.show_message("「1・7・7」。『この地域の天気は……（ザザッ）……のち、晴れ……』。途中から声が雑音にのまれて消えた。")
+		"110":
+			SfxScript.play("click")
+			hud.show_message("「1・1・0」。ダイヤルを回しかけて、手を止めた。いたずらはよくない。")
+		"119":
+			SfxScript.play("click")
+			hud.show_message("「1・1・9」。回しかけて、やめた。火事でも救急でもない。")
+		"home":
+			SfxScript.play("ring")
+			hud.show_message("自宅の番号を回してみた。リリリン、と鳴った。……すぐ後ろで、鳴った気がした。", 5.0)
+		_:
+			SfxScript.play("buzz", 0.8)
+			hud.show_message("「0・0・0・0」。『おかけになった番号は、現在、使われておりません』")
+
+
 # ---------------------------------------------------------------- のぞき穴
 
 func _open_peephole() -> void:
@@ -516,6 +579,9 @@ func _start_game() -> void:
 	var apt = room.apartment
 	if not apt.tv_on:
 		apt.set_tv_on(true)
+	if not apt.tv_game.playable():
+		hud.show_message("画面に「NO DISC」と出る。ディスクが読み込めない。別のソフトに入れ替えよう。")
+		return
 	gaming = true
 	player.controls_enabled = false
 	player.look_at_point(apt.tv_screen_position())
@@ -530,7 +596,7 @@ func _stop_game() -> void:
 	gaming = false
 	player.controls_enabled = true
 	room.apartment.tv_game.stop()
-	room.apartment.tv_game.player_dir = 0.0
+	room.apartment.tv_game.input = Vector2.ZERO
 	hud.show_message(MESSAGES["tv_stop"])
 
 
@@ -659,6 +725,8 @@ func _prompt_for(target: Object) -> String:
 		if fixture.has_method("get_prompt_text"):
 			return fixture.get_prompt_text(id)
 		return PROMPTS.get(fixture.get_prompt(id), "")
+	if id.begins_with("game_case_"):
+		return PROMPTS["game_case"]
 	match id:
 		"":
 			return ""
@@ -694,19 +762,26 @@ func _on_interact_requested(target: Object) -> void:
 				text = fixture.format_message(key, text)
 			hud.show_message(text)
 		return
+	if id.begins_with("game_case_"):
+		_select_game(int(id.substr(10)))
+		return
 	if not fixture and INTERACT_SFX.has(id):
 		SfxScript.play(INTERACT_SFX[id])
 	match id:
 		"sink", "vent", "poster", \
 		"toilet_cleaner", "plunger", "toilet_brush", "vent_sticker", "bath_bucket", "shampoo", "rinse", "razor", \
 		"face_wash", "toner", "cotton_swabs", "tub_note", "towel_scratch", "shelf_note", "tank_note", \
-		"kitchen_sink", "kitchen_stove", "fridge", "guitar", "taxidermy", "phone_black", "phone_mobile", \
-		"life_paper_02", "life_paper_07", "rug", "card_box", "magazines", "teddy", "clothes", "dumbbell", "bottle", "bag":
+		"kitchen_sink", "kitchen_stove", "fridge", "guitar", "taxidermy", "phone_mobile", \
+		"life_paper_02", "life_paper_07", "rug", "card_box", "magazines", "teddy", "clothes", "dumbbell", "bottle", "bag", "shoes":
 			hud.show_message(MESSAGES[id])
+		"phone_black":
+			_phone_dial()
 		"peephole":
 			_open_peephole()
 		"mail_catcher":
 			hud.show_message("ミニポストの受け箱に、チラシが数枚。それと、宛名のない封筒が一通。" if room.apartment.intercom.rang else "ミニポストの受け箱に、ピザ屋と引っ越し屋のチラシが数枚。")
+		"calendar":
+			hud.show_message("壁掛けカレンダー。今日は%s。……赤い丸のほかに、予定は何も書いていない。" % room.apartment.calendar.date_text())
 		"wall_clock":
 			hud.show_message(MESSAGES["wall_clock"].replace("{time}", room.apartment.wall_clock.time_text()))
 		"tissue":
@@ -1052,6 +1127,8 @@ func _load_settings() -> void:
 	var cfg := ConfigFile.new()
 	if cfg.load(SETTINGS_PATH) == OK:
 		player.set_eye_height(float(cfg.get_value("player", "eye_height", PlayerScript.EYE_HEIGHT)))
+	player.head_bob = bool(cfg.get_value("player", "head_bob", true))
+	hud.set_head_bob_ui(player.head_bob)
 	AudioSettingsScript.load_from(cfg)
 	hud.set_audio_ui({"master": AudioSettingsScript.master, "sfx": AudioSettingsScript.sfx, "ambient": AudioSettingsScript.ambient,
 			"sfx_on": AudioSettingsScript.sfx_on, "ambient_on": AudioSettingsScript.ambient_on})
@@ -1064,6 +1141,14 @@ func _on_eye_height_changed(value: float) -> void:
 	var cfg := ConfigFile.new()
 	cfg.load(SETTINGS_PATH)
 	cfg.set_value("player", "eye_height", player.eye_height)
+	cfg.save(SETTINGS_PATH)
+
+
+func _on_head_bob_changed(on: bool) -> void:
+	player.head_bob = on
+	var cfg := ConfigFile.new()
+	cfg.load(SETTINGS_PATH)
+	cfg.set_value("player", "head_bob", on)
 	cfg.save(SETTINGS_PATH)
 
 

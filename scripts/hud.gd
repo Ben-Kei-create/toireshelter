@@ -6,6 +6,7 @@ signal quit_pressed
 signal retry_pressed
 signal eye_height_changed(value: float)
 signal audio_changed(key: String, value: Variant)
+signal head_bob_changed(on: bool)
 
 const JP_FONTS := [
 	"Hiragino Sans", "Hiragino Kaku Gothic ProN", "Hiragino Kaku Gothic Pro",
@@ -42,6 +43,7 @@ var _message_time_left := 0.0
 var _height_slider: HSlider
 var _height_value: Label
 var _catch_label: Label
+var _bob_check: CheckButton
 var _peep: Control
 var _peep_tex: TextureRect
 var audio_controls := {}   # key → HSlider／CheckButton（設定画面の音の欄）
@@ -444,7 +446,7 @@ func _build_settings(menu: Control) -> void:
 	var box := menu.get_node("Center/Box") as VBoxContainer
 	var help := _make_label(20, HORIZONTAL_ALIGNMENT_LEFT)
 	help.name = "Controls"
-	help.text = "操作説明\n移動：W A S D（矢印キーも可）　　視点：マウス\n調べる・使う：左クリック　　座る・入る・立つ：E\nしゃがむ：C　　持ち物を使う：F　　選ぶ：1〜5・ホイール　　拡大：Q\n釣り：釣り竿を拾い、ベランダの手すりを狙ってクリック。浮きが跳ねたらもう一度\nテレビゲーム中：W／S でラケット、E でやめる\n設定を開く・閉じる：Esc"
+	help.text = "操作説明\n移動：W A S D（矢印キーも可）　　視点：マウス\n調べる・使う：左クリック　　座る・入る・立つ：E\nしゃがむ：C　　持ち物を使う：F　　選ぶ：1〜5・ホイール　　拡大：Q\n釣り：釣り竿を拾い、ベランダの手すりを狙ってクリック。浮きが跳ねたらもう一度\nテレビゲーム中：W／A／S／D で操作、E でやめる\n設定を開く・閉じる：Esc"
 	box.add_child(help)
 	_catch_label = _make_label(18, HORIZONTAL_ALIGNMENT_LEFT)
 	_catch_label.name = "CatchLabel"
@@ -509,6 +511,20 @@ func _build_settings(menu: Control) -> void:
 	_height_slider.value_changed.connect(func(v: float) -> void:
 		_height_value.text = "%d cm" % int(v)
 		eye_height_changed.emit(v / 100.0))
+	_bob_check = CheckButton.new()
+	_bob_check.name = "BobToggle"
+	_bob_check.text = "視点のゆれ（歩くとき・呼吸）オン"
+	_bob_check.button_pressed = true
+	_bob_check.add_theme_font_size_override("font_size", 20)
+	_bob_check.toggled.connect(func(on: bool) -> void:
+		_bob_check.text = "視点のゆれ（歩くとき・呼吸）%s" % ("オン" if on else "オフ")
+		head_bob_changed.emit(on))
+	box.add_child(_bob_check)
+
+
+func set_head_bob_ui(on: bool) -> void:
+	_bob_check.set_pressed_no_signal(on)
+	_bob_check.text = "視点のゆれ（歩くとき・呼吸）%s" % ("オン" if on else "オフ")
 
 
 ## のぞき穴の画面：暗い背景の中央に、丸くぼんやりした景色（tex は丸く切り抜いた絵）。

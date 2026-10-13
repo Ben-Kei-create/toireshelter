@@ -230,6 +230,13 @@ func _build_fridge() -> void:
 			# 扉の内側のポケット：ペットボトルとマヨネーズ
 			MeshKit.cylinder(pivot, 0.03, 0.22, Vector3(0.15, 0.35, 0.1), MeshKit.mat("fridge_bottle", Color(0.55, 0.8, 0.9, 1.0), 0.3), "Bottle")
 			MeshKit.cylinder(pivot, 0.025, 0.16, Vector3(0.32, 0.31, 0.09), MeshKit.mat("fridge_mayo", Color(0.95, 0.9, 0.75), 0.5), "Mayo")
+		# 開けた扉は体を止める（照準は通す）。扉といっしょに動く
+		var blk_d := StaticBody3D.new()
+		blk_d.name = "DoorBlock"
+		blk_d.collision_layer = MeshKit.LAYER_BODY_ONLY
+		blk_d.collision_mask = 0
+		pivot.add_child(blk_d)
+		MeshKit.shape_box(blk_d, Vector3(w, h, 0.05), Vector3(w * 0.5, h * 0.5, 0.025))
 		_doors[key] = pivot
 		var da := MeshKit.interact_area(pivot, "DoorArea", "fridge_" + key, self)
 		MeshKit.shape_box(da, Vector3(w, h, 0.1), Vector3(w * 0.5, h * 0.5, 0.02))

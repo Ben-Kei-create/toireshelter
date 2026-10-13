@@ -30,6 +30,8 @@ const INTERACT_RANGE_MAX := 2.4   # レイの長さ。対象ごとの interact_r
 const EYE_HEIGHT := 1.5
 const CROUCH_EYE_HEIGHT := 0.6
 const EYE_HEIGHT_MIN := 1.3
+const BOB_WALK := 0.012         # 歩くときの上下のゆれ（m）
+const BOB_BREATH := 0.0025      # 止まっているときの呼吸のゆれ（m）
 const EYE_HEIGHT_MAX := 1.7
 const BODY_RADIUS := 0.25
 const BODY_HEIGHT := 1.6
@@ -54,6 +56,10 @@ var _pitch := 0.0
 var _shape: CollisionShape3D
 var _capsule: CapsuleShape3D
 var _eye_target := EYE_HEIGHT
+var head_bob := true               # 視点のゆれ（歩くときの上下・呼吸）。設定で切れる
+var _last_bob := 0.0
+var _bob_phase := 0.0
+var _bob_t := 0.0
 var eye_height := EYE_HEIGHT          # 立っているときの目の高さ（設定で変えられる。EYE_HEIGHT_MIN〜MAX）
 var _settled_pose: Pose = Pose.WALK   # 移動演出が終わったあとの姿勢
 var _step_acc := 0.0
@@ -124,9 +130,24 @@ func look_at_point(p: Vector3) -> void:
 
 
 func _process(delta: float) -> void:
-	# 立つ／しゃがむときの目の高さは滑らかに追従させる（移動演出中は Tween が動かす）
+	# 立つ／しゃがむときの目の高さは滑らかに追従させる（移動演出中は Tween が動かす）。
+	# 視点のゆれ（head_bob）：歩くと歩幅に合わせて上下に小さくゆれ、止まっていると呼吸でごくわずかにゆれる
 	if pose == Pose.WALK or pose == Pose.CROUCH:
-		camera.position.y = lerpf(camera.position.y, _eye_target, 1.0 - exp(-EYE_LERP_SPEED * delta))
+		var base := camera.position.y - _last_bob
+		base = lerpf(base, _eye_target, 1.0 - exp(-EYE_LERP_SPEED * delta))
+		var bob := 0.0
+		if head_bob:
+			var speed := Vector2(velocity.x, velocity.z).length()
+			_bob_t += delta
+			if speed > 0.2 and controls_enabled:
+				_bob_phase += delta * speed * 5.2
+				bob = sin(_bob_phase) * BOB_WALK * clampf(speed / SPEED, 0.0, 1.0)
+			else:
+				bob = sin(_bob_t * 1.7) * BOB_BREATH
+		_last_bob = lerpf(_last_bob, bob, 1.0 - exp(-14.0 * delta))
+		camera.position.y = base + _last_bob
+	else:
+		_last_bob = 0.0
 
 
 func _physics_process(delta: float) -> void:

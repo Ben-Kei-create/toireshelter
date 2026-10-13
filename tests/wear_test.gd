@@ -59,7 +59,7 @@ func _run() -> void:
 	var tv: Node = main.room.apartment.get_node("TvCorner")
 	check(tv.get_node("Tv/Screen") != null and tv.get_node("Console") != null and tv.get_node("Game05") != null, "テレビ・ゲーム機・ソフト5本がある")
 	var tv_areas := tv.find_children("*", "Area3D", true, false)
-	check(tv_areas.size() == 3 and tv_areas.all(func(a): return a.get_meta("interact_id") == "tv_play"), "テレビ台まわりの調べる判定は、ゲームを始める3つだけ（テレビ・ゲーム機・コントローラ。台の当たり判定は共通ボディ）")
+	check(tv_areas.size() == 8 and tv_areas.filter(func(a): return a.get_meta("interact_id") == "tv_play").size() == 3 and tv_areas.filter(func(a): return String(a.get_meta("interact_id")).begins_with("game_case_")).size() == 5, "テレビ台まわりの判定は、ゲームを始める3つ（テレビ・ゲーム機・コントローラ）とソフトのケース5つ")
 	check(main.room.apartment.get_node("HallSlippers") != null and wear.get_node("BathSlippers") != null, "スリッパが玄関ホールと浴室にある")
 	var lp: Node = main.room.apartment.get_node("LifePapers")
 	var ids := []

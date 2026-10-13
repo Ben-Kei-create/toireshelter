@@ -61,7 +61,7 @@ func _run() -> void:
 	var phone_area: Node = apt.kotatsu.get_node("MobilePhone/PhoneArea")
 	check(String(phone_area.get_meta("interact_id")) == "phone_mobile", "こたつの上のみかんの鉢に携帯がある")
 	for id in ["kitchen_sink", "kitchen_stove", "fridge", "guitar", "taxidermy", "phone_black", "phone_mobile"]:
-		check(main.MESSAGES.has(id) and main.INTERACT_SFX.has(id) or id in ["taxidermy"], "%s の説明文" % id)
+		check(main.MESSAGES.has(id) and main.INTERACT_SFX.has(id) or id in ["taxidermy", "phone_black"], "%s の説明文" % id)
 	var K := preload("res://scripts/kotatsu.gd")
 	check(K.SEATS.size() == 3 and K.SEATS[2].name == "east", "こたつの座布団は北・西・東の3つ")
 	var free_east := false

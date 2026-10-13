@@ -26,6 +26,7 @@ const AquariumScript := preload("res://scripts/aquarium.gd")
 const RadioScript := preload("res://scripts/radio.gd")
 const WallClockScript := preload("res://scripts/wall_clock.gd")
 const IntercomScript := preload("res://scripts/intercom.gd")
+const CalendarScript := preload("res://scripts/calendar.gd")
 
 # 素材（docs/assets.md の ASSETS-30）
 const TEX_GRANITE := preload("res://assets/textures/surfaces/surface_01.png")
@@ -65,6 +66,7 @@ var small_props: Node3D    # じゅうたん・トランプ・サイコロなど
 var aquarium: Node3D       # 水槽（aquarium.gd）
 var radio: Node3D          # ラジオ（radio.gd）
 var wall_clock: Node3D     # 壁掛け時計（wall_clock.gd）
+var calendar: Node3D       # 壁掛けカレンダー（calendar.gd）
 var intercom: Node3D       # インターホン（intercom.gd。玄関ホールの奥の壁）
 var tv_game: Node2D        # テレビで遊べる小さなゲーム（mini_game.gd。SubViewport の中）
 var tv_on := true          # テレビの電源（リモコンで切り替え）
@@ -1011,6 +1013,45 @@ func _build_novelties() -> void:
 ## 玄関ホール：浴室のドアの左（-x）の床にスリッパ。コルクボードの下・動線の外。見た目だけ。
 func _build_hall_slippers() -> void:
 	MeshKit.slipper_pair(self, Vector3(-0.64, 0.0, 1.55), 8.0, Color(0.92, 0.88, 0.72), Color(0.6, 0.45, 0.32), "HallSlippers")
+	_build_shoes()
+
+
+## 玄関の靴：扉のそばの床に、脱ぎっぱなしのスニーカー（片方は倒れている）と革靴。体を止めない見た目の小物で、調べられる（shoes）。
+func _build_shoes() -> void:
+	var root := Node3D.new()
+	root.name = "Shoes"
+	root.position = Vector3(-0.66, 0.0, 2.05)
+	add_child(root)
+	var sole_w := MeshKit.mat("shoe_sole_white", Color(0.92, 0.92, 0.9), 0.7)
+	var navy := MeshKit.mat("shoe_navy", Color(0.2, 0.25, 0.45), 0.8)
+	var leather := MeshKit.mat("shoe_leather", Color(0.18, 0.1, 0.07), 0.45)
+	var black_s := MeshKit.mat("shoe_sole_black", Color(0.05, 0.05, 0.05), 0.8)
+	# スニーカー（左は立っていて、右は横に倒れている）
+	var left := Node3D.new()
+	left.position = Vector3(0.0, 0.0, 0.0)
+	left.rotation.y = deg_to_rad(15.0)
+	root.add_child(left)
+	MeshKit.box(left, Vector3(0.27, 0.025, 0.1), Vector3(0, 0.0125, 0), sole_w, "Sole")
+	MeshKit.box(left, Vector3(0.16, 0.07, 0.09), Vector3(-0.045, 0.06, 0), navy, "Upper")
+	MeshKit.sphere(left, 0.045, Vector3(0.07, 0.04, 0), navy).scale = Vector3(1.5, 0.8, 1.0)
+	var right := Node3D.new()
+	right.position = Vector3(0.0, 0.0, 0.17)
+	right.rotation = Vector3(deg_to_rad(80.0), deg_to_rad(-25.0), 0.0)
+	root.add_child(right)
+	MeshKit.box(right, Vector3(0.27, 0.025, 0.1), Vector3(0, 0.0125, 0), sole_w, "Sole")
+	MeshKit.box(right, Vector3(0.16, 0.07, 0.09), Vector3(-0.045, 0.06, 0), navy, "Upper")
+	right.position.y = 0.05
+	# 革靴（そろえて置いてある）
+	var dress := Node3D.new()
+	dress.position = Vector3(0.18, 0.0, 0.34)
+	dress.rotation.y = deg_to_rad(-5.0)
+	root.add_child(dress)
+	for dz in [-0.065, 0.065]:
+		MeshKit.box(dress, Vector3(0.28, 0.02, 0.085), Vector3(0, 0.01, dz), black_s, "Sole")
+		MeshKit.box(dress, Vector3(0.17, 0.06, 0.08), Vector3(-0.05, 0.05, dz), leather, "Upper")
+		MeshKit.sphere(dress, 0.04, Vector3(0.065, 0.035, dz), leather).scale = Vector3(1.6, 0.8, 1.0)
+	var a := MeshKit.interact_area(root, "ShoesArea", "shoes")
+	MeshKit.shape_box(a, Vector3(0.45, 0.14, 0.62), Vector3(0.05, 0.07, 0.2))
 
 
 ## 生活小物の紙（LIFE-12）：life_paper_02（砂時計の惑星の半券）と 07（石好きの会の会員証）。
@@ -1205,6 +1246,9 @@ func _build_tv_corner() -> void:
 		root.add_child(g)
 		MeshKit.box(g, Vector3(0.015, 0.19, 0.135), Vector3(0, 0.095, 0), MeshKit.mat("game_case_%d" % i, cols[i], 0.5), "Case")
 		MeshKit.box(g, Vector3(0.0165, 0.012, 0.0), Vector3(0, 0.15, -0.0676), MeshKit.mat("game_stripe", Color(0.95, 0.95, 0.95), 0.5), "Stripe")
+		# ケースを調べるとそのソフトに入れ替わる（id game_case_N）
+		var ga := MeshKit.interact_area(g, "CaseArea", "game_case_%d" % i)
+		MeshKit.shape_box(ga, Vector3(0.017, 0.2, 0.14), Vector3(0, 0.1, 0))
 	# 天板：テレビ（台座つき）と白いコントローラ
 	var tv := Node3D.new()
 	tv.name = "Tv"
@@ -1281,6 +1325,11 @@ func _build_extras() -> void:
 	radio = RadioScript.new()
 	radio.name = "Radio"
 	add_child(radio)
+	calendar = CalendarScript.new()
+	calendar.name = "Calendar"
+	calendar.position = Vector3(3.8, 1.72, ROOM.end.z - 0.001)   # 南の壁、寝床と台所のあいだ。文字は部屋側（-z）へ
+	calendar.rotation.y = PI
+	add_child(calendar)
 	intercom = IntercomScript.new()
 	intercom.name = "Intercom"
 	intercom.lights_root = get_parent()

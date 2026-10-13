@@ -8,6 +8,7 @@ extends Node3D
 ## main.gd からは fixture として使う：get_prompt(id)／interact(id) が文章のキーを返す。
 
 const MeshKit := preload("res://scripts/mesh_kit.gd")
+const Sfx := preload("res://scripts/sfx.gd")
 
 ## 床の穴（部屋の座標。x の範囲, z の範囲）。床板の切り分けと同じ値を使う
 const HOLE_X := Vector2(4.0, 4.6)
@@ -20,6 +21,11 @@ var lid: Node3D
 var _lid_body: StaticBody3D
 var _guard: StaticBody3D
 var _goods_area: Area3D
+var _item_areas: Array = []     # 中身ひとつずつの判定（開けているときだけ有効）
+var cans_left := 3
+var potatoes_left := 3
+var pickles_eaten := 0
+var _items := {}                # id → 見た目の節点（食べたら消す）
 var _tween: Tween
 
 
@@ -84,12 +90,37 @@ func _ready() -> void:
 	# 中身を調べる判定（開けたときだけ有効）
 	_goods_area = MeshKit.interact_area(self, "GoodsArea", "cellar_goods", self)
 	_goods_area.collision_layer = 0
-	MeshKit.shape_box(_goods_area, Vector3(w, 0.1, d), Vector3(0, -0.2, 0))
+	MeshKit.shape_box(_goods_area, Vector3(w, 0.06, d), Vector3(0, -DEPTH + 0.04, 0))   # 一番下。ひとつずつの判定が先に当たる
 	MeshKit.auto_round = true
 
 
 ## 穴の中の棚と食べ物：北の壁に棚が2段、床に米袋・壺・瓶。
 func _build_goods(plank: Material) -> void:
+	_build_goods_meshes(plank)
+	_build_item_areas()
+
+
+func _add_item_area(id: String, size: Vector3, center: Vector3) -> void:
+	var a := MeshKit.interact_area(self, "Item_" + id, id, self)
+	MeshKit.shape_box(a, size, center)
+	a.collision_layer = 0
+	_item_areas.append(a)
+
+
+## 中身ひとつずつを調べる判定。缶詰と漬物・ジャム・はちみつは食べられ、じゃがいもと米は食べられない。
+func _build_item_areas() -> void:
+	var d := HOLE_Z.y - HOLE_Z.x
+	var shelf_z := -d * 0.5 + 0.08
+	for i in 3:
+		_add_item_area("cellar_can_%d" % i, Vector3(0.09, 0.12, 0.09), Vector3(-0.15 + i * 0.1, -0.34 + 0.07, shelf_z))
+	_add_item_area("cellar_honey", Vector3(0.09, 0.12, 0.09), Vector3(-0.2, -0.18 + 0.07, shelf_z))
+	_add_item_area("cellar_pickle", Vector3(0.09, 0.12, 0.09), Vector3(0.06, -0.18 + 0.07, shelf_z))
+	_add_item_area("cellar_crock", Vector3(0.21, 0.24, 0.21), Vector3(-0.12, -DEPTH + 0.12, 0.1))
+	_add_item_area("cellar_sack", Vector3(0.24, 0.18, 0.16), Vector3(0.14, -DEPTH + 0.09, 0.12))
+	_add_item_area("cellar_potato", Vector3(0.14, 0.08, 0.16), Vector3(-0.19, -DEPTH + 0.04, -0.08))
+
+
+func _build_goods_meshes(plank: Material) -> void:
 	var w := HOLE_X.y - HOLE_X.x
 	var d := HOLE_Z.y - HOLE_Z.x
 	var shelf_z := -d * 0.5 + 0.08
@@ -130,6 +161,11 @@ func is_closed() -> bool:
 func get_prompt(id: String) -> String:
 	if id == "cellar_goods":
 		return "cellar_examine"
+	match id:
+		"cellar_can_0", "cellar_can_1", "cellar_can_2", "cellar_honey", "cellar_pickle", "cellar_crock":
+			return "cellar_eat"
+		"cellar_sack", "cellar_potato":
+			return "cellar_look"
 	return "cellar_close" if is_open else "cellar_open"
 
 
@@ -137,8 +173,38 @@ func get_prompt(id: String) -> String:
 func interact(id: String) -> String:
 	if id == "cellar_goods":
 		return "cellar_goods"
+	if id.begins_with("cellar_can_"):
+		return _take_can(id)
+	match id:
+		"cellar_honey":
+			return "cellar_honey"
+		"cellar_pickle":
+			return "cellar_pickle"
+		"cellar_crock":
+			pickles_eaten += 1
+			Sfx.play("pop", 0.9, -6.0)
+			return "cellar_crock_1" if pickles_eaten == 1 else ("cellar_crock_2" if pickles_eaten < 4 else "cellar_crock_3")
+		"cellar_sack":
+			return "cellar_sack"
+		"cellar_potato":
+			return "cellar_potato"
 	set_open(not is_open)
 	return "cellar_opened" if is_open else "cellar_closed"
+
+
+## 缶詰を取って食べる（3つ。ツナ・コーン・桃の順）。食べたら棚から消える。
+func _take_can(id: String) -> String:
+	var idx := int(id.substr(11))
+	var node: Node3D = get_node_or_null("CanB%d" % idx)
+	if node == null or not node.visible:
+		return ""
+	node.visible = false
+	for a in _item_areas:
+		if (a as Area3D).get_meta("interact_id") == id:
+			(a as Area3D).collision_layer = 0
+	cans_left -= 1
+	Sfx.play("pop", 1.1, -4.0)
+	return ["cellar_can_tuna", "cellar_can_corn", "cellar_can_peach"][idx]
 
 
 func set_open(open: bool, animate := true) -> void:
@@ -146,6 +212,10 @@ func set_open(open: bool, animate := true) -> void:
 	_lid_body.collision_layer = 0 if open else MeshKit.LAYER_WORLD
 	_guard.collision_layer = MeshKit.LAYER_BODY_ONLY if open else 0
 	_goods_area.collision_layer = MeshKit.LAYER_INTERACT if open else 0
+	for a in _item_areas:
+		var cid: String = (a as Area3D).get_meta("interact_id")
+		var gone := cid.begins_with("cellar_can_") and not (get_node("CanB%d" % int(cid.substr(11))) as Node3D).visible
+		(a as Area3D).collision_layer = MeshKit.LAYER_INTERACT if (open and not gone) else 0
 	var target := deg_to_rad(OPEN_ANGLE) if open else 0.0
 	if _tween:
 		_tween.kill()

@@ -118,15 +118,15 @@ func _run() -> void:
 	var to_tv: Vector3 = (apt.tv_screen_position() - player.camera.global_position).normalized()
 	check(f.dot(to_tv) > 0.98, "ゲームを始めると画面のほうを向く")
 	game.left_y = 90.0
-	game.player_dir = -1.0
+	game.input = Vector2(0, -1)
 	for i in 30:
 		game.step(1.0 / 60.0)
 	check(game.left_y < 90.0 - 30.0, "上キーでラケットが上へ動く")
-	game.player_dir = 1.0
+	game.input = Vector2(0, 1)
 	for i in 60:
 		game.step(1.0 / 60.0)
 	check(game.left_y > 90.0, "下キーで下へ動く")
-	game.player_dir = 0.0
+	game.input = Vector2.ZERO
 	game.score_left = 4
 	game.ball = Vector2(game.W + 10.0, 80.0)
 	game.vel = Vector2(100.0, 0.0)
