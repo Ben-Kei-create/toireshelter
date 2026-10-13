@@ -83,6 +83,37 @@ func _run() -> void:
 	check(apt.get_node("Gem").get_node_or_null("StickerCard") != null, "石焼き大魔王のシールが台座にある")
 	check(apt.get_node("Bed").get_node_or_null("StickerCard") != null, "留守番天使のシールが寝床の壁にある")
 	check(apt.get_parent().get_node("Exterior/Duct").get_node_or_null("StickerCard") != null, "配管仙人のシールが管の中にある")
+	# --- 洋風トランプ：種類別 4 シートの 52 枚。内部の番号（種類×ランク）と絵が対応している
+	var SP = main.SmallPropsScript
+	var card_ok := true
+	var card_ratio_ok := true
+	for suit in ["s", "h", "d", "c"]:
+		for rk in ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"]:
+			var ct = load("res://assets/textures/props/card_%s_%s.png" % [suit, rk])
+			card_ok = card_ok and ct != null
+			if ct:
+				var cr: float = float(ct.get_width()) / ct.get_height()
+				card_ratio_ok = card_ratio_ok and cr > 0.55 and cr < 0.8 and _corner_transparent(ct)
+	check(card_ok, "トランプの表 52 枚がそろっている")
+	check(card_ratio_ok, "トランプの縦横比が保たれ、角が透過")
+	var r1 := RandomNumberGenerator.new()
+	var r2 := RandomNumberGenerator.new()
+	r1.seed = 99
+	r2.seed = 99
+	var draw_ok := true
+	for i in 200:
+		var nm: String = SP.draw_card(r1)
+		var su: String = SP.SUITS[r2.randi() % 4]
+		var ra: String = SP.RANKS[r2.randi() % 13]
+		var exp: String = "res://assets/textures/props/card_%s_%s.png" % [su.substr(0, 1), ra]
+		draw_ok = draw_ok and SP.last_card.resource_path == exp and nm == "%sの%s" % [SP.SUIT_NAMES[su], ra]
+	check(draw_ok, "引いた札の名前と表示する絵が、種類とランクで一致する（200 回）")
+	check(load("res://assets/textures/props/card_back.png") != null, "裏面は採用済みの画像のまま")
+	# --- 時計：針のない文字盤（針は実際の時刻で動く）
+	var face: Texture2D = load("res://assets/textures/props/wall_clock_face.png")
+	check(face != null and absf(float(face.get_width()) / face.get_height() - 1.0) < 0.03 and _corner_transparent(face), "針なしの文字盤（ほぼ正円、角は透過）")
+	var clk = apt.wall_clock
+	check(clk.hour_hand != null and clk.minute_hand != null and clk.second_hand != null and clk.time_text().contains("時"), "動く針と時刻の処理は維持されている")
 	# --- 床の物：重ならない・浮かない・埋まらない・照準を邪魔しない
 	var items := []   # [名前, 箱の幅, 箱の奥行き, 節点, 箱の厚み]
 	for n in apt.get_node("TvCorner").find_children("GameCover*", "Node3D", false, false):
