@@ -9,6 +9,9 @@ signal audio_changed(key: String, value: Variant)
 signal head_bob_changed(on: bool)
 signal body_visible_changed(on: bool)
 signal sensitivity_changed(value: float)
+signal typing_changed(on: bool)
+signal hints_changed(on: bool)
+signal restart_pressed
 
 const JP_FONTS := [
 	"Hiragino Sans", "Hiragino Kaku Gothic ProN", "Hiragino Kaku Gothic Pro",
@@ -52,6 +55,18 @@ var _peep: Control
 var _peep_tex: TextureRect
 var _mj: Control
 var _fade: ColorRect
+var _settings_scroll: ScrollContainer
+var _disc_panel: PanelContainer
+var _disc_tween: Tween
+var _hints_check: CheckButton
+var _restart_button: Button
+var _restart_armed := false
+var typing_on := true               # 文字を 1 文字ずつ出す（設定で切れる）
+var _type_pos := 0.0                # いま見せている文字数（小数）
+var _type_total := 0
+var _typing_check: CheckButton
+const TYPE_SPEED := 38.0            # 1 秒に出す文字数
+const VOICE_COLOR := Color(0.8, 0.78, 1.0)   # 神の声の色（うすい紫）
 var _stats_label: Label
 var _quit_button: Button
 var _quit_armed := false
@@ -181,6 +196,7 @@ func _ready() -> void:
 	_stats_label.modulate = Color(1, 1, 1, 0.75)
 	(_pause_menu.get_node("Center/Box") as VBoxContainer).add_child(_stats_label)
 	_resume_button = _add_button(_pause_menu, "再開", func() -> void: resume_pressed.emit())
+	_restart_button = _add_button(_pause_menu, "はじめから", _on_restart_clicked)
 	_quit_button = _add_button(_pause_menu, "終了", _on_quit_clicked)
 	_pause_menu.visible = false
 
@@ -193,7 +209,10 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	if _zoom.visible:
 		_zoom_pivot.rotation.y += delta * 0.8
-	if _message_time_left > 0.0:
+	if _type_pos < _type_total:
+		_type_pos = minf(_type_pos + delta * TYPE_SPEED, float(_type_total))
+		_message_label.visible_characters = int(_type_pos)
+	if _message_time_left > 0.0 and _type_pos >= _type_total:   # 読む時間は、出そろってから数える
 		_message_time_left -= delta
 		if _message_time_left <= 0.0:
 			_message_panel.visible = false
@@ -202,17 +221,32 @@ func _process(delta: float) -> void:
 # ---------------------------------------------------------------- 公開API
 
 ## メッセージを表示する。新しいメッセージは前のものを置き換える（重ならない）。
-func show_message(text: String, seconds: float = -1.0) -> void:
+## kind="voice" は、神の声（うすい紫の字、かぎ括弧つき。独り言のヒントなど）。
+func show_message(text: String, seconds: float = -1.0, kind := "") -> void:
 	if seconds <= 0.0:
 		# 日本語を読める時間：最低2.5秒、1文字あたり約0.12秒
 		seconds = maxf(2.5, 1.0 + text.length() * 0.12)
-	_message_label.text = text
-	if _messages.is_empty() or _messages[_messages.size() - 1] != text:
-		_messages.append(text)
+	var shown := text
+	if kind == "voice":
+		shown = "『%s』" % text
+		seconds += 1.5
+	_message_label.text = shown
+	_message_label.add_theme_color_override("font_color", VOICE_COLOR if kind == "voice" else Color(1, 1, 1))
+	_message_label.visible_characters = 0 if typing_on else -1
+	_type_total = shown.length() if typing_on else 0
+	_type_pos = 0.0
+	if _messages.is_empty() or _messages[_messages.size() - 1] != shown:
+		_messages.append(shown)
 		if _messages.size() > 30:
 			_messages.pop_front()
 	_message_panel.visible = true
 	_message_time_left = seconds
+
+
+## 文字送りの途中なら、全部を一気に見せる（読み飛ばし用）。
+func finish_typing() -> void:
+	_type_pos = float(_type_total)
+	_message_label.visible_characters = -1
 
 
 func set_prompt(text: String) -> void:
@@ -323,7 +357,16 @@ func is_reader_open() -> bool:
 	return _reader.visible
 
 
+## 設定の項目の箱の高さを、画面の高さに合わせる（見出し・ボタン 3 つ・記録の行ぶんを空ける）。
+func _fit_settings() -> void:
+	if _settings_scroll == null:
+		return
+	var h := get_viewport().get_visible_rect().size.y
+	_settings_scroll.custom_minimum_size = Vector2(900.0, clampf(h - 400.0, 150.0, 560.0))
+
+
 func show_pause(is_paused: bool) -> void:
+	_fit_settings()
 	_pause_menu.visible = is_paused
 	if is_paused:
 		_message_panel.visible = false   # 設定の下に文章が透けて重ならないように
@@ -589,7 +632,18 @@ func _build_settings(menu: Control) -> void:
 	portrait.offset_right = 250.0
 	portrait.offset_top = -250.0
 	portrait.offset_bottom = 250.0
-	var box := menu.get_node("Center/Box") as VBoxContainer
+	var outer := menu.get_node("Center/Box") as VBoxContainer
+	# 設定の項目が増えても、ボタンが画面の外へ出ないよう、項目はスクロールできる箱に入れる（高さは画面に合わせる）
+	_settings_scroll = ScrollContainer.new()
+	_settings_scroll.name = "SettingsScroll"
+	_settings_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	outer.add_child(_settings_scroll)
+	var box := VBoxContainer.new()
+	box.name = "Items"
+	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_settings_scroll.add_child(box)
+	get_viewport().size_changed.connect(_fit_settings)
+	_fit_settings()
 	var help := _make_label(20, HORIZONTAL_ALIGNMENT_LEFT)
 	help.name = "Controls"
 	help.text = "操作説明\n移動：W A S D（矢印キーも可）　　視点：マウス\n調べる・使う：左クリック　　座る・入る・立つ：E\nしゃがむ：C　　持ち物を使う：F　　選ぶ：1〜8・ホイール　　拡大：Q　　メッセージの履歴：H\n釣り：釣り竿を拾い、ベランダの手すりを狙ってクリック。浮きが跳ねたらもう一度\nテレビゲーム中：W／A／S／D で操作、E でやめる\n設定を開く・閉じる：Esc"
@@ -687,6 +741,25 @@ func _build_settings(menu: Control) -> void:
 	_sens_slider.value_changed.connect(func(v: float) -> void:
 		_sens_value.text = "%d %%" % int(v)
 		sensitivity_changed.emit(v / 100.0))
+	_hints_check = CheckButton.new()
+	_hints_check.name = "HintsToggle"
+	_hints_check.text = "ヒント（独り言）オン"
+	_hints_check.button_pressed = true
+	_hints_check.add_theme_font_size_override("font_size", 20)
+	_hints_check.toggled.connect(func(on: bool) -> void:
+		_hints_check.text = "ヒント（独り言）%s" % ("オン" if on else "オフ")
+		hints_changed.emit(on))
+	box.add_child(_hints_check)
+	_typing_check = CheckButton.new()
+	_typing_check.name = "TypingToggle"
+	_typing_check.text = "文字を 1 文字ずつ表示（文字送り）オン"
+	_typing_check.button_pressed = true
+	_typing_check.add_theme_font_size_override("font_size", 20)
+	_typing_check.toggled.connect(func(on: bool) -> void:
+		_typing_check.text = "文字を 1 文字ずつ表示（文字送り）%s" % ("オン" if on else "オフ")
+		typing_on = on
+		typing_changed.emit(on))
+	box.add_child(_typing_check)
 	_body_check = CheckButton.new()
 	_body_check.name = "BodyToggle"
 	_body_check.text = "自分の体（雑な3D）オフ"
@@ -695,6 +768,17 @@ func _build_settings(menu: Control) -> void:
 		_body_check.text = "自分の体（雑な3D）%s" % ("オン" if on else "オフ")
 		body_visible_changed.emit(on))
 	box.add_child(_body_check)
+
+
+func set_hints_ui(on: bool) -> void:
+	_hints_check.set_pressed_no_signal(on)
+	_hints_check.text = "ヒント（独り言）%s" % ("オン" if on else "オフ")
+
+
+func set_typing_ui(on: bool) -> void:
+	typing_on = on
+	_typing_check.set_pressed_no_signal(on)
+	_typing_check.text = "文字を 1 文字ずつ表示（文字送り）%s" % ("オン" if on else "オフ")
 
 
 func set_sensitivity_ui(mult: float) -> void:
@@ -781,6 +865,40 @@ func set_eye_height_ui(meters: float) -> void:
 
 
 ## 「終了」は 2 回押さないと終わらない（押し間違いで、遊んだ分が消えないように）。3 秒たつと元に戻る。
+## 見つけた物の知らせ：右上に小さく出て、すぐ消える（目的を押しつけない）。
+func show_discovery(label: String, n: int, total: int) -> void:
+	if _disc_panel == null:
+		var lab := _make_label(17, HORIZONTAL_ALIGNMENT_RIGHT)
+		lab.name = "DiscoveryText"
+		lab.add_theme_color_override("font_color", Color(1.0, 0.92, 0.65))
+		_disc_panel = _make_panel("Discovery", lab, 0.5)
+		_place(_disc_panel, 1.0, 0.0, 1.0, 0.0, -330.0, 46.0, -16.0, 80.0)
+		_disc_panel.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	(_disc_panel.get_child(0) as Label).text = "発見　%s　%d / %d" % [label, n, total]
+	_disc_panel.visible = true
+	_disc_panel.modulate.a = 0.0
+	if _disc_tween:
+		_disc_tween.kill()
+	_disc_tween = create_tween()
+	_disc_tween.tween_property(_disc_panel, "modulate:a", 1.0, 0.25)
+	_disc_tween.tween_interval(3.2)
+	_disc_tween.tween_property(_disc_panel, "modulate:a", 0.0, 0.8)
+	_disc_tween.tween_callback(func() -> void: _disc_panel.visible = false)
+
+
+## 「はじめから」も 2 回押さないと始まらない（保存した記録を消すので）。
+func _on_restart_clicked() -> void:
+	if _restart_armed:
+		restart_pressed.emit()
+		return
+	_restart_armed = true
+	_restart_button.text = "記録を消して、はじめから？（もう一度）"
+	get_tree().create_timer(3.0, true, false, true).timeout.connect(func() -> void:
+		_restart_armed = false
+		if is_instance_valid(_restart_button):
+			_restart_button.text = "はじめから")
+
+
 func _on_quit_clicked() -> void:
 	if _quit_armed:
 		quit_pressed.emit()

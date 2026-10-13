@@ -19,6 +19,7 @@ const FishingScript := preload("res://scripts/fishing.gd")
 const IntercomScript := preload("res://scripts/intercom.gd")
 const CorkGunScript := preload("res://scripts/cork_gun.gd")
 const MahjongGame := preload("res://scripts/mahjong_game.gd")
+const ProgressScript := preload("res://scripts/progress.gd")
 const ClosetScriptRef := preload("res://scripts/closet.gd")
 const RecordPlayerRef := preload("res://scripts/record_player.gd")
 const MeshKit := preload("res://scripts/mesh_kit.gd")
@@ -381,6 +382,7 @@ var reading := false               # 本を読む画面が開いている
 const TISSUE_SHEETS := 12
 var coin_count := 0                # 持っている UFOコインの枚数
 var tissue_pulled := 0             # ティッシュを引いた回数
+var progress: Node                  # ヒント・発見・セーブ（progress.gd）
 var examined := {}                 # 調べた物の id（調べた数の記録。軽い集合だけ）
 var total_examinable := 0           # 調べられる物の数（始めに数える）
 var gaming := false                # テレビゲームで遊んでいる
@@ -440,6 +442,9 @@ func _ready() -> void:
 	hud.head_bob_changed.connect(_on_head_bob_changed)
 	hud.body_visible_changed.connect(_on_body_visible_changed)
 	hud.sensitivity_changed.connect(_on_sensitivity_changed)
+	hud.typing_changed.connect(_on_typing_changed)
+	hud.hints_changed.connect(_on_hints_changed)
+	hud.restart_pressed.connect(_restart_fresh)
 	_load_settings()
 	room.apartment.intercom.front_door = room.front_door
 	room.apartment.intercom.notice.connect(func(text: String) -> void: hud.show_message(text, 5.0))
@@ -447,8 +452,13 @@ func _ready() -> void:
 	room.toilet.coin_taken.connect(add_coin)
 	room.apartment.cellar.descend_requested.connect(_descend)
 	room.apartment.basement.ascend_requested.connect(_ascend)
-	room.apartment.cellar.stairs_revealed.connect(func() -> void: hud.show_message(MESSAGES["stairs_revealed"], 5.0))
-	room.apartment.record_player.disc_set.connect(func() -> void: remove_item("record_disc"))
+	room.apartment.cellar.stairs_revealed.connect(func() -> void:
+		if not progress._loading:
+			hud.show_message(MESSAGES["stairs_revealed"], 5.0)
+			progress.discover("stairs"))
+	room.apartment.record_player.disc_set.connect(func() -> void:
+		remove_item("record_disc")
+		progress.discover("record_set"))
 	fishing = FishingScript.new()
 	fishing.name = "Fishing"
 	room.add_child(fishing)
@@ -459,7 +469,10 @@ func _ready() -> void:
 	fishing.collection_changed.connect(hud.set_catch_text)
 
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
-	hud.show_message(MESSAGES["start"], 5.0)
+	if progress.load_game():
+		hud.show_message("……前に来た、あの部屋だ。続きから。", 4.0, "voice")
+	else:
+		hud.show_message(MESSAGES["start"], 5.0)
 	_count_examinable()
 	var seen_cfg := ConfigFile.new()
 	seen_cfg.load(SETTINGS_PATH)
@@ -801,6 +814,7 @@ func _start_mahjong() -> void:
 		hud.show_message(MESSAGES["mj_need_kotatsu"])
 		return
 	mj_playing = true
+	progress.discover("mahjong_play")
 	player.controls_enabled = false
 	if mahjong == null:
 		mahjong = MahjongGame.new()
@@ -943,6 +957,7 @@ func do_action() -> void:
 		"sleep":
 			SfxScript.play("rustle")
 			player.enter_fixed(PlayerScript.Pose.LYING, BED_FEET, BED_YAW, BED_EYE)
+			progress.discover("bed_sleep")
 			hud.show_message(MESSAGES["sleep_in"])
 		"get_up":
 			if player.leave_fixed(BED_EXITS):
@@ -1029,6 +1044,8 @@ func _on_interact_requested(target: Object) -> void:
 	var fixture: Object = target.get_meta("fixture") if target.has_meta("fixture") else null
 	if not id.is_empty():
 		examined[id] = true
+		progress.note_activity()
+		progress.discover(id)
 	# 床下の食べ物を持っているとき、開けた冷蔵室の中を狙うと、棚に入れる（全部入れると階段が現れる）
 	var cellar_c = room.apartment.cellar
 	if not cellar_c.carrying_id.is_empty() and id == "fridge_inside":
@@ -1037,6 +1054,7 @@ func _on_interact_requested(target: Object) -> void:
 			var left_after: int = cellar_c.FOODS.size() - cellar_c.stored.size() - 1
 			hud.show_message(MESSAGES["fridge_put"].replace("{food}", name_c).replace("{left}", str(left_after)))
 			cellar_c.food_stored()
+			progress.save()
 		return
 	if fixture:
 		# 便器・浴槽・蛇口など状態を持つ設備は、その設備が操作し、表示する説明のキーを返す
@@ -1157,6 +1175,7 @@ func _on_interact_requested(target: Object) -> void:
 					SfxScript.play("rustle")
 					player.move_to(PlayerScript.Pose.KOTATSU_IN, seat3.inside, seat3.yaw, KotatsuScript.EYE_INSIDE, [], true, PlayerScript.KOTATSU_BODY_HEIGHT, PlayerScript.KOTATSU_BODY_RADIUS)
 					hud.show_message(MESSAGES["kotatsu_inside"])
+					progress.discover("kotatsu_in")
 				PlayerScript.Pose.KOTATSU_IN:
 					hud.show_message(MESSAGES["kotatsu_inside"])
 				_:
@@ -1176,6 +1195,7 @@ func add_item(id: String) -> bool:
 	SfxScript.play("pop")
 	inventory.append(id)
 	select_item(inventory.size() - 1)
+	progress.save()
 	return true
 
 
@@ -1448,6 +1468,7 @@ func _clear(route: String) -> void:
 
 
 func _retry() -> void:
+	progress.delete_save()
 	get_tree().paused = false
 	get_tree().reload_current_scene()
 
@@ -1465,10 +1486,11 @@ func _count_examinable() -> void:
 
 func _stats_text() -> String:
 	var t := int(play_time)
-	return "プレイ時間 %d:%02d　　調べた物 %d / %d" % [t / 60, t % 60, examined.size(), maxi(total_examinable, examined.size())]
+	return "プレイ時間 %d:%02d　　調べた物 %d / %d　　発見 %d / %d" % [t / 60, t % 60, examined.size(), maxi(total_examinable, examined.size()), progress.discovered.size(), progress.total()]
 
 
 func _pause() -> void:
+	progress.save()
 	hud.set_stats(_stats_text())
 	hud.show_item_zoom(null, "", "")
 	paused = true
@@ -1495,6 +1517,13 @@ func _load_settings() -> void:
 	hud.set_body_ui(player.show_body)
 	player.sensitivity = clampf(float(cfg.get_value("player", "sensitivity", 1.0)), PlayerScript.SENS_MIN, PlayerScript.SENS_MAX)
 	hud.set_sensitivity_ui(player.sensitivity)
+	hud.set_typing_ui(bool(cfg.get_value("player", "typing", true)))
+	progress = ProgressScript.new()
+	progress.name = "Progress"
+	progress.main = self
+	progress.hints_on = bool(cfg.get_value("player", "hints", true))
+	add_child(progress)
+	hud.set_hints_ui(progress.hints_on)
 	AudioSettingsScript.load_from(cfg)
 	hud.set_audio_ui({"master": AudioSettingsScript.master, "sfx": AudioSettingsScript.sfx, "ambient": AudioSettingsScript.ambient,
 			"sfx_on": AudioSettingsScript.sfx_on, "ambient_on": AudioSettingsScript.ambient_on})
@@ -1515,6 +1544,28 @@ func _on_head_bob_changed(on: bool) -> void:
 	var cfg := ConfigFile.new()
 	cfg.load(SETTINGS_PATH)
 	cfg.set_value("player", "head_bob", on)
+	cfg.save(SETTINGS_PATH)
+
+
+func _on_hints_changed(on: bool) -> void:
+	progress.hints_on = on
+	var cfg := ConfigFile.new()
+	cfg.load(SETTINGS_PATH)
+	cfg.set_value("player", "hints", on)
+	cfg.save(SETTINGS_PATH)
+
+
+## 保存した記録を消して、はじめからにする。
+func _restart_fresh() -> void:
+	progress.delete_save()
+	progress.enabled = false
+	_retry()
+
+
+func _on_typing_changed(on: bool) -> void:
+	var cfg := ConfigFile.new()
+	cfg.load(SETTINGS_PATH)
+	cfg.set_value("player", "typing", on)
 	cfg.save(SETTINGS_PATH)
 
 
@@ -1543,6 +1594,7 @@ func _on_audio_changed(key: String, value: Variant) -> void:
 
 
 func _quit() -> void:
+	progress.save()
 	get_tree().quit()
 
 

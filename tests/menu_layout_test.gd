@@ -40,7 +40,8 @@ func _run() -> void:
 				var b: Rect2 = (button as Control).get_global_rect()
 				_check(view.encloses(b) and b.size.x > 0.0 and b.size.y > 0.0,
 						"  %s：ボタン「%s」%s が画面内" % [menu_name, button.text, b])
-			_check(buttons == 2, "  %s：ボタンが2つある" % menu_name)
+			var expect := 3 if menu == hud._pause_menu else 2   # 設定は「再開」「はじめから」「終了」
+			_check(buttons == expect, "  %s：ボタンが%dつある" % [menu_name, expect])
 
 	hud._pause_menu.visible = false
 	hud._clear_menu.visible = false
