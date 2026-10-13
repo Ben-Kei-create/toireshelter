@@ -52,6 +52,11 @@ var _peep: Control
 var _peep_tex: TextureRect
 var _mj: Control
 var _fade: ColorRect
+var _stats_label: Label
+var _quit_button: Button
+var _quit_armed := false
+var _intro: PanelContainer
+var _intro_tween: Tween
 var _dot: ColorRect
 var _log: Control
 var _log_label: Label
@@ -171,8 +176,12 @@ func _ready() -> void:
 	_log.visible = false
 	_pause_menu = _make_menu("PauseMenu", "設定")
 	_build_settings(_pause_menu)
+	_stats_label = _make_label(18, HORIZONTAL_ALIGNMENT_CENTER)
+	_stats_label.name = "Stats"
+	_stats_label.modulate = Color(1, 1, 1, 0.75)
+	(_pause_menu.get_node("Center/Box") as VBoxContainer).add_child(_stats_label)
 	_resume_button = _add_button(_pause_menu, "再開", func() -> void: resume_pressed.emit())
-	_add_button(_pause_menu, "終了", func() -> void: quit_pressed.emit())
+	_quit_button = _add_button(_pause_menu, "終了", _on_quit_clicked)
 	_pause_menu.visible = false
 
 	_clear_menu = _make_menu("ClearMenu", "脱出成功")
@@ -769,6 +778,42 @@ func set_audio_ui(values: Dictionary) -> void:
 func set_eye_height_ui(meters: float) -> void:
 	_height_slider.set_value_no_signal(meters * 100.0)
 	_height_value.text = "%d cm" % int(round(meters * 100.0))
+
+
+## 「終了」は 2 回押さないと終わらない（押し間違いで、遊んだ分が消えないように）。3 秒たつと元に戻る。
+func _on_quit_clicked() -> void:
+	if _quit_armed:
+		quit_pressed.emit()
+		return
+	_quit_armed = true
+	_quit_button.text = "もう一度押すと終了"
+	get_tree().create_timer(3.0, true, false, true).timeout.connect(func() -> void:
+		_quit_armed = false
+		if is_instance_valid(_quit_button):
+			_quit_button.text = "終了")
+
+
+## 設定画面の下に出す、遊んだ記録（プレイ時間・調べた物の数）。
+func set_stats(text: String) -> void:
+	_stats_label.text = text
+
+
+## はじめて遊ぶときだけ出す、最小限の操作のヒント（数秒で薄れて消える）。
+func show_intro(text: String, seconds := 9.0) -> void:
+	if _intro == null:
+		var lab := _make_label(20, HORIZONTAL_ALIGNMENT_CENTER)
+		lab.name = "IntroText"
+		_intro = _make_panel("Intro", lab, 0.6)
+		_place(_intro, 0.5, 0.0, 0.5, 0.0, -330.0, 70.0, 330.0, 150.0)
+	((_intro.get_child(0)) as Label).text = text
+	_intro.visible = true
+	_intro.modulate.a = 1.0
+	if _intro_tween:
+		_intro_tween.kill()
+	_intro_tween = create_tween()
+	_intro_tween.tween_interval(seconds)
+	_intro_tween.tween_property(_intro, "modulate:a", 0.0, 1.2)
+	_intro_tween.tween_callback(func() -> void: _intro.visible = false)
 
 
 func _add_button(menu: Control, text: String, callback: Callable) -> Button:

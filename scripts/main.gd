@@ -381,6 +381,8 @@ var reading := false               # 本を読む画面が開いている
 const TISSUE_SHEETS := 12
 var coin_count := 0                # 持っている UFOコインの枚数
 var tissue_pulled := 0             # ティッシュを引いた回数
+var examined := {}                 # 調べた物の id（調べた数の記録。軽い集合だけ）
+var total_examinable := 0           # 調べられる物の数（始めに数える）
 var gaming := false                # テレビゲームで遊んでいる
 var mj_playing := false            # 一人麻雀を打っている
 var mj_cursor := 13
@@ -458,6 +460,13 @@ func _ready() -> void:
 
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	hud.show_message(MESSAGES["start"], 5.0)
+	_count_examinable()
+	var seen_cfg := ConfigFile.new()
+	seen_cfg.load(SETTINGS_PATH)
+	if not bool(seen_cfg.get_value("ui", "intro_seen", false)):
+		hud.show_intro("移動：W A S D　視点：マウス　調べる：左クリック\n座る・入る：E　しゃがむ：C　メッセージの履歴：H　設定：Esc")
+		seen_cfg.set_value("ui", "intro_seen", true)
+		seen_cfg.save(SETTINGS_PATH)
 
 
 func _process(_delta: float) -> void:
@@ -1018,6 +1027,8 @@ func _on_interact_requested(target: Object) -> void:
 		return
 	var id := String(target.get_meta("interact_id", ""))
 	var fixture: Object = target.get_meta("fixture") if target.has_meta("fixture") else null
+	if not id.is_empty():
+		examined[id] = true
 	# 床下の食べ物を持っているとき、開けた冷蔵室の中を狙うと、棚に入れる（全部入れると階段が現れる）
 	var cellar_c = room.apartment.cellar
 	if not cellar_c.carrying_id.is_empty() and id == "fridge_inside":
@@ -1443,7 +1454,22 @@ func _retry() -> void:
 
 # ---------------------------------------------------------------- 一時停止
 
+## 調べられる物（id のある判定）の数を、始めに一度だけ数える。
+func _count_examinable() -> void:
+	var ids := {}
+	for n in room.find_children("*", "CollisionObject3D", true, false):
+		if n.has_meta("interact_id") and not String(n.get_meta("interact_id")).is_empty():
+			ids[String(n.get_meta("interact_id"))] = true
+	total_examinable = ids.size()
+
+
+func _stats_text() -> String:
+	var t := int(play_time)
+	return "プレイ時間 %d:%02d　　調べた物 %d / %d" % [t / 60, t % 60, examined.size(), maxi(total_examinable, examined.size())]
+
+
 func _pause() -> void:
+	hud.set_stats(_stats_text())
 	hud.show_item_zoom(null, "", "")
 	paused = true
 	get_tree().paused = true

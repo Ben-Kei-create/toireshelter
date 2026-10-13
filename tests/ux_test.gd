@@ -69,5 +69,29 @@ func _run() -> void:
 	check(slot.scale.x > 1.05, "拾った物の欄が、いったん大きくなって強調される")
 	await create_timer(0.7).timeout
 	check(absf(slot.scale.x - 1.0) < 0.02, "そのあと元の大きさに戻る")
+	# --- 遊んだ記録・終了の確認・はじめてのヒント
+	check(main.total_examinable > 100, "調べられる物の数を数えている（%d 個）" % main.total_examinable)
+	main.examined.clear()
+	var tgt: Node = main.room.apartment.get_node("Calendar/CalendarArea")
+	main._on_interact_requested(tgt)
+	main._on_interact_requested(tgt)
+	check(main.examined.size() == 1, "同じ物を何度調べても 1 と数える")
+	check(main._stats_text().contains("調べた物 1 / ") and main._stats_text().contains("プレイ時間"), "設定画面に「プレイ時間」と「調べた物」が出る")
+	main._pause()
+	check(hud._stats_label.text.contains("調べた物 1"), "一時停止すると記録が更新される")
+	main._resume()
+	for c in hud.quit_pressed.get_connections():
+		hud.quit_pressed.disconnect(c.callable)   # 本物の終了処理は外して、押した回数だけ数える
+	var quit_hits := [0]
+	hud.quit_pressed.connect(func() -> void: quit_hits[0] += 1)
+	hud._on_quit_clicked()
+	check(quit_hits[0] == 0 and hud._quit_button.text == "もう一度押すと終了", "「終了」は 1 回目では終わらず、確認の表示に変わる")
+	hud._on_quit_clicked()
+	check(quit_hits[0] == 1, "2 回目で終了する")
+	hud._quit_armed = false
+	hud.show_intro("テスト", 0.3)
+	check(hud._intro.visible, "はじめてのヒントが出る")
+	await create_timer(2.0).timeout
+	check(not hud._intro.visible, "数秒で消える")
 	print("failures: %d" % failures)
 	quit(1 if failures > 0 else 0)
