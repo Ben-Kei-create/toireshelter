@@ -130,6 +130,7 @@ func _build_duct() -> void:
 	var front_wall := [[16, 0.1, 0.2, -5.0], [21, 0.7, 0.17, 6.0], [34, 1.25, 0.2, -4.0], [24, 1.8, 0.17, 8.0]]
 	for e in front_wall:
 		MeshKit.sticker(duct, e[0], e[2], Vector3(e[1], dy, 0.0), Vector3.FORWARD, e[3])
+	MeshKit.image_quad(duct, MeshKit.prop_tex("sticker_card_3"), Vector2(0.24, 0.24 * 485.0 / 509.0), Vector3(0.4, DUCT_FLOOR + 0.3, 0.0), Vector3.FORWARD, "StickerCard", false, 0.4)   # 配管仙人
 	MeshKit.sticker(duct, 22, 0.2, Vector3(2.2, DUCT_FLOOR + 0.3, -1.0), Vector3.LEFT, 3.0)    # 出口の部屋の右の壁（-x を向く）
 	MeshKit.sticker(duct, 27, 0.2, Vector3(1.6, DUCT_FLOOR + 0.3, -1.0), Vector3.RIGHT, -5.0)    # 出口の部屋の左の壁（+x を向く）
 	MeshKit.sticker(duct, 17, 0.2, Vector3(-0.7, DUCT_FLOOR + 0.3, -1.2), Vector3.BACK, 2.0)    # 換気口のうしろの壁

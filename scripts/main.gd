@@ -156,6 +156,10 @@ const MESSAGES := {
 	"record_jacket_1": "ジャケットに『こたつ麻雀』とある。こたつの上で牌を広げる絵。中身は空の袋だ。",
 	"record_jacket_2": "ジャケットに『地下七段』とある。赤い提灯の階段が下へ続く絵。中身は空の袋だ。……七段、なのか。",
 	"record_jacket_3": "ジャケットに『留守のレコード』とある。ターンテーブルの絵。中身は空の袋だ。",
+	"game_cover_1": "ソフトのケース。『下北沢、午前二時』。赤い月の下の路地に、女の子がひとり。……架空のゲームだ。",
+	"game_cover_2": "ソフトのケース。『団地の向こう側』。空へ伸びる階段を、女の子が見上げている。……架空のゲームだ。",
+	"game_cover_3": "ソフトのケース。『最後の留守番』。陽だまりの部屋で、ロボットが床を拭いている。……架空のゲームだ。",
+	"game_cover_4": "ソフトのケース。『風呂から帰れない』。浴槽の向こうに、荒れた海と赤い夕日。……他人事とは思えない。",
 	"mj_start": "牌をじゃらじゃらと広げる。一人麻雀のはじまりだ。",
 	"mj_quit": "牌を片づけた。",
 	"mj_need_kotatsu": "麻雀はこたつの中で打つものだ（なぜか）。",
@@ -1010,7 +1014,7 @@ func _on_interact_requested(target: Object) -> void:
 		"toilet_cleaner", "plunger", "toilet_brush", "vent_sticker", "bath_bucket", "shampoo", "rinse", "razor", \
 		"face_wash", "toner", "cotton_swabs", "tub_note", "towel_scratch", "shelf_note", "tank_note", \
 		"kitchen_sink", "kitchen_stove", "fridge", "guitar", "taxidermy", "phone_mobile", \
-		"life_paper_02", "life_paper_07", "bed", "record_jacket_1", "record_jacket_2", "record_jacket_3", "rug", "card_box", "magazines", "teddy", "clothes", "dumbbell", "bottle", "bag", "shoes", "toilet_slippers", "standee":
+		"life_paper_02", "life_paper_07", "bed", "game_cover_1", "game_cover_2", "game_cover_3", "game_cover_4", "record_jacket_1", "record_jacket_2", "record_jacket_3", "rug", "card_box", "magazines", "teddy", "clothes", "dumbbell", "bottle", "bag", "shoes", "toilet_slippers", "standee":
 			hud.show_message(MESSAGES[id])
 		"phone_black":
 			_phone_dial()

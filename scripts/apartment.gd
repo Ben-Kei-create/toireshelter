@@ -828,6 +828,7 @@ func _build_gem() -> void:
 	MeshKit.shape_box(_body, Vector3(0.36, 1.05, 0.36), root.position + Vector3(0, 0.525, 0))
 	# 展示札「触ると普通」（台座の正面＝部屋の中央側 -x）
 	_sign(root, "collection_label_08", Vector3(-0.181, 0.25, 0.0), 0.12, Vector3.LEFT)
+	MeshKit.image_quad(root, MeshKit.prop_tex("sticker_card_1"), Vector2(0.15, 0.15 * 485.0 / 511.0), Vector3(0, 0.21, -0.1815), Vector3.FORWARD, "StickerCard", false, 0.4)   # 石焼き大魔王（台座の北の面）
 
 
 # ---------------------------------------------------------------- 額装絵画（仮の抽象模様）
@@ -918,6 +919,7 @@ func _build_bed() -> void:
 	MeshKit.box(root, Vector3(0.35, 0.1, 0.55), Vector3(3.4, 0.29, z1 - 0.42), MeshKit.mat("pillow", Color(0.9, 0.9, 0.92), 0.95))
 	MeshKit.box(root, Vector3(0.9, 0.05, 0.78), Vector3(2.55, 0.265, z1 - 0.42), MeshKit.mat("blanket", Color(0.45, 0.55, 0.65), 0.95))
 	MeshKit.shape_box(_body, Vector3(1.5, 0.3, 0.8), Vector3(2.85, 0.15, z1 - 0.42))
+	MeshKit.image_quad(root, MeshKit.prop_tex("sticker_card_2"), Vector2(0.2, 0.2 * 485.0 / 508.0), Vector3(3.25, 0.62, z1 - 0.0015), Vector3.FORWARD, "StickerCard", false, 0.4)   # 留守番天使（枕の上の壁）
 	var bed_area := MeshKit.interact_area(root, "BedArea", "bed")
 	MeshKit.shape_box(bed_area, Vector3(1.5, 0.12, 0.8), Vector3(2.85, 0.36, z1 - 0.42))
 
@@ -1319,6 +1321,21 @@ func _build_tv_corner() -> void:
 		# ケースを調べるとそのソフトに入れ替わる（id game_case_N）
 		var ga := MeshKit.interact_area(g, "CaseArea", "game_case_%d" % i)
 		MeshKit.shape_box(ga, Vector3(0.017, 0.2, 0.14), Vector3(0, 0.1, 0))
+	# ゲームソフトのケース4つ：台の前の床に重ねてある（表紙つき。ユーザー作成・生成 AI 使用。架空のゲーム）
+	var cover_at := [[1.3, 1.9, 12.0], [1.5, 1.86, -8.0], [1.72, 1.91, 5.0], [1.93, 1.86, -14.0]]
+	for i in 4:
+		var ct := MeshKit.prop_tex("game_cover_%d" % (i + 1))
+		var cw := 0.2 * ct.get_width() / ct.get_height()
+		var cn := Node3D.new()
+		cn.name = "GameCover%d" % (i + 1)
+		cn.position = Vector3(cover_at[i][0], 0.0, cover_at[i][1])
+		cn.rotation.y = deg_to_rad(cover_at[i][2])
+		root.add_child(cn)
+		MeshKit.box(cn, Vector3(cw, 0.012, 0.2), Vector3(0, 0.006 + 0.0125 * i, 0), MeshKit.mat("game_cover_box", Color(0.08, 0.08, 0.1), 0.5), "Case")
+		var cq := MeshKit.image_quad(cn, ct, Vector2(cw, 0.2), Vector3(0, 0.0123 + 0.0125 * i, 0), Vector3.UP, "Cover", false, 0.4)
+		cq.rotation.y = PI   # 絵の上が奥（+z）。北から見て読める向き
+		var ca := MeshKit.interact_area(cn, "CoverArea", "game_cover_%d" % (i + 1))
+		MeshKit.shape_box(ca, Vector3(cw, 0.04, 0.2), Vector3(0, 0.02 + 0.0125 * i, 0))
 	# 天板：テレビ（台座つき）と白いコントローラ
 	var tv := Node3D.new()
 	tv.name = "Tv"

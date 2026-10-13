@@ -358,6 +358,8 @@ func _build_fridge() -> void:
 			for k in 5:
 				MeshKit.box(pivot, Vector3(0.05, 0.05, 0.006), Vector3(0.15 + (k % 3) * 0.1, 0.25 + (k / 3) * 0.1 - 0.12, -0.003), MeshKit.mat("magnet_%d" % k, Color.from_hsv(k * 0.18, 0.6, 0.9), 0.5), "Magnet")
 		else:
+			# 冷蔵室の扉（下）の外側：冷蔵庫将軍のシール。扉といっしょに動く（扉ごとに絵を分ける）
+			MeshKit.image_quad(pivot, MeshKit.prop_tex("sticker_card_4"), Vector2(0.24, 0.24 * 486.0 / 509.0), Vector3(0.22, 0.62, -0.0015), Vector3.FORWARD, "StickerCard", false, 0.4)
 			# 扉の内側のポケット：ペットボトルとマヨネーズ
 			MeshKit.cylinder(pivot, 0.03, 0.22, Vector3(0.15, 0.35, 0.1), MeshKit.mat("fridge_bottle", Color(0.55, 0.8, 0.9, 1.0), 0.3), "Bottle")
 			MeshKit.cylinder(pivot, 0.025, 0.16, Vector3(0.32, 0.31, 0.09), MeshKit.mat("fridge_mayo", Color(0.95, 0.9, 0.75), 0.5), "Mayo")
