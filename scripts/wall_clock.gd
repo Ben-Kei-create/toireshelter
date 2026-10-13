@@ -21,13 +21,8 @@ func _ready() -> void:
 	# 文字盤（-z を向く円盤）と枠
 	var disc := MeshKit.cylinder(self, r, 0.03, Vector3(0, 0, -0.015), frame, "Frame")
 	disc.rotation.x = PI * 0.5
-	var fd := MeshKit.cylinder(self, r - 0.014, 0.004, Vector3(0, 0, -0.031), face, "Face")
-	fd.rotation.x = PI * 0.5
-	for k in 12:
-		var a := TAU * k / 12.0
-		var big := k % 3 == 0
-		var m := MeshKit.box(self, Vector3(0.008 if big else 0.004, 0.022 if big else 0.012, 0.002), Vector3(-sin(a) * (r - 0.03), cos(a) * (r - 0.03), -0.033), ink, "Tick")
-		m.rotation.z = a
+	# 文字盤の絵（ユーザー作成・生成 AI 使用。絵に描いてあった針は消してある）。針は実際の時刻で動く
+	MeshKit.image_quad(self, MeshKit.prop_tex("wall_clock_face"), Vector2(r * 2.0, r * 2.0), Vector3(0, 0, -0.0315), Vector3.FORWARD, "FacePicture", false, 0.5)
 	hour_hand = _hand(0.08, 0.008, ink, -0.035)
 	minute_hand = _hand(0.12, 0.005, ink, -0.037)
 	second_hand = _hand(0.13, 0.002, MeshKit.mat("clock_second", Color(0.85, 0.12, 0.1), 0.4), -0.039)

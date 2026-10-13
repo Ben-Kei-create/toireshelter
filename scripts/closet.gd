@@ -177,6 +177,7 @@ static func build_mahjong_box() -> Node3D:
 		n.add_child(t)
 		MeshKit.box(t, Vector3(0.024, 0.017, 0.032), Vector3(0, 0, 0), ivory, "Tile")
 		MeshKit.box(t, Vector3(0.024, 0.006, 0.032), Vector3(0, -0.0055, 0), back, "TileBack")
+		MeshKit.image_quad(t, MeshKit.prop_tex("mj_33" if k == 0 else "mj_27"), Vector2(0.024, 0.032), Vector3(0, 0.0086, 0), Vector3.UP, "TileFace", false, 0.4)
 	return n
 
 

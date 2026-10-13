@@ -22,6 +22,7 @@ var lights_root: Node
 var front_door: Node
 var _last_key := ""
 var _screen_mat: StandardMaterial3D
+var _screen_node: MeshInstance3D
 var _led_mat: StandardMaterial3D
 var _tex_empty: ImageTexture
 var _tex_visitor: ImageTexture
@@ -37,7 +38,8 @@ func _ready() -> void:
 	var white := MeshKit.mat("intercom_body", Color(0.92, 0.92, 0.9), 0.4)
 	var dark := MeshKit.mat("intercom_dark", Color(0.08, 0.08, 0.09), 0.4)
 	MeshKit.box(self, Vector3(0.22, 0.2, 0.03), Vector3(0, 0, -0.015), white, "Body")
-	MeshKit.box(self, Vector3(0.17, 0.125, 0.004), Vector3(0, 0.025, -0.032), dark, "Bezel")
+	# 本体の絵（待機中の画面つき。ユーザー作成・生成 AI 使用）。鳴っている間だけ、その上に廊下の映像を重ねる
+	MeshKit.image_quad(self, MeshKit.prop_tex("intercom_standby"), Vector2(0.2, 0.2 * 428.0 / 413.0), Vector3(0, 0, -0.0306), Vector3.FORWARD, "StandbyPicture", false, 0.4)
 	_tex_off = ImageTexture.create_from_image(_noise_image())
 	_tex_empty = ImageTexture.create_from_image(corridor_image(96, false, Color(0.7, 1.0, 0.8), true))
 	_tex_visitor = ImageTexture.create_from_image(corridor_image(96, true, Color(0.7, 1.0, 0.8), true))
@@ -54,19 +56,18 @@ func _ready() -> void:
 	screen.mesh = q
 	screen.material_override = _screen_mat
 	screen.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	screen.position = Vector3(0, 0.025, -0.0345)
+	screen.position = Vector3(0, 0.0245, -0.0312)
 	screen.rotation.y = PI   # 表を部屋側（-z）へ
+	screen.visible = false   # 待機中は絵の画面。鳴っている間だけ映像
 	add_child(screen)
-	# ボタン（呼び出し）とスピーカーの溝、小さなランプ
-	MeshKit.cylinder(self, 0.015, 0.008, Vector3(0, -0.07, -0.032), MeshKit.mat("intercom_button", Color(0.85, 0.85, 0.82), 0.3), "Button").rotation.x = PI * 0.5
-	for k in 4:
-		MeshKit.box(self, Vector3(0.05, 0.003, 0.002), Vector3(-0.06, -0.06 - k * 0.008, -0.031), dark, "Slot")
+	_screen_node = screen
+	# ボタンとスピーカーは絵に描いてある。小さなランプだけ立体で足す
 	_led_mat = StandardMaterial3D.new()
 	_led_mat.albedo_color = Color(0.1, 0.25, 0.1)
 	_led_mat.emission_enabled = true
 	_led_mat.emission = Color(0.2, 1.0, 0.3)
 	_led_mat.emission_energy_multiplier = 0.4
-	MeshKit.sphere(self, 0.004, Vector3(0.075, -0.065, -0.032), _led_mat)
+	MeshKit.sphere(self, 0.004, Vector3(0.075, 0.095, -0.031), _led_mat)
 	var area := MeshKit.interact_area(self, "IntercomArea", "intercom", self)
 	MeshKit.shape_box(area, Vector3(0.26, 0.24, 0.08), Vector3(0, 0, -0.04))
 	area.set_meta("interact_range", 2.4)
@@ -103,11 +104,13 @@ func ring() -> void:
 	_tween.tween_callback(func() -> void:
 		_screen_mat.albedo_texture = _tex_off
 		_screen_mat.emission_texture = _tex_off
-		_screen_mat.emission_energy_multiplier = 0.15)
+		_screen_mat.emission_energy_multiplier = 0.15
+		_screen_node.visible = false)
 
 
 func _show_screen() -> void:
 	var tex := _tex_visitor if visitor_present else _tex_empty
+	_screen_node.visible = true
 	_screen_mat.albedo_texture = tex
 	_screen_mat.emission_texture = tex
 	_screen_mat.emission_energy_multiplier = 0.9
@@ -163,7 +166,9 @@ func figure_visible() -> bool:
 
 
 ## のぞき穴の絵（人影の有無を反映）。丸く切り抜いた、ぼんやりした景色。
-func peephole_texture() -> ImageTexture:
+func peephole_texture() -> Texture2D:
+	if not figure_visible():
+		return MeshKit.prop_tex("peephole_view")   # 人影がないときは、ユーザーの絵（レンズごしの廊下）
 	return ImageTexture.create_from_image(corridor_image(160, figure_visible(), Color(1.0, 0.95, 0.8), false))
 
 

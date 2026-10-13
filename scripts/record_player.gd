@@ -128,6 +128,19 @@ func _build_display() -> void:
 	disc.rotation.x = PI * 0.5
 	disc.position = Vector3(0, 0, 0.017)
 	_display.add_child(disc)
+	# 横に立て掛けた、レコードのジャケット3枚（ユーザーの絵。調べると中身は空）
+	var jk := [["jacket_kotatsu_mahjong", -0.36, 5.0], ["jacket_chika_nanadan", -0.55, -4.0], ["jacket_rusu_record", -0.74, 7.0]]
+	for i in jk.size():
+		var jt := MeshKit.prop_tex(jk[i][0])
+		var jh := 0.31
+		var jn := Node3D.new()
+		jn.name = "Jacket%d" % (i + 1)
+		jn.position = Vector3(jk[i][1], jh * 0.5 * cos(deg_to_rad(12.0)) + 0.004, WALL_LOCAL_Z + 0.03 + 0.012 * (i % 2))
+		jn.rotation = Vector3(deg_to_rad(-12.0), deg_to_rad(jk[i][2]), 0)
+		add_child(jn)
+		MeshKit.image_quad(jn, jt, Vector2(jh * jt.get_width() / jt.get_height(), jh), Vector3.ZERO, Vector3.BACK, "JacketPicture", false, 0.7)
+		var ja := MeshKit.interact_area(jn, "JacketArea", "record_jacket_%d" % (i + 1), null)
+		MeshKit.shape_box(ja, Vector3(0.18, 0.31, 0.04), Vector3.ZERO)
 	var area := MeshKit.interact_area(self, "RecordDiscArea", "record_disc", null)
 	area.position = _display.position + Vector3(0, 0, 0.03)
 	MeshKit.shape_box(area, Vector3(0.3, 0.3, 0.1), Vector3.ZERO)

@@ -61,7 +61,7 @@ func _build_duct() -> void:
 	var duct := Node3D.new()
 	duct.name = "Duct"
 	add_child(duct)
-	var metal := MeshKit.tiled_mat("duct_tex", TEX_DUCT, 0.6, Color(0.85, 0.87, 0.9), 0.5)
+	var metal := MeshKit.tiled_mat("duct_tex", TEX_DUCT, 0.6, Color(0.36, 0.38, 0.42), 0.5)   # 管の中は暗く（もとは 0.85,0.87,0.9）
 	var dark := MeshKit.mat("duct_dark", Color(0.08, 0.08, 0.09), 1.0)
 	var body := StaticBody3D.new()
 	body.name = "Collision"

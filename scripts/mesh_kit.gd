@@ -262,6 +262,36 @@ static func faded_texture(tex: Texture2D, strength: float) -> Texture2D:
 
 ## ステッカー（assets/textures/stickers/sticker_NN.png）を、面の法線 normal の向きに、面から 1.5mm 浮かせて貼る。
 ## h：高さ（m、幅は画像の比率から）、roll：面の中での傾き（度）。透過部分は alpha scissor で抜く。見た目だけ。
+## assets/textures/props/ の絵（ユーザー作成・生成 AI 使用。透過 PNG）。
+static func prop_tex(n: String) -> Texture2D:
+	return load("res://assets/textures/props/%s.png" % n)
+
+
+## 絵を貼った板（面の向き normal、大きさ size）。透過は切り抜き。double で裏からも見える。
+static func image_quad(parent: Node3D, tex: Texture2D, size: Vector2, pos: Vector3, normal: Vector3, node_name := "Image", double := false, rough := 0.8) -> MeshInstance3D:
+	var m := StandardMaterial3D.new()
+	m.albedo_texture = tex
+	m.roughness = rough
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR
+	m.alpha_scissor_threshold = 0.5
+	m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
+	if double:
+		m.cull_mode = BaseMaterial3D.CULL_DISABLED
+	var q := QuadMesh.new()
+	q.size = size
+	var mi := MeshInstance3D.new()
+	mi.name = node_name
+	mi.mesh = q
+	mi.material_override = m
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var nn := normal.normalized()
+	var up := Vector3.UP if absf(nn.dot(Vector3.UP)) < 0.95 else Vector3.FORWARD
+	mi.basis = Basis.looking_at(-nn, up)
+	mi.position = pos
+	parent.add_child(mi)
+	return mi
+
+
 static func sticker(parent: Node3D, n: int, h: float, pos: Vector3, normal: Vector3, roll := 0.0) -> MeshInstance3D:
 	var tex: Texture2D = load("res://assets/textures/stickers/sticker_%02d.png" % n)
 	var key := "sticker_%02d" % n

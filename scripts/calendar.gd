@@ -26,12 +26,14 @@ func _ready() -> void:
 	var paper := MeshKit.mat("calendar_paper", Color(0.97, 0.96, 0.92), 0.8)
 	var red := MeshKit.mat("calendar_red", Color(0.75, 0.2, 0.2), 0.7)
 	MeshKit.box(self, Vector3(W, H, 0.004), Vector3(0, 0, 0.002), paper, "Paper")
-	MeshKit.box(self, Vector3(W, 0.07, 0.0045), Vector3(0, H * 0.5 - 0.035, 0.0022), red, "Header")
+	# 月の絵（ユーザー作成・生成 AI 使用。月の文字入り）。紙の上に貼る
+	var pic_h := W * 0.4
+	MeshKit.image_quad(self, MeshKit.prop_tex("calendar_%02d" % month), Vector2(W, pic_h), Vector3(0, H * 0.5 - pic_h * 0.5, 0.0045), Vector3.BACK, "MonthPicture", false, 0.8)
 	MeshKit.cylinder(self, 0.004, 0.012, Vector3(0, H * 0.5 + 0.005, 0.004), MeshKit.mat("calendar_nail", Color(0.6, 0.6, 0.62), 0.3, 0.8), "Nail").rotation.x = PI * 0.5
-	_label(MONTHS[month - 1] + " " + str(year), Vector3(0, H * 0.5 - 0.035, 0.0052), 0.0006, 40, Color.WHITE)
+	_label(str(year), Vector3(0.1, H * 0.5 - pic_h - 0.012, 0.0052), 0.0004, 40, Color(0.35, 0.3, 0.28))
 	var cell := 0.0345
 	var x0 := -cell * 3.0
-	var y0 := H * 0.5 - 0.1
+	var y0 := H * 0.5 - pic_h - 0.03
 	for c in 7:
 		_label("SMTWTFS"[c], Vector3(x0 + c * cell, y0, 0.0052), 0.0004, 40, Color(0.7, 0.15, 0.15) if c == 0 else Color(0.15, 0.15, 0.2))
 	var first := _weekday_of(year, month, 1)

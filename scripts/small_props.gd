@@ -230,7 +230,8 @@ func _build_floor_items() -> void:
 	tis.rotation.y = deg_to_rad(15.0)
 	add_child(tis)
 	MeshKit.box(tis, Vector3(0.24, 0.07, 0.12), Vector3(0, 0.035, 0), MeshKit.mat("tissue_box", Color(0.55, 0.78, 0.88), 0.6), "Box")
-	MeshKit.box(tis, Vector3(0.1, 0.002, 0.045), Vector3(0, 0.0705, 0), MeshKit.mat("tissue_slit", Color(0.1, 0.1, 0.12), 0.8), "Slit")
+	MeshKit.image_quad(tis, MeshKit.prop_tex("tissue_top"), Vector2(0.24, 0.12), Vector3(0, 0.0712, 0), Vector3.UP, "TopPrint", false)
+	MeshKit.image_quad(tis, MeshKit.prop_tex("tissue_side"), Vector2(0.24, 0.07), Vector3(0, 0.036, 0.0612), Vector3.BACK, "SidePrint", false)
 	var tm := MeshKit.mat("tissue_paper", Color(0.97, 0.97, 0.95), 0.9)
 	MeshKit.box(tis, Vector3(0.05, 0.03, 0.001), Vector3(0.005, 0.085, 0), tm, "Sheet").rotation.z = deg_to_rad(8.0)
 	_area(tis, "tissue", Vector3(0.26, 0.12, 0.14), Vector3(0, 0.06, 0))
@@ -303,11 +304,8 @@ func _build_floor_items() -> void:
 	MeshKit.sphere(bear, 0.09, Vector3(0, 0.09, 0), fur).scale = Vector3(1.0, 1.05, 0.9)
 	MeshKit.sphere(bear, 0.06, Vector3(0, 0.085, -0.055), pale)
 	MeshKit.sphere(bear, 0.07, Vector3(0, 0.21, 0), fur)
-	MeshKit.sphere(bear, 0.03, Vector3(0, 0.195, -0.06), pale)
-	MeshKit.sphere(bear, 0.01, Vector3(0, 0.205, -0.088), dark)
+	MeshKit.image_quad(bear, MeshKit.prop_tex("teddy_face"), Vector2(0.17, 0.155), Vector3(0, 0.225, -0.069), Vector3.FORWARD, "Face", true)   # 顔の絵（耳つき）
 	for sx in [-1.0, 1.0]:
-		MeshKit.sphere(bear, 0.025, Vector3(sx * 0.05, 0.268, 0.005), fur)             # 耳
-		MeshKit.sphere(bear, 0.008, Vector3(sx * 0.026, 0.225, -0.062), dark)          # 目
 		MeshKit.sphere(bear, 0.03, Vector3(sx * 0.1, 0.12, -0.01), fur)                # 腕
 		MeshKit.sphere(bear, 0.038, Vector3(sx * 0.055, 0.03, -0.08), fur).scale = Vector3(1.0, 0.8, 1.3)   # 脚
 	_area(bear, "teddy", Vector3(0.26, 0.3, 0.24), Vector3(0, 0.15, -0.02))
@@ -326,6 +324,7 @@ func _card(suit: String, rank: String, face_up: bool) -> Node3D:
 	q.size = Vector2(0.044, 0.065)
 	var fm := StandardMaterial3D.new()
 	fm.albedo_texture = _card_face(suit, rank)
+	fm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR
 	fm.roughness = 0.5
 	var face := MeshInstance3D.new()
 	face.name = "Face"
@@ -345,82 +344,20 @@ static var _back_mat: StandardMaterial3D
 
 func _card_back_mat() -> StandardMaterial3D:
 	if _back_mat == null:
-		var img := Image.create(32, 48, false, Image.FORMAT_RGB8)
-		for y in 48:
-			for x in 32:
-				var c := Color(0.15, 0.25, 0.55)
-				if x < 3 or x > 28 or y < 3 or y > 44:
-					c = Color(0.95, 0.95, 0.92)
-				elif (x + y) % 6 < 2 or (x - y + 48) % 6 < 2:
-					c = Color(0.85, 0.85, 0.9)
-				img.set_pixel(x, y, c)
 		_back_mat = StandardMaterial3D.new()
-		_back_mat.albedo_texture = ImageTexture.create_from_image(img)
+		_back_mat.albedo_texture = MeshKit.prop_tex("card_back")
 		_back_mat.roughness = 0.5
-		# 箱のUVは面ごとに全面を使うので、上面だけ模様が出れば足りる
 	return _back_mat
 
 
-## 札の表（40×58）：白地に、中央の大きな柄と、左上・右下の小さな柄（文字は描かない。柄の数で見分ける）。
-static func _card_face(suit: String, rank: String) -> ImageTexture:
+## 札の表（ユーザーの画像 assets/textures/props/card_<s|h|d|c>_<ランク>.png）。
+static func _card_face(suit: String, rank: String) -> Texture2D:
 	var key := suit + rank
 	if _card_cache.has(key):
 		return _card_cache[key]
-	var w := 40
-	var h := 58
-	var img := Image.create(w, h, false, Image.FORMAT_RGB8)
-	img.fill(Color(0.97, 0.96, 0.92))
-	for x in w:
-		for y in h:
-			if x == 0 or y == 0 or x == w - 1 or y == h - 1:
-				img.set_pixel(x, y, Color(0.7, 0.7, 0.7))
-	var col := Color(0.8, 0.1, 0.12) if suit == "heart" or suit == "diamond" else Color(0.1, 0.1, 0.13)
-	_pip(img, suit, Vector2(w * 0.5, h * 0.5), 11.0, col)
-	_pip(img, suit, Vector2(7.0, 8.0), 4.0, col)
-	_pip(img, suit, Vector2(w - 7.0, h - 8.0), 4.0, col)
-	# ランクは中央の柄の上に、A は1本・数札は短い棒の数（最大 5）・J Q K は王冠の三角
-	var bars := mini(5, int(rank) if rank.is_valid_int() else 0)
-	for i in bars:
-		for dx in 3:
-			for dy in 2:
-				img.set_pixel(13 + i * 4 + dx - 2 + 2, 20 + dy, col)
-	if rank == "A":
-		for dy in 3:
-			for dx in 3:
-				img.set_pixel(19 + dx, 20 + dy, col)
-	if rank in ["J", "Q", "K"]:
-		for i in 12:
-			var hh := 1 + (i % 4 if i % 4 < 2 else 3 - i % 4)
-			for dy in hh * 2:
-				img.set_pixel(14 + i * 1, 22 - dy, col)
-	var t := ImageTexture.create_from_image(img)
+	var t := MeshKit.prop_tex("card_%s_%s" % [suit.substr(0, 1), rank])
 	_card_cache[key] = t
 	return t
-
-
-static func _pip(img: Image, suit: String, c: Vector2, r: float, col: Color) -> void:
-	for y in range(int(c.y - r * 1.4), int(c.y + r * 1.4) + 1):
-		for x in range(int(c.x - r * 1.4), int(c.x + r * 1.4) + 1):
-			if x < 1 or y < 1 or x >= img.get_width() - 1 or y >= img.get_height() - 1:
-				continue
-			var p := Vector2(x, y) - c
-			var u := p / r   # おおよそ -1.4〜1.4
-			var inside := false
-			match suit:
-				"diamond":
-					inside = absf(u.x) * 0.8 + absf(u.y) < 1.1
-				"heart":
-					inside = (Vector2(u.x - 0.5, u.y + 0.35).length() < 0.62) or (Vector2(u.x + 0.5, u.y + 0.35).length() < 0.62) \
-							or (u.y > -0.4 and u.y < 1.0 and absf(u.x) < 1.1 - (u.y + 0.4) * 0.8)
-				"spade":
-					inside = (Vector2(u.x - 0.5, u.y - 0.2).length() < 0.62) or (Vector2(u.x + 0.5, u.y - 0.2).length() < 0.62) \
-							or (u.y > -1.0 and u.y < 0.3 and absf(u.x) < 1.1 - (0.3 - u.y) * 0.85) \
-							or (u.y > 0.6 and u.y < 1.1 and absf(u.x) < 0.25 + (u.y - 0.6) * 0.8)
-				"club":
-					inside = (Vector2(u.x, u.y + 0.5).length() < 0.5) or (Vector2(u.x - 0.55, u.y - 0.15).length() < 0.5) \
-							or (Vector2(u.x + 0.55, u.y - 0.15).length() < 0.5) or (u.y > 0.1 and u.y < 1.1 and absf(u.x) < 0.2 + maxf(0.0, u.y - 0.7) * 0.8)
-			if inside:
-				img.set_pixel(x, y, col)
 
 
 ## サイコロ：白い立方体（2cm）。上面と前面に目（黒い小さな球）。
@@ -446,4 +383,9 @@ func _die(parent: Node3D, pos: Vector3, yaw: float, top: int) -> void:
 static func draw_card(rng: RandomNumberGenerator) -> String:
 	var s: String = SUITS[rng.randi() % 4]
 	var r: String = RANKS[rng.randi() % 13]
+	last_card = _card_face(s, r)
 	return "%sの%s" % [SUIT_NAMES[s], r]
+
+
+## 直前に引いた札の絵（画面に見せる用）。
+static var last_card: Texture2D

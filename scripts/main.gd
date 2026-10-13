@@ -153,6 +153,9 @@ const MESSAGES := {
 	"record_empty": "ターンテーブルは空っぽだ。壁に飾ってあるレコード盤を使えそうだ。",
 	"record_stopped": "針を上げた。部屋が急に静かになる。",
 	"record_started": "針を落とした。パチパチという音のあとで、古いジャズが流れ出す。",
+	"record_jacket_1": "ジャケットに『こたつ麻雀』とある。こたつの上で牌を広げる絵。中身は空の袋だ。",
+	"record_jacket_2": "ジャケットに『地下七段』とある。赤い提灯の階段が下へ続く絵。中身は空の袋だ。……七段、なのか。",
+	"record_jacket_3": "ジャケットに『留守のレコード』とある。ターンテーブルの絵。中身は空の袋だ。",
 	"mj_start": "牌をじゃらじゃらと広げる。一人麻雀のはじまりだ。",
 	"mj_quit": "牌を片づけた。",
 	"mj_need_kotatsu": "麻雀はこたつの中で打つものだ（なぜか）。",
@@ -1007,7 +1010,7 @@ func _on_interact_requested(target: Object) -> void:
 		"toilet_cleaner", "plunger", "toilet_brush", "vent_sticker", "bath_bucket", "shampoo", "rinse", "razor", \
 		"face_wash", "toner", "cotton_swabs", "tub_note", "towel_scratch", "shelf_note", "tank_note", \
 		"kitchen_sink", "kitchen_stove", "fridge", "guitar", "taxidermy", "phone_mobile", \
-		"life_paper_02", "life_paper_07", "bed", "rug", "card_box", "magazines", "teddy", "clothes", "dumbbell", "bottle", "bag", "shoes", "toilet_slippers", "standee":
+		"life_paper_02", "life_paper_07", "bed", "record_jacket_1", "record_jacket_2", "record_jacket_3", "rug", "card_box", "magazines", "teddy", "clothes", "dumbbell", "bottle", "bag", "shoes", "toilet_slippers", "standee":
 			hud.show_message(MESSAGES[id])
 		"phone_black":
 			_phone_dial()
@@ -1061,6 +1064,7 @@ func _on_interact_requested(target: Object) -> void:
 		"cards":
 			var card := SmallPropsScript.draw_card(_rng)
 			hud.show_message("トランプを一枚めくった。……%s。" % card)
+			hud.show_card(SmallPropsScript.last_card)
 		"dice":
 			hud.show_message("サイコロを振った。%d と %d。" % [_rng.randi_range(1, 6), _rng.randi_range(1, 6)])
 		"tv_remote":

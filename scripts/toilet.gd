@@ -392,7 +392,8 @@ func _build_coin() -> void:
 	gold.emission = Color(0.9, 0.65, 0.15)
 	gold.emission_energy_multiplier = 0.6
 	MeshKit.cylinder(coin_root, 0.02, 0.003, Vector3.ZERO, gold, "UfoCoin")
-	MeshKit.cylinder(coin_root, 0.013, 0.0034, Vector3.ZERO, MeshKit.mat("ufo_coin_mark", Color(0.65, 0.45, 0.1), 0.3, 0.7), "UfoCoinMark")
+	var ctex := MeshKit.prop_tex("ufo_coin_face")
+	MeshKit.image_quad(coin_root, ctex, Vector2(0.04, 0.04), Vector3(0, 0.0017, 0), Vector3.UP, "UfoCoinFace", false, 0.35)
 	coin_area = MeshKit.interact_area(coin_root, "CoinArea", "tank_coin", self)
 	MeshKit.shape_box(coin_area, Vector3(0.07, 0.06, 0.07), Vector3(0, 0.02, 0))
 	coin_area.collision_layer = 0

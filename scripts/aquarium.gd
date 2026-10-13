@@ -76,6 +76,9 @@ func _build_stand_and_tank() -> void:
 	wt.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	var back := MeshKit.mat("aquarium_back", Color(0.12, 0.35, 0.45), 0.9)
 	MeshKit.box(self, Vector3(W - 0.012, gh - 0.01, 0.003), Vector3(0, y0 + 0.02 + gh * 0.5, -D * 0.5 + 0.0045), back, "BackPanel")
+	# 背景の絵（水中のポスター。ユーザー作成・生成 AI 使用）
+	var bgq := MeshKit.image_quad(self, MeshKit.prop_tex("aquarium_bg"), Vector2(W - 0.014, gh - 0.012), Vector3(0, y0 + 0.02 + gh * 0.5, -D * 0.5 + 0.0065), Vector3.BACK, "BackPicture", false, 0.9)
+	(bgq.material_override as StandardMaterial3D).transparency = BaseMaterial3D.TRANSPARENCY_DISABLED
 	# 上のフタ（ライトつき）
 	MeshKit.box(self, Vector3(W + 0.02, 0.02, D + 0.02), Vector3(0, y0 + 0.02 + gh + 0.01, 0), black, "Hood")
 	var lamp := MeshKit.mat("aquarium_lamp", Color(0.9, 0.97, 1.0), 0.3)
@@ -109,10 +112,13 @@ func _build_decor() -> void:
 		cl.name = "Plant%d" % i
 		cl.position = Vector3(spots[i][0], y0 + 0.04, spots[i][1])
 		add_child(cl)
-		for k in 4:
-			var h := 0.12 + 0.05 * ((i + k) % 3)
-			var blade := MeshKit.box(cl, Vector3(0.012, h, 0.002), Vector3((k - 1.5) * 0.012, h * 0.5, 0), green if (i + k) % 2 == 0 else green2, "Blade")
-			blade.rotation.y = k * 0.7
+		# 水草の絵（4 種）を、十字に交差させた 2 枚の板で立てる（どの角度からも見える）
+		var pt := MeshKit.prop_tex("aquarium_plant_%d" % (i % 4 + 1))
+		var ph := 0.12 + 0.05 * (i % 3)
+		var pw := ph * pt.get_width() / pt.get_height()
+		for k in 2:
+			var pq := MeshKit.image_quad(cl, pt, Vector2(pw, ph), Vector3(0, ph * 0.5, 0), Vector3.BACK, "PlantQuad%d" % k, true, 0.9)
+			pq.rotation.y = k * PI * 0.5 + i * 0.5
 		_plants.append(cl)
 	# ぶくぶく：左の奥のエアストーンから泡が昇る
 	var bm := StandardMaterial3D.new()

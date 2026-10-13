@@ -31,30 +31,21 @@ func _ready() -> void:
 		var leg := MeshKit.cylinder(self, 0.014, STOOL_H, Vector3(cos(a) * 0.11, STOOL_H * 0.5, sin(a) * 0.11), stool, "StoolLeg")
 		leg.rotation = Vector3(-sin(a) * 0.12, 0, cos(a) * 0.12)
 	var y := STOOL_H
-	MeshKit.box(self, Vector3(0.28, 0.17, 0.11), Vector3(0, y + 0.085, 0), wood, "Body")
-	# スピーカー（左）と目盛り（右）
-	var grill := MeshKit.mat("radio_grill", Color(0.2, 0.15, 0.1), 0.9)
-	MeshKit.box(self, Vector3(0.11, 0.12, 0.004), Vector3(-0.075, y + 0.085, 0.057), grill, "Grill")
-	for k in 6:
-		MeshKit.box(self, Vector3(0.1, 0.002, 0.002), Vector3(-0.075, y + 0.04 + k * 0.016, 0.0595), MeshKit.mat("radio_grill_line", Color(0.55, 0.45, 0.3), 0.6), "GrillLine")
-	var dial := MeshKit.mat("radio_dial", Color(0.92, 0.88, 0.7), 0.5)
-	MeshKit.box(self, Vector3(0.1, 0.04, 0.003), Vector3(0.06, y + 0.12, 0.057), dial, "Dial")
+	MeshKit.box(self, Vector3(0.28, 0.13, 0.11), Vector3(0, y + 0.065, 0), wood, "Body")
+	# 前面の絵（スピーカーの布・ダイヤル・つまみ。ユーザー作成・生成 AI 使用。絵の針は消してある）。針は動く
+	MeshKit.image_quad(self, MeshKit.prop_tex("radio_front"), Vector2(0.28, 0.28 * 323.0 / 739.0), Vector3(0, y + 0.065, 0.0555), Vector3.BACK, "FrontPicture", false, 0.6)
 	_needle = Node3D.new()
-	_needle.position = Vector3(0.06, y + 0.12, 0.0595)
+	_needle.position = Vector3(0.02, y + 0.034, 0.0572)
 	add_child(_needle)
-	MeshKit.box(_needle, Vector3(0.002, 0.036, 0.001), Vector3.ZERO, MeshKit.mat("radio_needle", Color(0.85, 0.15, 0.1), 0.4), "Needle")
-	_needle.position.x = 0.02
-	var knob := MeshKit.mat("radio_knob", Color(0.1, 0.1, 0.1), 0.4)
-	for kx in [0.035, 0.09]:
-		MeshKit.cylinder(self, 0.016, 0.014, Vector3(kx, y + 0.055, 0.062), knob, "Knob").rotation.x = PI * 0.5
+	MeshKit.box(_needle, Vector3(0.0016, 0.03, 0.001), Vector3.ZERO, MeshKit.mat("radio_needle", Color(0.85, 0.15, 0.1), 0.4), "Needle")
 	_lamp_mat = StandardMaterial3D.new()
 	_lamp_mat.albedo_color = Color(0.3, 0.12, 0.05)
 	_lamp_mat.emission_enabled = true
 	_lamp_mat.emission = Color(1.0, 0.55, 0.15)
 	_lamp_mat.emission_energy_multiplier = 0.0
-	MeshKit.sphere(self, 0.006, Vector3(0.115, y + 0.14, 0.058), _lamp_mat)
+	MeshKit.sphere(self, 0.005, Vector3(0.122, y + 0.12, 0.058), _lamp_mat)
 	# アンテナ
-	var ant := MeshKit.cylinder(self, 0.0025, 0.3, Vector3(0.1, y + 0.17 + 0.1, -0.03), MeshKit.mat("radio_ant", Color(0.75, 0.75, 0.78), 0.3, 0.8), "Antenna")
+	var ant := MeshKit.cylinder(self, 0.0025, 0.3, Vector3(0.1, y + 0.13 + 0.1, -0.03), MeshKit.mat("radio_ant", Color(0.75, 0.75, 0.78), 0.3, 0.8), "Antenna")
 	ant.rotation.z = -0.3
 	_player = AudioStreamPlayer3D.new()
 	_player.name = "Sound"
@@ -90,7 +81,7 @@ func interact(_id: String) -> String:
 	_player.stream = _waves[name]
 	_player.play()
 	_lamp_mat.emission_energy_multiplier = 2.0
-	_needle.position.x = 0.02 + 0.075 * channel / float(CHANNELS.size() - 1) * 0.9
+	_needle.position.x = 0.02 + 0.1 * channel / float(CHANNELS.size() - 1) * 0.9
 	return "radio_ch%d" % (channel + 1)
 
 

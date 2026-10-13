@@ -51,8 +51,10 @@ var _peep: Control
 var _peep_tex: TextureRect
 var _mj: Control
 var _fade: ColorRect
+var _card_pop: TextureRect
+var _card_tween: Tween
 var _fade_tween: Tween
-var _mj_tiles: Array = []   # [PanelContainer, 上のLabel, 下のLabel]
+var _mj_tiles: Array = []   # [PanelContainer, TextureRect]
 var _mj_info: Label
 var _mj_river: Label
 var _mj_status: Label
@@ -116,6 +118,14 @@ func _ready() -> void:
 	_place(_hint_label, 0.0, 0.0, 1.0, 0.0, 20.0, 12.0, -20.0, 38.0)   # 上端（所持品欄と重ならないよう、下から移した）
 
 	_build_peephole()
+	_card_pop = TextureRect.new()
+	_card_pop.name = "CardPop"
+	_card_pop.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_card_pop.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_card_pop.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	_card_pop.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+	_place(_card_pop, 0.5, 0.5, 0.5, 0.5, 90.0, -150.0, 270.0, 120.0)
+	_card_pop.visible = false
 	_fade = ColorRect.new()
 	_fade.name = "Fade"
 	_fade.color = Color.BLACK
@@ -700,17 +710,16 @@ func _build_mahjong() -> void:
 			row.add_child(gap)
 		var tp := PanelContainer.new()
 		tp.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		tp.custom_minimum_size = Vector2(48, 68)
-		var tbox := VBoxContainer.new()
-		tbox.add_theme_constant_override("separation", -4)
-		tbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		tp.add_child(tbox)
-		var top := _make_label(24, HORIZONTAL_ALIGNMENT_CENTER)
-		var bot := _make_label(20, HORIZONTAL_ALIGNMENT_CENTER)
-		tbox.add_child(top)
-		tbox.add_child(bot)
+		tp.custom_minimum_size = Vector2(50, 70)
+		var timg := TextureRect.new()   # 牌の絵（ユーザー作成。assets/textures/props/mj_*.png）
+		timg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		timg.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		timg.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		timg.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+		timg.custom_minimum_size = Vector2(44, 64)
+		tp.add_child(timg)
 		row.add_child(tp)
-		_mj_tiles.append([tp, top, bot])
+		_mj_tiles.append([tp, timg])
 	_mj_status = _make_label(17, HORIZONTAL_ALIGNMENT_CENTER)
 	box.add_child(_mj_status)
 	_mj_help = _make_label(13, HORIZONTAL_ALIGNMENT_CENTER)
@@ -742,18 +751,14 @@ func show_mahjong(g: RefCounted, cursor: int, help: String) -> void:
 		tp.visible = i < all.size()
 		if i >= all.size():
 			continue
-		var parts: Array = g.tile_parts(all[i])
-		(e[1] as Label).text = parts[0]
-		(e[2] as Label).text = parts[1]
-		(e[1] as Label).add_theme_color_override("font_color", parts[2])
-		(e[2] as Label).add_theme_color_override("font_color", parts[2])
+		(e[1] as TextureRect).texture = load("res://assets/textures/props/mj_%d.png" % all[i])
 		var st := StyleBoxFlat.new()
-		st.bg_color = Color(1.0, 0.96, 0.8) if i != cursor else Color(1.0, 0.85, 0.35)
+		st.bg_color = Color(0.06, 0.25, 0.16, 0.0) if i != cursor else Color(1.0, 0.85, 0.35)
 		st.set_corner_radius_all(4)
 		st.border_color = Color(1, 0.4, 0.1)
 		st.set_border_width_all(3 if i == cursor else 0)
 		tp.add_theme_stylebox_override("panel", st)
-		tp.custom_minimum_size.y = 68 if i != cursor else 78
+		tp.custom_minimum_size.y = 70 if i != cursor else 80
 	match g.state:
 		"playing":
 			var w: Array = []
@@ -787,3 +792,18 @@ func fade_to(alpha: float, seconds: float) -> Tween:
 
 func fade_alpha() -> float:
 	return _fade.modulate.a
+
+
+## 引いたトランプの絵を、照準の横にしばらく見せる。
+func show_card(tex: Texture2D, seconds := 2.4) -> void:
+	if tex == null:
+		return
+	_card_pop.texture = tex
+	_card_pop.visible = true
+	_card_pop.modulate.a = 1.0
+	if _card_tween:
+		_card_tween.kill()
+	_card_tween = create_tween()
+	_card_tween.tween_interval(seconds)
+	_card_tween.tween_property(_card_pop, "modulate:a", 0.0, 0.4)
+	_card_tween.tween_callback(func() -> void: _card_pop.visible = false)

@@ -312,6 +312,7 @@ func _build_fridge() -> void:
 	# 卵のパック（上の棚）：2列×3個
 	var ey := 0.78 + 0.006
 	MeshKit.box(self, Vector3(0.18, 0.025, 0.11), Vector3(cx, ey + 0.0125, zc + 0.03), MeshKit.mat("egg_carton", Color(0.7, 0.66, 0.58), 0.9), "EggCarton")
+	MeshKit.image_quad(self, MeshKit.prop_tex("egg_label"), Vector2(0.18, 0.11), Vector3(cx, ey + 0.0258, zc + 0.03), Vector3.UP, "CartonLabel", false, 0.9)   # たまごのラベル（ユーザーの絵）
 	var shell_a := MeshKit.mat("egg_shell_a", Color(0.95, 0.88, 0.75), 0.5)
 	var shell_b := MeshKit.mat("egg_shell_b", Color(0.88, 0.7, 0.5), 0.5)
 	for i in _egg_total:

@@ -799,10 +799,10 @@ func _build_gem() -> void:
 	root.name = "Gem"
 	root.position = Vector3(3.3, 0.0, 1.15)
 	add_child(root)
-	MeshKit.box(root, Vector3(0.42, 0.5, 0.42), Vector3(0, 0.25, 0), MeshKit.mat("plinth", Color(0.9, 0.9, 0.88), 0.4), "Plinth")
+	MeshKit.box(root, Vector3(0.36, 0.42, 0.36), Vector3(0, 0.21, 0), MeshKit.mat("plinth", Color(0.9, 0.9, 0.88), 0.4), "Plinth")
 	var gem := SphereMesh.new()
-	gem.radius = 0.36
-	gem.height = 0.8
+	gem.radius = 0.27   # ひと回り小さく（もとは 0.36）
+	gem.height = 0.6
 	gem.radial_segments = 6
 	gem.rings = 3
 	# 表面の模様は紫の鉱物の画像（不透明）。つやと反射は材質の数値で付ける
@@ -822,12 +822,12 @@ func _build_gem() -> void:
 	mi.name = "Stone"
 	mi.mesh = gem
 	mi.material_override = m
-	mi.position = Vector3(0, 0.5 + 0.4, 0)
+	mi.position = Vector3(0, 0.42 + 0.3, 0)
 	mi.rotation = Vector3(deg_to_rad(12.0), deg_to_rad(20.0), 0)
 	root.add_child(mi)
-	MeshKit.shape_box(_body, Vector3(0.42, 1.3, 0.42), root.position + Vector3(0, 0.65, 0))
+	MeshKit.shape_box(_body, Vector3(0.36, 1.05, 0.36), root.position + Vector3(0, 0.525, 0))
 	# 展示札「触ると普通」（台座の正面＝部屋の中央側 -x）
-	_sign(root, "collection_label_08", Vector3(-0.211, 0.3, 0.0), 0.14, Vector3.LEFT)
+	_sign(root, "collection_label_08", Vector3(-0.181, 0.25, 0.0), 0.12, Vector3.LEFT)
 
 
 # ---------------------------------------------------------------- 額装絵画（仮の抽象模様）
@@ -1506,7 +1506,7 @@ func _build_lights() -> void:
 	add_child(l)
 	var g := OmniLight3D.new()
 	g.name = "GemGlow"
-	g.position = Vector3(3.15, 1.0, 0.95)
+	g.position = Vector3(3.15, 0.9, 0.95)
 	g.light_color = Color(0.6, 0.35, 1.0)
 	g.light_energy = 0.4
 	g.omni_range = 1.4

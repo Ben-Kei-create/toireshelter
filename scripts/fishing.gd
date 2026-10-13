@@ -163,8 +163,9 @@ static func coin_model() -> Node3D:
 	holder.name = "CoinModel"
 	var c := MeshKit.cylinder(holder, 0.05, 0.008, Vector3.ZERO, MeshKit.mat("ufo_coin", Color(0.95, 0.78, 0.25), 0.25, 0.8), "Coin")
 	c.rotation.x = PI * 0.5
-	var m := MeshKit.cylinder(holder, 0.032, 0.0086, Vector3.ZERO, MeshKit.mat("ufo_coin_mark", Color(0.65, 0.45, 0.1), 0.3, 0.7), "Mark")
-	m.rotation.x = PI * 0.5
+	var tex := MeshKit.prop_tex("ufo_coin_face")   # エイリアンの絵（ユーザー作成・生成 AI 使用）
+	MeshKit.image_quad(holder, tex, Vector2(0.1, 0.1), Vector3(0, 0, 0.0042), Vector3.BACK, "FaceFront", false, 0.35)
+	MeshKit.image_quad(holder, tex, Vector2(0.1, 0.1), Vector3(0, 0, -0.0042), Vector3.FORWARD, "FaceBack", false, 0.35)
 	return holder
 
 
