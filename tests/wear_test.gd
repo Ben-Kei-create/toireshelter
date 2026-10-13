@@ -60,7 +60,7 @@ func _run() -> void:
 	var tv: Node = main.room.apartment.get_node("TvCorner")
 	check(tv.get_node("Tv/Screen") != null and tv.get_node("Console") != null and tv.get_node("Game05") != null, "テレビ・ゲーム機・ソフト5本がある")
 	var tv_areas := tv.find_children("*", "Area3D", true, false)
-	check(tv_areas.size() == 12 and tv_areas.filter(func(a): return a.get_meta("interact_id") == "tv_play").size() == 3 and tv_areas.filter(func(a): return String(a.get_meta("interact_id")).begins_with("game_case_")).size() == 5 and tv_areas.filter(func(a): return String(a.get_meta("interact_id")).begins_with("game_cover_")).size() == 4, "テレビ台まわりの判定は、ゲームを始める3つ（テレビ・ゲーム機・コントローラ）とソフトのケース5つ、床のケース4つ（調べるだけ）")
+	check(tv_areas.size() == 15 and tv_areas.filter(func(a): return a.get_meta("interact_id") == "tv_play").size() == 3 and tv_areas.filter(func(a): return String(a.get_meta("interact_id")).begins_with("game_case_")).size() == 5 and tv_areas.filter(func(a): return String(a.get_meta("interact_id")).begins_with("game_cover_")).size() == 7, "テレビ台まわりの判定は、ゲームを始める3つ（テレビ・ゲーム機・コントローラ）とソフトのケース5つ、床のケース7つ（調べるだけ）")
 	check(main.room.apartment.get_node("HallSlippers") != null and wear.get_node("BathSlippers") != null, "スリッパが玄関ホールと浴室にある")
 	var lp: Node = main.room.apartment.get_node("LifePapers")
 	var ids := []

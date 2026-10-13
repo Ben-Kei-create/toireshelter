@@ -25,7 +25,34 @@ func _ready() -> void:
 	_build_rug()
 	_build_table_items()
 	_build_floor_items()
+	_build_new_books()
 	MeshKit.auto_round = true
+
+
+## 床に平置きした本8冊（表紙つき。ユーザー作成・生成 AI 使用。架空の本）：4冊ずつ2か所。調べるだけ。
+func _build_new_books() -> void:
+	var centers := [Vector3(4.2, 0.0, 0.06), Vector3(4.78, 0.0, 0.1)]
+	var yaws := [8.0, -10.0]
+	for g in 2:
+		var root := Node3D.new()
+		root.name = "NewBooks%d" % (g + 1)
+		root.position = centers[g]
+		root.rotation.y = deg_to_rad(yaws[g])
+		add_child(root)
+		for k in 4:
+			var n := g * 4 + k + 1
+			var t := MeshKit.prop_tex("book_new_%d" % n)
+			var bw := 0.13
+			var bh := bw * t.get_height() / t.get_width()
+			var b := Node3D.new()
+			b.name = "Book%d" % n
+			b.position = Vector3((k % 2 - 0.5) * (bw + 0.012), 0.0, (k / 2 - 0.5) * (bh + 0.012))
+			b.rotation.y = deg_to_rad((k * 7) % 11 - 5)
+			root.add_child(b)
+			MeshKit.box(b, Vector3(bw, 0.018, bh), Vector3(0, 0.009, 0), MeshKit.mat("book_new_body", Color(0.9, 0.88, 0.8), 0.7), "Body")
+			var cq := MeshKit.image_quad(b, t, Vector2(bw, bh), Vector3(0, 0.0182, 0), Vector3.UP, "Cover", false, 0.6)
+			cq.rotation.y = PI
+			_area(b, "book_new_%d" % n, Vector3(bw, 0.04, bh), Vector3(0, 0.02, 0))
 
 
 func _process(delta: float) -> void:

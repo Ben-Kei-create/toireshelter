@@ -1321,10 +1321,11 @@ func _build_tv_corner() -> void:
 		# ケースを調べるとそのソフトに入れ替わる（id game_case_N）
 		var ga := MeshKit.interact_area(g, "CaseArea", "game_case_%d" % i)
 		MeshKit.shape_box(ga, Vector3(0.017, 0.2, 0.14), Vector3(0, 0.1, 0))
-	# ゲームソフトのケース4つ：台の前の床に重ねてある（表紙つき。ユーザー作成・生成 AI 使用。架空のゲーム）
-	var cover_at := [[1.3, 1.9, 12.0], [1.5, 1.86, -8.0], [1.72, 1.91, 5.0], [1.93, 1.86, -14.0]]
-	for i in 4:
-		var ct := MeshKit.prop_tex("game_cover_%d" % (i + 1))
+	# ゲームソフトのケース7つ：台の前の床に重ねてある（表紙つき。ユーザー作成・生成 AI 使用。架空のゲーム）
+	var cover_at := [[1.3, 1.9, 12.0], [1.5, 1.86, -8.0], [1.72, 1.91, 5.0], [1.93, 1.86, -14.0], [1.38, 1.66, -6.0], [1.62, 1.64, 9.0], [1.86, 1.66, -3.0]]
+	var cover_tex := ["game_cover_1", "game_cover_2", "game_cover_3", "game_cover_4", "jacket_kotatsu_mahjong", "jacket_chika_nanadan", "jacket_rusu_record"]
+	for i in 7:
+		var ct := MeshKit.prop_tex(cover_tex[i])
 		var cw := 0.2 * ct.get_width() / ct.get_height()
 		var cn := Node3D.new()
 		cn.name = "GameCover%d" % (i + 1)

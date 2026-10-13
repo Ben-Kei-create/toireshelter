@@ -355,6 +355,8 @@ func _build_fridge() -> void:
 		var hy := h - 0.2 if key == "upper" else h * 0.65
 		MeshKit.box(pivot, Vector3(0.015, 0.4 if key == "lower" else 0.3, 0.02), Vector3(w - 0.07, hy, -0.01), steel, "Handle")
 		if key == "upper":
+			# 冷凍室の扉（上）の外側：ポスター『冷蔵庫の奥にある町』（絵は扉ごとに分ける）。マグネットで留めてある
+			MeshKit.image_quad(pivot, MeshKit.prop_tex("fridge_poster"), Vector2(0.27, 0.27 * 768.0 / 499.0), Vector3(0.3, 0.27, -0.0015), Vector3.FORWARD, "DoorPoster", false, 0.5)
 			for k in 5:
 				MeshKit.box(pivot, Vector3(0.05, 0.05, 0.006), Vector3(0.15 + (k % 3) * 0.1, 0.25 + (k / 3) * 0.1 - 0.12, -0.003), MeshKit.mat("magnet_%d" % k, Color.from_hsv(k * 0.18, 0.6, 0.9), 0.5), "Magnet")
 		else:

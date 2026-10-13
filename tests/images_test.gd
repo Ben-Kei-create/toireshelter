@@ -68,9 +68,16 @@ func _run() -> void:
 			miss.append(f)
 	check(miss.is_empty(), "画像がそろっている %s" % str(miss))
 	# --- 貼った場所
-	check(apt.get_node("TvCorner").find_children("GameCover*", "Node3D", false, false).size() == 4, "ソフトのケース 4 つが台の前の床にある")
-	for i in 4:
+	check(apt.get_node("TvCorner").find_children("GameCover*", "Node3D", false, false).size() == 7, "ソフトのケース 7 つが台の前の床にある")
+	for i in 7:
 		check(main.MESSAGES.has("game_cover_%d" % (i + 1)), "ケース%d を調べられる" % (i + 1))
+	for i in 8:
+		check(main.MESSAGES.has("book_new_%d" % (i + 1)) and ResourceLoader.exists("res://assets/textures/props/book_new_%d.png" % (i + 1)), "床の本%d（画像と文章）" % (i + 1))
+	for i in 4:
+		check(main.MESSAGES.has("record_jacket_%d" % (i + 1)) and ResourceLoader.exists("res://assets/textures/props/lp_%d.png" % (i + 1)), "ジャケット%d（画像と文章）" % (i + 1))
+	check(apt.kitchen.get_node("Door_upper").get_node_or_null("DoorPoster") != null and apt.kitchen.get_node("Door_lower").get_node_or_null("DoorPoster") == null, "冷凍室の扉（上）にだけポスター、下の扉にはシール（扉ごとに別の絵）")
+	check(apt.get_node("SmallProps").get_node("NewBooks1").get_child_count() == 4 and apt.get_node("SmallProps").get_node("NewBooks2").get_child_count() == 4, "床の本が 4 冊ずつ 2 か所")
+	check(apt.record_player.find_children("Jacket*", "Node3D", false, false).size() == 4, "レコードのジャケットが 4 枚")
 	var door = apt.kitchen.get_node("Door_lower")
 	check(door.get_node_or_null("StickerCard") != null and apt.kitchen.get_node("Door_upper").get_node_or_null("StickerCard") == null, "冷蔵庫将軍のシールは冷蔵室の扉（下）に貼ってあり、扉といっしょに動く（上の扉には貼らない）")
 	check(apt.get_node("Gem").get_node_or_null("StickerCard") != null, "石焼き大魔王のシールが台座にある")

@@ -153,9 +153,21 @@ const MESSAGES := {
 	"record_empty": "ターンテーブルは空っぽだ。壁に飾ってあるレコード盤を使えそうだ。",
 	"record_stopped": "針を上げた。部屋が急に静かになる。",
 	"record_started": "針を落とした。パチパチという音のあとで、古いジャズが流れ出す。",
-	"record_jacket_1": "ジャケットに『こたつ麻雀』とある。こたつの上で牌を広げる絵。中身は空の袋だ。",
-	"record_jacket_2": "ジャケットに『地下七段』とある。赤い提灯の階段が下へ続く絵。中身は空の袋だ。……七段、なのか。",
-	"record_jacket_3": "ジャケットに『留守のレコード』とある。ターンテーブルの絵。中身は空の袋だ。",
+	"record_jacket_1": "ジャケット『夜の余白』（MIDNIGHT JAZZ）。月夜のピアノの絵。中身は空の袋だ。",
+	"record_jacket_2": "ジャケット『留守番のブルース』。椅子がひとつ、夕日の部屋に残っている。中身は空の袋だ。",
+	"record_jacket_3": "ジャケット『配管に雨が降る』。サックスと配管、屋根の猫。中身は空の袋だ。",
+	"record_jacket_4": "ジャケット『午前二時の冷蔵庫』。夜の街へ開いた冷蔵庫の絵。中身は空の袋だ。",
+	"game_cover_5": "ソフトのケース。『こたつ麻雀』。こたつの上に牌が並び、猫が丸まって寝ている。……架空のゲームだ。",
+	"game_cover_6": "ソフトのケース。『地下七段』。赤い提灯の階段が下へ。……七段、なのか。架空のゲームだ。",
+	"game_cover_7": "ソフトのケース。『留守のレコード』。ターンテーブルと、陽のあたる部屋。……架空のゲームだ。",
+	"book_new_1": "『正しい石の洗い方』。石は洗うものらしい。せっけん置きに載せるのが正しいそうだ。",
+	"book_new_2": "『階段はどこまで家なのか』。階段だらけの家の絵。答えは書いていない。",
+	"book_new_3": "『ひとり分の麻雀』。表紙に、ぽつんと牌がひとつ。",
+	"book_new_4": "『この手紙は地下で読むこと』。赤い階段の上に、封筒が浮いている。……もう読んだ。",
+	"book_new_5": "『石はなぜ黙っているのか』。浮かぶ石と、ひとりの旅人。答えは「石だから」らしい。",
+	"book_new_6": "『昨日を売る店』。夕焼けの瓶が並ぶ店先に、猫。昨日はいくらだろう。",
+	"book_new_7": "『冷蔵庫の奥にある町』。雪の町の絵。……奥までは、まだ見ていない。",
+	"book_new_8": "『留守のあいだに増えた部屋』。扉だらけの迷路の絵。赤い扉だけが光っている。",
 	"game_cover_1": "ソフトのケース。『下北沢、午前二時』。赤い月の下の路地に、女の子がひとり。……架空のゲームだ。",
 	"game_cover_2": "ソフトのケース。『団地の向こう側』。空へ伸びる階段を、女の子が見上げている。……架空のゲームだ。",
 	"game_cover_3": "ソフトのケース。『最後の留守番』。陽だまりの部屋で、ロボットが床を拭いている。……架空のゲームだ。",
@@ -1014,7 +1026,7 @@ func _on_interact_requested(target: Object) -> void:
 		"toilet_cleaner", "plunger", "toilet_brush", "vent_sticker", "bath_bucket", "shampoo", "rinse", "razor", \
 		"face_wash", "toner", "cotton_swabs", "tub_note", "towel_scratch", "shelf_note", "tank_note", \
 		"kitchen_sink", "kitchen_stove", "fridge", "guitar", "taxidermy", "phone_mobile", \
-		"life_paper_02", "life_paper_07", "bed", "game_cover_1", "game_cover_2", "game_cover_3", "game_cover_4", "record_jacket_1", "record_jacket_2", "record_jacket_3", "rug", "card_box", "magazines", "teddy", "clothes", "dumbbell", "bottle", "bag", "shoes", "toilet_slippers", "standee":
+		"life_paper_02", "life_paper_07", "bed", "game_cover_1", "game_cover_2", "game_cover_3", "game_cover_4", "record_jacket_1", "record_jacket_2", "record_jacket_3", "record_jacket_4", "game_cover_5", "game_cover_6", "game_cover_7", "book_new_1", "book_new_2", "book_new_3", "book_new_4", "book_new_5", "book_new_6", "book_new_7", "book_new_8", "rug", "card_box", "magazines", "teddy", "clothes", "dumbbell", "bottle", "bag", "shoes", "toilet_slippers", "standee":
 			hud.show_message(MESSAGES[id])
 		"phone_black":
 			_phone_dial()
