@@ -136,7 +136,7 @@ func set_prompt(text: String) -> void:
 		_prompt_panel.visible = not text.is_empty()
 
 
-## 所持品欄を更新する。names：持っている物の名前（最大5つ、順に 1〜5 キー）、selected：選択中の番号（なければ -1）。
+## 所持品欄を更新する。names：持っている物の名前（最大6つ、順に 1〜6 キー）、selected：選択中の番号（なければ -1）。
 func set_inventory(names: Array, selected: int) -> void:
 	for i in _slot_labels.size():
 		var has := i < names.size()
@@ -229,11 +229,11 @@ func _build_inventory_bar() -> void:
 	title.add_theme_constant_override("shadow_offset_x", 1)
 	title.add_theme_constant_override("shadow_offset_y", 1)
 	_inventory_bar.add_child(title)
-	for i in 5:
+	for i in 6:
 		var label := _make_label(17, HORIZONTAL_ALIGNMENT_LEFT)
 		label.name = "Slot%dLabel" % (i + 1)
 		var panel := _make_panel("Slot%d" % (i + 1), label, 0.45)
-		panel.custom_minimum_size = Vector2(96, 46)
+		panel.custom_minimum_size = Vector2(90, 46)
 		var style := (panel.get_theme_stylebox("panel") as StyleBoxFlat).duplicate() as StyleBoxFlat
 		panel.add_theme_stylebox_override("panel", style)
 		_inventory_bar.add_child(panel)
@@ -443,10 +443,26 @@ func _make_menu(menu_name: String, title: String) -> Control:
 
 ## 設定画面の中身：操作説明と、身長（立っているときの目の高さ）のスライダー。
 func _build_settings(menu: Control) -> void:
+	# 主人公の肖像（設定画面の左）：ユーザーのキャラクター画を切り抜いたもの
+	var portrait := TextureRect.new()
+	portrait.name = "Portrait"
+	portrait.texture = load("res://assets/textures/character/body_three_quarter.png")
+	portrait.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	portrait.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	menu.add_child(portrait)
+	portrait.anchor_left = 0.0
+	portrait.anchor_right = 0.0
+	portrait.anchor_top = 0.5
+	portrait.anchor_bottom = 0.5
+	portrait.offset_left = 24.0
+	portrait.offset_right = 250.0
+	portrait.offset_top = -250.0
+	portrait.offset_bottom = 250.0
 	var box := menu.get_node("Center/Box") as VBoxContainer
 	var help := _make_label(20, HORIZONTAL_ALIGNMENT_LEFT)
 	help.name = "Controls"
-	help.text = "操作説明\n移動：W A S D（矢印キーも可）　　視点：マウス\n調べる・使う：左クリック　　座る・入る・立つ：E\nしゃがむ：C　　持ち物を使う：F　　選ぶ：1〜5・ホイール　　拡大：Q\n釣り：釣り竿を拾い、ベランダの手すりを狙ってクリック。浮きが跳ねたらもう一度\nテレビゲーム中：W／A／S／D で操作、E でやめる\n設定を開く・閉じる：Esc"
+	help.text = "操作説明\n移動：W A S D（矢印キーも可）　　視点：マウス\n調べる・使う：左クリック　　座る・入る・立つ：E\nしゃがむ：C　　持ち物を使う：F　　選ぶ：1〜6・ホイール　　拡大：Q\n釣り：釣り竿を拾い、ベランダの手すりを狙ってクリック。浮きが跳ねたらもう一度\nテレビゲーム中：W／A／S／D で操作、E でやめる\n設定を開く・閉じる：Esc"
 	box.add_child(help)
 	_catch_label = _make_label(18, HORIZONTAL_ALIGNMENT_LEFT)
 	_catch_label.name = "CatchLabel"

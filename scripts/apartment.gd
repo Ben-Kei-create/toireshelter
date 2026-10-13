@@ -27,6 +27,7 @@ const RadioScript := preload("res://scripts/radio.gd")
 const WallClockScript := preload("res://scripts/wall_clock.gd")
 const IntercomScript := preload("res://scripts/intercom.gd")
 const CalendarScript := preload("res://scripts/calendar.gd")
+const CharacterScript := preload("res://scripts/character.gd")
 
 # 素材（docs/assets.md の ASSETS-30）
 const TEX_GRANITE := preload("res://assets/textures/surfaces/surface_01.png")
@@ -52,6 +53,8 @@ const DOORWAY_H := 2.0
 const FRONT_DOOR_Z := Vector2(1.5, 2.2)   # 玄関ドア（ホールの左の壁）の開口
 const FRONT_DOOR_H := 2.0
 const WALL_T := 0.1
+const TATAKI_X := Vector2(-1.0, -0.45)   # 玄関の三和土（5cm 低い）の x の範囲
+const TATAKI_Z0 := 1.45                   # 三和土の北の端（南は壁）
 const WINDOW_X := Vector2(1.8, 3.2)
 const WINDOW_TOP := 2.0
 const WINDOW_SLIDE := 0.68
@@ -66,6 +69,9 @@ var small_props: Node3D    # じゅうたん・トランプ・サイコロなど
 var aquarium: Node3D       # 水槽（aquarium.gd）
 var radio: Node3D          # ラジオ（radio.gd）
 var wall_clock: Node3D     # 壁掛け時計（wall_clock.gd）
+var figures: Array = []      # 棚のフィギュア（コルク銃の的）{node, out, down}
+var figures_down := 0
+var standee: Node3D        # 主人公の等身大パネル（character.gd）
 var calendar: Node3D       # 壁掛けカレンダー（calendar.gd）
 var intercom: Node3D       # インターホン（intercom.gd。玄関ホールの奥の壁）
 var tv_game: Node2D        # テレビで遊べる小さなゲーム（mini_game.gd。SubViewport の中）
@@ -125,7 +131,20 @@ func _build_hall() -> void:
 	var z1 := HALL.end.z
 	var cz := (z0 + z1) * 0.5
 	var d := z1 - z0
-	_solid(Vector3(2.0, WALL_T, d), Vector3(0.0, -WALL_T * 0.5, cz), floor_m)
+	# 床：扉のそばは「三和土（たたき）」。5cm 低い灰色のタイルで、木の床との境に上がり框（暗い木の段）。靴を脱ぐ場所
+	var tx := TATAKI_X   # 三和土の x の範囲（壁の外側から 木の床まで）
+	var tz0 := TATAKI_Z0
+	var tataki_m := MeshKit.tiled_mat("tataki_tile", _tataki_texture(), 0.3, Color.WHITE, 0.8)
+	_solid(Vector3(tx.y - tx.x, WALL_T, z1 - tz0), Vector3((tx.x + tx.y) * 0.5, -0.05 - WALL_T * 0.5, (tz0 + z1) * 0.5), tataki_m, "HallTataki")
+	_solid(Vector3(1.0 - tx.y, WALL_T, d), Vector3((tx.y + 1.0) * 0.5, -WALL_T * 0.5, cz), floor_m, "HallFloor")
+	_solid(Vector3(tx.y - tx.x, WALL_T, tz0 - z0), Vector3((tx.x + tx.y) * 0.5, -WALL_T * 0.5, (z0 + tz0) * 0.5), floor_m, "HallFloorNorth")
+	var kamachi := MeshKit.mat("kamachi", Color(0.25, 0.15, 0.09), 0.5)
+	MeshKit.box(self, Vector3(0.05, 0.053, z1 - tz0), Vector3(tx.y + 0.025, -0.0235, (tz0 + z1) * 0.5), kamachi, "Kamachi")
+	MeshKit.box(self, Vector3(tx.y - tx.x, 0.053, 0.05), Vector3((tx.x + tx.y) * 0.5, -0.0235, tz0 - 0.025), kamachi, "KamachiNorth")
+	# 壁の下の隙間をふさぐ（扉の開口は空けたまま）
+	var skirt := MeshKit.mat("hall_skirt", Color(0.3, 0.28, 0.26), 0.8)
+	MeshKit.box(self, Vector3(0.1, 0.05, FRONT_DOOR_Z.x - tz0), Vector3(-0.95, -0.025, (tz0 + FRONT_DOOR_Z.x) * 0.5), skirt, "TatakiSkirtA")
+	MeshKit.box(self, Vector3(0.1, 0.05, z1 - FRONT_DOOR_Z.y), Vector3(-0.95, -0.025, (FRONT_DOOR_Z.y + z1) * 0.5), skirt, "TatakiSkirtB")
 	_solid(Vector3(2.0, WALL_T, d), Vector3(0.0, HALL.end.y + WALL_T * 0.5, cz), ceil_m)
 	# 左の壁（廊下との境）。玄関ドアの開口 z 1.5〜2.2、高さ 2.0 を空ける（ドアは front_door.gd）
 	_solid(Vector3(WALL_T, HALL.end.y, FRONT_DOOR_Z.x - z0), Vector3(-0.95, HALL.end.y * 0.5, (z0 + FRONT_DOOR_Z.x) * 0.5), wall)
@@ -689,18 +708,46 @@ func _build_figure_shelves() -> void:
 	for i in 3:
 		var y := 1.05 + i * 0.42
 		MeshKit.box(root, Vector3(0.72, 0.02, 0.2), Vector3(1.44, y - 0.01, back_z + 0.1), white)
-		_figure_row(root, Vector3(1.12, y, back_z + 0.1), Vector3(0.11, 0, 0), 6)
+		_figure_row(root, Vector3(1.12, y, back_z + 0.1), Vector3(0.11, 0, 0), 6, 1.0)
 	MeshKit.shape_box(_body, Vector3(0.72, 1.3, 0.2), Vector3(1.44, 1.7, back_z + 0.1))
 	# 手前の壁の高い所（寝床の上）：2段
 	var front_z := ROOM.end.z
 	for i in 2:
 		var y := 1.6 + i * 0.4
 		MeshKit.box(root, Vector3(1.4, 0.02, 0.18), Vector3(2.9, y - 0.01, front_z - 0.09), white)
-		_figure_row(root, Vector3(2.3, y, front_z - 0.09), Vector3(0.12, 0, 0), 11)
+		_figure_row(root, Vector3(2.3, y, front_z - 0.09), Vector3(0.12, 0, 0), 11, -1.0)
+
+
+## 棚のフィギュアをコルク銃で撃ち落とす。node は figures の中のフィギュア。落ちる間は倒れて、下の面（机・寝床・床）に落ち着く。
+func knock_figure(node: Node3D) -> bool:
+	for fg in figures:
+		if fg.node != node or fg.down:
+			continue
+		fg.down = true
+		figures_down += 1
+		var area := node.get_node("FigureArea") as Area3D
+		area.collision_layer = 0
+		var out: float = fg.out
+		var from := node.position
+		# 落ちる先：棚から 0.2m 手前の真下に、いちばん上の面（机・寝床・床）
+		var land_xz := Vector3(from.x + randf_range(-0.05, 0.05), from.y, from.z + out * 0.22)
+		var q := PhysicsRayQueryParameters3D.create(land_xz, land_xz + Vector3(0, -3.0, 0), 1)
+		var hit := get_world_3d().direct_space_state.intersect_ray(q)
+		var floor_y: float = hit.position.y if not hit.is_empty() else 0.0
+		var tw := create_tween()
+		tw.tween_property(node, "rotation:x", out * deg_to_rad(80.0), 0.18).set_trans(Tween.TRANS_SINE)
+		tw.parallel().tween_property(node, "position:z", from.z + out * 0.08, 0.18)
+		tw.tween_property(node, "position", Vector3(land_xz.x, floor_y + 0.03, land_xz.z), 0.4).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+		tw.parallel().tween_property(node, "rotation:z", randf_range(-1.2, 1.2), 0.4)
+		tw.tween_callback(func() -> void: Sfx.play("clunk", randf_range(0.9, 1.3), -3.0))
+		tw.tween_property(node, "position:y", floor_y + 0.06, 0.08)
+		tw.tween_property(node, "position:y", floor_y + 0.03, 0.08)
+		return true
+	return false
 
 
 ## 独自の形のフィギュアを並べる（輪の頭、三本脚、積み重ねた円すい、一つ目の箱）。
-func _figure_row(root: Node3D, start: Vector3, step: Vector3, count: int) -> void:
+func _figure_row(root: Node3D, start: Vector3, step: Vector3, count: int, out_dir: float) -> void:
 	var colors := [Color(0.9, 0.3, 0.25), Color(0.25, 0.55, 0.9), Color(0.95, 0.8, 0.2), Color(0.35, 0.75, 0.45),
 			Color(0.75, 0.4, 0.85), Color(0.95, 0.95, 0.95), Color(0.15, 0.15, 0.18)]
 	for i in count:
@@ -711,6 +758,10 @@ func _figure_row(root: Node3D, start: Vector3, step: Vector3, count: int) -> voi
 		var f := Node3D.new()
 		f.position = p
 		root.add_child(f)
+		# コルク銃の的：調べられ（figure）、銃で撃つと棚から落ちる
+		var fa := MeshKit.interact_area(f, "FigureArea", "figure")
+		MeshKit.shape_box(fa, Vector3(0.09, 0.18, 0.09), Vector3(0, 0.08, 0))
+		figures.append({"node": f, "out": out_dir, "down": false})
 		match _rng.randi() % 4:
 			0:   # 輪の頭
 				MeshKit.cylinder(f, 0.022, 0.12, Vector3(0, 0.06, 0), m, "", 0.016, 12)
@@ -1010,9 +1061,22 @@ func _build_novelties() -> void:
 		MeshKit.box(item, Vector3(0.04, 0.004, w * 0.8), Vector3(0.0, 0.002, 0), base_mat, "Base")
 
 
-## 玄関ホール：浴室のドアの左（-x）の床にスリッパ。コルクボードの下・動線の外。見た目だけ。
+## 三和土のタイルの絵：灰色の石のタイルと目地（64×64、0.3m で繰り返す）。
+func _tataki_texture() -> ImageTexture:
+	var img := Image.create(64, 64, false, Image.FORMAT_RGB8)
+	for y in 64:
+		for x in 64:
+			var v := 0.46 + 0.05 * sin(x * 1.7 + y * 0.9) * sin(y * 2.1)
+			if x % 32 < 2 or y % 32 < 2:
+				v = 0.3
+			img.set_pixel(x, y, Color(v, v * 1.02, v * 1.05))
+	img.generate_mipmaps()
+	return ImageTexture.create_from_image(img)
+
+
+## 玄関ホール：木の床の上がり框のそば（-x 側、三和土のすぐ東）にスリッパ。見た目だけ。
 func _build_hall_slippers() -> void:
-	MeshKit.slipper_pair(self, Vector3(-0.64, 0.0, 1.55), 8.0, Color(0.92, 0.88, 0.72), Color(0.6, 0.45, 0.32), "HallSlippers")
+	MeshKit.slipper_pair(self, Vector3(-0.28, 0.0, 1.78), 8.0, Color(0.92, 0.88, 0.72), Color(0.6, 0.45, 0.32), "HallSlippers")
 	_build_shoes()
 
 
@@ -1020,7 +1084,7 @@ func _build_hall_slippers() -> void:
 func _build_shoes() -> void:
 	var root := Node3D.new()
 	root.name = "Shoes"
-	root.position = Vector3(-0.66, 0.0, 2.05)
+	root.position = Vector3(-0.78, -0.05, 2.0)   # 三和土の上（床より 5cm 低い）
 	add_child(root)
 	var sole_w := MeshKit.mat("shoe_sole_white", Color(0.92, 0.92, 0.9), 0.7)
 	var navy := MeshKit.mat("shoe_navy", Color(0.2, 0.25, 0.45), 0.8)
@@ -1296,6 +1360,7 @@ func _build_tv_corner() -> void:
 	MeshKit.box(pad, Vector3(0.15, 0.03, 0.09), Vector3(0, 0.015, 0), white, "Body")
 	MeshKit.box(pad, Vector3(0.04, 0.032, 0.1), Vector3(-0.05, 0.016, 0.0), black, "GripL")
 	MeshKit.box(pad, Vector3(0.04, 0.032, 0.1), Vector3(0.05, 0.016, 0.0), black, "GripR")
+	_build_tv_cables(root, x0, cx, h, z1)
 	# 調べる判定：テレビ・ゲーム機・コントローラ（どれもゲームを始める。id tv_play）
 	var ta := MeshKit.interact_area(tv, "TvArea", "tv_play")
 	MeshKit.shape_box(ta, Vector3(sw + 0.03, sh + 0.03, 0.06), Vector3(0, 0.06 + (sh + 0.03) * 0.5, 0.02))
@@ -1304,6 +1369,38 @@ func _build_tv_corner() -> void:
 	MeshKit.shape_box(ca, Vector3(0.36, 0.1, 0.24), Vector3(0, 0.05, 0))
 	var pa := MeshKit.interact_area(pad, "PadArea", "tv_play")
 	MeshKit.shape_box(pa, Vector3(0.16, 0.05, 0.1), Vector3(0, 0.02, 0))
+
+
+## テレビの後ろの配線：電源・HDMI・アンテナ・ゲーム機のケーブルが、台の上のテレビの裏でからまり合い、台の左の脇から床へ垂れて、電源タップにつながっている。
+## 細いケーブル（半径 4mm）を曲げた管で作る。見た目だけ（体を止めない・調べる判定もなし）。
+func _build_tv_cables(root: Node3D, x0: float, cx: float, h: float, z1: float) -> void:
+	var cab := Node3D.new()
+	cab.name = "TvCables"
+	root.add_child(cab)
+	var cols := [Color(0.06, 0.06, 0.07), Color(0.85, 0.85, 0.82), Color(0.15, 0.15, 0.18), Color(0.7, 0.2, 0.2), Color(0.2, 0.3, 0.55), Color(0.06, 0.06, 0.07)]
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 505
+	for k in cols.size():
+		var m := MeshKit.mat("tv_cable_%d" % k, cols[k], 0.5)
+		var sx := cx - 0.3 + rng.randf() * 0.5            # テレビの裏の出どころ
+		var pts := [
+			Vector3(sx, h + 0.12, z1 - 0.2),
+			Vector3(sx - 0.1 + rng.randf() * 0.2, h + 0.02, z1 - 0.1 + rng.randf() * 0.04),
+			Vector3(sx - 0.25 + rng.randf() * 0.25, h + 0.012, z1 - 0.045),
+			Vector3(x0 + 0.1 + rng.randf() * 0.15, h + 0.012, z1 - 0.03 - rng.randf() * 0.03),
+			Vector3(x0 - 0.005, h - 0.04, z1 - 0.05),
+			Vector3(x0 - 0.02 - rng.randf() * 0.04, 0.12, z1 - 0.06 - rng.randf() * 0.05),
+			Vector3(x0 - 0.06 - rng.randf() * 0.12, 0.012, z1 - 0.12 - rng.randf() * 0.1),
+			Vector3(x0 - 0.18 + rng.randf() * 0.1, 0.012, z1 - 0.2 - rng.randf() * 0.08),
+			Vector3(x0 - 0.22 + rng.randf() * 0.2, 0.012, z1 - 0.3 + rng.randf() * 0.1),
+		]
+		MeshKit.pipe(cab, pts, 0.004, m)
+	# 電源タップ（床）と、からまった束ね目
+	var strip := MeshKit.box(cab, Vector3(0.3, 0.025, 0.06), Vector3(x0 - 0.1, 0.0125, z1 - 0.28), MeshKit.mat("tv_strip", Color(0.9, 0.9, 0.88), 0.5), "PowerStrip")
+	strip.rotation.y = deg_to_rad(14.0)
+	for k in 4:
+		MeshKit.box(cab, Vector3(0.025, 0.004, 0.02), Vector3(x0 - 0.2 + k * 0.045, 0.027, z1 - 0.3 + k * 0.01), MeshKit.mat("tv_strip_hole", Color(0.1, 0.1, 0.1), 0.6), "Outlet")
+	MeshKit.sphere(cab, 0.012, Vector3(x0 - 0.04, 0.05, z1 - 0.08), MeshKit.mat("tv_tie", Color(0.9, 0.5, 0.15), 0.6))   # 結束バンドの結び目
 
 
 ## テレビ画面の中心（世界座標）。
@@ -1325,6 +1422,10 @@ func _build_extras() -> void:
 	radio = RadioScript.new()
 	radio.name = "Radio"
 	add_child(radio)
+	standee = CharacterScript.build_standee(1.7)
+	standee.position = Vector3(3.8, 0.0, 2.08)   # 寝床と台所のあいだの隅。表は部屋の中（-x）へ
+	standee.rotation.y = -PI * 0.5
+	add_child(standee)
 	calendar = CalendarScript.new()
 	calendar.name = "Calendar"
 	calendar.position = Vector3(3.8, 1.72, ROOM.end.z - 0.001)   # 南の壁、寝床と台所のあいだ。文字は部屋側（-z）へ

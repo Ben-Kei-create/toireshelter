@@ -12,6 +12,7 @@ extends Node3D
 
 const MeshKit := preload("res://scripts/mesh_kit.gd")
 const Sfx := preload("res://scripts/sfx.gd")
+const CorkGunScript := preload("res://scripts/cork_gun.gd")
 const TEX_DIR := "res://assets/textures/kitchen/kitchen_%s.png"
 
 const WALL_Z := 2.4
@@ -48,6 +49,19 @@ var _flicker := 0.0
 var _inside_area: Area3D
 var _goods_areas: Array = []
 var _door_tween := {}
+# 換気扇（レンジフード）：ボタンは 弱・中・狂 の3つ。同じボタンをもう一度押すと止まる
+var hood_level := 0
+var cork_gun: Node3D          # 冷蔵庫の上のコルク銃（拾うと消える）
+var gun_area: Area3D
+var _hood: MeshInstance3D
+var _hood_base := Vector3.ZERO
+var _hood_fan: Node3D
+var _hood_lamp_mat: StandardMaterial3D
+var _hood_sound: AudioStreamPlayer3D
+var _hood_btns := []
+var _hood_t := 0.0
+const HOOD_NAMES := ["", "弱", "中", "狂"]
+const JP_FONTS := ["Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic UI", "Yu Gothic", "Meiryo", "Noto Sans CJK JP", "Noto Sans JP", "sans-serif"]
 
 
 func _ready() -> void:
@@ -82,11 +96,124 @@ func _ready() -> void:
 	MeshKit.sphere(self, 0.016, Vector3(burner_x, TOP + 0.145, cz), dark)
 	# 吊り戸棚とレンジフード
 	MeshKit.box(self, Vector3(WIDTH * 0.5, 0.6, 0.32), Vector3(X0 + half * 0.5, 1.72, WALL_Z - 0.16), cream, "WallCabinet")
-	MeshKit.box(self, Vector3(WIDTH * 0.5, 0.04, 0.5), Vector3(X0 + half * 1.5, 1.45, WALL_Z - 0.25), steel, "Hood")
+	_hood = MeshKit.box(self, Vector3(WIDTH * 0.5, 0.04, 0.5), Vector3(X0 + half * 1.5, 1.45, WALL_Z - 0.25), steel, "Hood")
+	_hood_base = _hood.position
+	_build_hood_controls(X0 + half * 1.5)
 	MeshKit.box(self, Vector3(0.18, 0.5, 0.18), Vector3(X0 + half * 1.5, 1.75, WALL_Z - 0.09), steel, "HoodDuct")
 	_build_stove_extras(stove_x, cz)
 	_build_fridge()
 	MeshKit.auto_round = true
+
+
+## レンジフードの下の操作部：「弱」「中」「狂」の3つのボタン（文字つき）と、回る羽、ランプ、音。
+## 同じボタンをもう一度押すと止まる。狂にするとフードが激しく震え、ランプが赤く点滅し、すさまじい音になる。
+func _build_hood_controls(hx: float) -> void:
+	var yb := 1.43
+	var zf := WALL_Z - 0.5   # フードの手前の縁
+	var dark := MeshKit.mat("hood_panel", Color(0.15, 0.15, 0.17), 0.4, 0.4)
+	MeshKit.box(self, Vector3(0.24, 0.035, 0.012), Vector3(hx, yb - 0.02, zf - 0.004), dark, "ControlPanel")
+	var cols := [Color(0.35, 0.8, 0.45), Color(0.95, 0.8, 0.25), Color(0.9, 0.2, 0.2)]
+	var font := SystemFont.new()
+	font.font_names = PackedStringArray(JP_FONTS)
+	for i in 3:
+		var bx := hx + (1 - i) * 0.07   # 部屋側から見て、左から 弱・中・狂（見る人から見て x は逆向き）
+		var m := StandardMaterial3D.new()
+		m.albedo_color = cols[i]
+		m.emission_enabled = true
+		m.emission = cols[i]
+		m.emission_energy_multiplier = 0.1
+		var cap := MeshKit.box(self, Vector3(0.04, 0.018, 0.01), Vector3(bx, yb - 0.02, zf - 0.015), m, "HoodButton%d" % (i + 1))
+		_hood_btns.append(m)
+		var lab := Label3D.new()
+		lab.text = HOOD_NAMES[i + 1]
+		lab.font = font
+		lab.font_size = 48
+		lab.pixel_size = 0.00045
+		lab.modulate = Color(0.05, 0.05, 0.05) if i < 2 else Color(1, 1, 1)
+		lab.outline_size = 0
+		lab.shaded = false
+		lab.position = Vector3(bx, yb - 0.02, zf - 0.0215)
+		lab.rotation.y = PI   # 文字を部屋側（-z）へ
+		add_child(lab)
+		var a := MeshKit.interact_area(self, "HoodArea%d" % (i + 1), "hood_%d" % (i + 1), self)
+		MeshKit.shape_box(a, Vector3(0.05, 0.03, 0.05), Vector3(bx, yb - 0.02, zf - 0.02))
+		a.set_meta("interact_range", 2.4)
+	# 下から見える回る羽（フードの底）と、ランプ
+	_hood_fan = Node3D.new()
+	_hood_fan.name = "HoodFan"
+	_hood_fan.position = Vector3(hx, 1.428, WALL_Z - 0.25)
+	add_child(_hood_fan)
+	for k in 4:
+		var blade := MeshKit.box(_hood_fan, Vector3(0.16, 0.004, 0.035), Vector3.ZERO, MeshKit.mat("hood_blade", Color(0.3, 0.3, 0.32), 0.4, 0.6), "Blade")
+		blade.rotation.y = k * PI * 0.5
+	MeshKit.cylinder(_hood_fan, 0.02, 0.01, Vector3.ZERO, MeshKit.mat("hood_hub", Color(0.1, 0.1, 0.1), 0.5), "Hub")
+	_hood_lamp_mat = StandardMaterial3D.new()
+	_hood_lamp_mat.albedo_color = Color(0.95, 0.9, 0.7)
+	_hood_lamp_mat.emission_enabled = true
+	_hood_lamp_mat.emission = Color(1.0, 0.9, 0.6)
+	_hood_lamp_mat.emission_energy_multiplier = 0.0
+	MeshKit.box(self, Vector3(0.1, 0.004, 0.05), Vector3(hx, 1.428, WALL_Z - 0.4), _hood_lamp_mat, "HoodLamp")
+	# 音：低いこもった風のうなり（ループ）。レベルで音量と高さを変える
+	_hood_sound = AudioStreamPlayer3D.new()
+	_hood_sound.name = "HoodSound"
+	_hood_sound.bus = "Ambient"
+	_hood_sound.position = Vector3(hx, 1.4, WALL_Z - 0.25)
+	_hood_sound.unit_size = 2.0
+	_hood_sound.max_distance = 12.0
+	var n := 22050
+	var bytes := PackedByteArray()
+	bytes.resize(n * 2)
+	var y := 0.0
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 11
+	for i in n:
+		y += 0.18 * (rng.randf_range(-1.0, 1.0) - y)
+		var t := float(i) / 22050.0
+		var v := y * 1.6 + 0.25 * sin(TAU * 110.0 * t) + 0.12 * sin(TAU * 220.0 * t)
+		bytes.encode_s16(i * 2, int(clampf(v, -1.0, 1.0) * 20000.0))
+	var w := AudioStreamWAV.new()
+	w.format = AudioStreamWAV.FORMAT_16_BITS
+	w.mix_rate = 22050
+	w.data = bytes
+	w.loop_mode = AudioStreamWAV.LOOP_FORWARD
+	w.loop_end = n
+	_hood_sound.stream = w
+	add_child(_hood_sound)
+
+
+func _set_hood(level: int) -> void:
+	hood_level = level
+	for i in 3:
+		(_hood_btns[i] as StandardMaterial3D).emission_energy_multiplier = 2.2 if level == i + 1 else 0.1
+	if level == 0:
+		_hood_sound.stop()
+		_hood_lamp_mat.emission_energy_multiplier = 0.0
+		_hood.position = _hood_base
+		_hood.rotation = Vector3.ZERO
+	else:
+		_hood_sound.volume_db = [-30.0, -20.0, -6.0][level - 1]
+		_hood_sound.pitch_scale = [0.8, 1.05, 1.9][level - 1]
+		if not _hood_sound.playing:
+			_hood_sound.play()
+		_hood_lamp_mat.emission_energy_multiplier = 1.0
+	Sfx.play("click", 1.4)
+
+
+func _hood_step(delta: float) -> void:
+	if hood_level == 0:
+		return
+	_hood_t += delta
+	_hood_fan.rotation.y += delta * [6.0, 16.0, 55.0][hood_level - 1]
+	if hood_level == 3:
+		# 狂：フードが震え、ランプが赤く点滅する
+		_hood.position = _hood_base + Vector3(sin(_hood_t * 90.0) * 0.0012, sin(_hood_t * 71.0) * 0.001, sin(_hood_t * 83.0) * 0.0012)
+		_hood.rotation.z = sin(_hood_t * 60.0) * 0.004
+		var flick: bool = int(_hood_t * 12.0) % 2 == 0
+		_hood_lamp_mat.emission = Color(1.0, 0.1, 0.05) if flick else Color(1.0, 0.8, 0.5)
+		_hood_lamp_mat.emission_energy_multiplier = 2.0 if flick else 0.6
+	else:
+		_hood_lamp_mat.emission = Color(1.0, 0.9, 0.6)
+		_hood_lamp_mat.emission_energy_multiplier = 1.0
 
 
 ## コンロの右の火口：フライパン・炎（点いたときだけ）・フライパンの中の卵（割ったときだけ）。
@@ -240,8 +367,25 @@ func _build_fridge() -> void:
 		_doors[key] = pivot
 		var da := MeshKit.interact_area(pivot, "DoorArea", "fridge_" + key, self)
 		MeshKit.shape_box(da, Vector3(w, h, 0.1), Vector3(w * 0.5, h * 0.5, 0.02))
+	_build_gun()
 	_goods_areas = _eggs.map(func(e): return e.area)
 	_goods_areas.append(_inside_area)
+
+
+## コルク銃：冷蔵庫の天板（y 1.7）に、銃口を前の縁から 3cm はみ出させて寝かせてある。下から見上げると、筒の先だけがちらりと見える。
+func _build_gun() -> void:
+	cork_gun = CorkGunScript.build()
+	cork_gun.position = Vector3((FRIDGE_X.x + FRIDGE_X.y) * 0.5 + 0.05, 1.7 + 0.022, FRIDGE_FRONT - 0.03 + 0.235)
+	cork_gun.rotation.y = deg_to_rad(4.0)
+	add_child(cork_gun)
+	gun_area = MeshKit.interact_area(cork_gun, "GunArea", "cork_gun")
+	MeshKit.shape_box(gun_area, Vector3(0.1, 0.12, 0.45), Vector3(0, 0, 0))
+	gun_area.set_meta("interact_range", 2.6)
+
+
+func remove_gun() -> void:
+	cork_gun.visible = false
+	gun_area.collision_layer = 0
 
 
 ## 画像1枚の板（比率は呼び出し側で size に入れる）。basis で向きを決め、透過の縁は alpha scissor で抜く。影は落とさない。
@@ -278,6 +422,8 @@ func _body(node_name: String, interact_id: String, size: Vector3, center: Vector
 # ---------------------------------------------------------------- 冷蔵庫・コンロの操作（fixture）
 
 func get_prompt(id: String) -> String:
+	if id.begins_with("hood_"):
+		return "hood_press"
 	if id.begins_with("fridge_egg_"):
 		return "egg_take"
 	match id:
@@ -304,6 +450,10 @@ func get_prompt(id: String) -> String:
 
 ## 戻り値は main.gd の MESSAGES のキー。
 func interact(id: String) -> String:
+	if id.begins_with("hood_"):
+		var lv := int(id.substr(5))
+		_set_hood(0 if lv == hood_level else lv)
+		return "hood_off" if hood_level == 0 else "hood_%d" % hood_level
 	if id.begins_with("fridge_egg_"):
 		var idx := int(id.substr(11))
 		if eggs_held >= 3:
@@ -398,6 +548,7 @@ func _stove() -> String:
 
 
 func _process(delta: float) -> void:
+	_hood_step(delta)
 	if flame_on:
 		_flicker += delta * 18.0
 		_flame.scale = Vector3(1.0 + 0.03 * sin(_flicker), 1.4 + 0.15 * sin(_flicker * 1.7), 1.0 + 0.03 * sin(_flicker * 1.3))

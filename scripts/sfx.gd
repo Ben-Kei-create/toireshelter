@@ -10,7 +10,7 @@ extends Node
 
 const AudioSettings := preload("res://scripts/audio_settings.gd")
 const MIX := 22050
-const NAMES := ["click", "thunk", "creak", "cloth", "slide", "beep", "rustle", "page", "pop", "step", "chime", "buzz", "clunk", "flush", "strum", "ring", "tick", "crack", "sizzle", "ignite", "static", "plop", "intercom"]
+const NAMES := ["click", "thunk", "creak", "cloth", "slide", "beep", "rustle", "page", "pop", "step", "chime", "buzz", "clunk", "flush", "strum", "ring", "tick", "crack", "sizzle", "ignite", "static", "plop", "intercom", "shot"]
 const MASTER_DB := -10.0
 
 static var instance: Node
@@ -333,4 +333,14 @@ func _make_intercom() -> PackedFloat32Array:
 		if tb > 0.0:
 			b = 0.45 * (sin(TAU * 740.0 * tb) + 0.25 * sin(TAU * 1480.0 * tb)) * exp(-tb * 3.2)
 		s[i] = a + b
+	return s
+
+
+## コルク銃の「パンッ」：短い破裂音と、栓が抜ける「ポン」。
+func _make_shot() -> PackedFloat32Array:
+	var s := _buf(0.25)
+	var nz := _noise(s.size(), 0.8)
+	for i in s.size():
+		var t := float(i) / MIX
+		s[i] = 0.9 * nz[i] * exp(-t * 70.0) + 0.6 * sin(TAU * (260.0 - 120.0 * t) * t) * exp(-t * 28.0)
 	return s

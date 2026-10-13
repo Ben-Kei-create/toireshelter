@@ -17,6 +17,8 @@ const KotatsuScript := preload("res://scripts/kotatsu.gd")
 const SmallPropsScript := preload("res://scripts/small_props.gd")
 const FishingScript := preload("res://scripts/fishing.gd")
 const IntercomScript := preload("res://scripts/intercom.gd")
+const CorkGunScript := preload("res://scripts/cork_gun.gd")
+const MeshKit := preload("res://scripts/mesh_kit.gd")
 const SfxScript := preload("res://scripts/sfx.gd")
 const BooksScript := preload("res://scripts/books.gd")
 const CorridorScript := preload("res://scripts/corridor.gd")
@@ -146,6 +148,14 @@ const MESSAGES := {
 	"radio_ch4": "ラジオ。時報だ。ピッ、ピッ、ピッ、ポーン。",
 	"radio_off": "ラジオを消した。",
 	"wall_clock": "壁掛け時計。いまは{time}。針はちゃんと動いている。",
+	"cork_gun": "冷蔵庫の上に、細長いおもちゃのピストルが寝ていた。コルク銃を手に入れた。F で撃てる。",
+	"figure": "棚のフィギュア。……撃ち落とせそうな高さだ。",
+	"standee": "等身大パネル。巨大な髪と、ワインレッドのコート。……自分の姿だ。いつ作ったのだろう。裏は、後ろ姿まできちんと印刷されている。",
+	"hood_1": "換気扇「弱」。ごうごう……と、ゆるやかに空気を吸い込む。",
+	"hood_2": "換気扇「中」。羽がぐんと速くなって、音も大きくなった。",
+	"hood_3": "換気扇「狂」。ゴオオオオッ！ フードが壊れそうに震えて、ランプが赤く点滅した。",
+	"hood_off": "換気扇を止めた。台所が急に静かになる。",
+	"toilet_slippers": "トイレ用のスリッパ。つま先に「WC」と書いてある。",
 	"shoes": "玄関に靴。スニーカーは片方が倒れている。革靴はきちんとそろっている。……履く機会はまだない。",
 	"clothes": "脱ぎっぱなしのシャツとズボン、靴下。そろそろ洗濯しないと。",
 	"dumbbell": "ダンベル。持ち上げようとしたが、やめた。三日坊主のあとだ。",
@@ -207,6 +217,7 @@ const PROMPTS := {
 	"cellar_open": "左クリック：床下の蓋を開ける",
 	"cellar_close": "左クリック：床下の蓋を閉める",
 	"cellar_examine": "左クリック：床下を調べる",
+	"hood_press": "左クリック：換気扇のボタン",
 	"cellar_eat": "左クリック：食べる",
 	"cellar_look": "左クリック：調べる",
 	"tv_play": "左クリック：テレビゲームで遊ぶ",
@@ -253,6 +264,7 @@ const ITEMS := {
 	"driver": {"name": "ドライバー", "desc": "赤橙の柄のドライバー。先はプラス。"},
 	"spare_roll": {"name": "予備ロール", "desc": "包装されたトイレットペーパー。『明日もある』。"},
 	"fishing_rod": {"name": "釣り竿", "desc": "竹色の釣り竿。リールがついている。ベランダの手すりから、下の路地へ糸を垂らせそうだ。"},
+	"cork_gun": {"name": "コルク銃", "desc": "細長いおもちゃのピストル。銃口にコルクが詰まっている。F で撃つ。棚のフィギュアを狙えそうだ。"},
 	"ufo_coin": {"name": "UFOコイン", "desc": "クレーンゲーム用のコイン。表にエイリアンの絵。1回ぶん。"},
 	"bath_powder": {"name": "ユブロマン", "desc": "ゆずの香りの粉末入浴剤。1回分。"},
 }
@@ -274,7 +286,7 @@ const ACTION_PROMPTS := {
 const TUB_TARGETS := ["bathtub", "bath_plug", "bath_faucet", "tub_note"]   # 入浴剤を使える照準先（浴槽のどこか）
 
 ## 調べたときに鳴らす効果音（fixture のない対象）
-const INTERACT_SFX := {"guitar": "strum", "fridge": "thunk", "kitchen_stove": "click", "phone_mobile": "click", "kitchen_sink": "click", "cards": "page", "card_box": "click", "dice": "click", "cup": "click", "tissue": "rustle", "magazines": "page", "teddy": "rustle", "shoes": "click", "clothes": "rustle", "bag": "rustle", "dumbbell": "clunk", "bottle": "click", "tv_remote": "beep", "rug": "rustle"}
+const INTERACT_SFX := {"guitar": "strum", "fridge": "thunk", "kitchen_stove": "click", "phone_mobile": "click", "kitchen_sink": "click", "cards": "page", "card_box": "click", "dice": "click", "cup": "click", "tissue": "rustle", "magazines": "page", "teddy": "rustle", "standee": "click", "toilet_slippers": "rustle", "shoes": "click", "clothes": "rustle", "bag": "rustle", "dumbbell": "clunk", "bottle": "click", "tv_remote": "beep", "rug": "rustle"}
 const CLEAR_TITLES := {"legit": "正規ルートで脱出", "shortcut": "裏技ルートで脱出"}
 # 換気経路：入口で浴槽へ戻れる範囲（換気口の真上からの水平距離）、出口からベランダへ降りる経由点と着地候補
 const DUCT_BACK_RANGE := 0.75
@@ -479,6 +491,9 @@ func _unhandled_input(event: InputEvent) -> void:
 		if event.is_action_pressed("item_5"):
 			select_item(4)
 			return
+		if event.is_action_pressed("item_6"):
+			select_item(5)
+			return
 		if event.is_action_pressed("inspect_item"):
 			toggle_zoom()
 			return
@@ -496,6 +511,39 @@ func _unhandled_input(event: InputEvent) -> void:
 			_resume()
 		else:
 			_pause()
+
+
+# ---------------------------------------------------------------- 射的（コルク銃）
+
+var _gun_cool := 0.0
+var shots := 0
+
+
+## コルク銃を撃つ。照準の先がフィギュアなら落ちる。外れたらコルクが飛んでいくだけ。連射はできない（0.4 秒）。
+func _fire(target: Object) -> void:
+	var now := Time.get_ticks_msec() / 1000.0
+	if now < _gun_cool:
+		return
+	_gun_cool = now + 0.4
+	shots += 1
+	SfxScript.play("shot")
+	var from: Vector3 = player.camera.global_position + player.camera.global_transform.basis * Vector3(0.12, -0.1, -0.3)
+	var to: Vector3 = player.camera.global_position - player.camera.global_transform.basis.z * 2.2
+	if player.ray.is_colliding():
+		to = player.ray.get_collision_point()
+	var bullet := MeshKit.cylinder(room, 0.008, 0.02, from, MeshKit.mat("gun_cork", Color(0.75, 0.58, 0.38), 0.9), "Bullet")
+	bullet.look_at_from_position(from, to)
+	bullet.rotate_object_local(Vector3.RIGHT, PI * 0.5)
+	var tw := bullet.create_tween()
+	tw.tween_property(bullet, "global_position", to, 0.12)
+	tw.tween_callback(bullet.queue_free)
+	var tid := String(target.get_meta("interact_id", "")) if target else ""
+	if tid == "figure":
+		var fig: Node3D = target.get_parent()
+		if room.apartment.knock_figure(fig):
+			hud.show_message("命中！ フィギュアが棚から落ちた！（%d 個目）" % room.apartment.figures_down)
+		return
+	hud.show_message("パンッ！ コルクが飛んでいって、はね返った。")
 
 
 # ---------------------------------------------------------------- ゲームソフトの入れ替え
@@ -730,7 +778,7 @@ func _prompt_for(target: Object) -> String:
 	match id:
 		"":
 			return ""
-		"driver", "spare_roll", "bath_powder", "fishing_rod":
+		"driver", "spare_roll", "bath_powder", "fishing_rod", "cork_gun":
 			return PROMPT_PICKUP
 		"door":
 			return PROMPT_EXAMINE
@@ -772,10 +820,22 @@ func _on_interact_requested(target: Object) -> void:
 		"toilet_cleaner", "plunger", "toilet_brush", "vent_sticker", "bath_bucket", "shampoo", "rinse", "razor", \
 		"face_wash", "toner", "cotton_swabs", "tub_note", "towel_scratch", "shelf_note", "tank_note", \
 		"kitchen_sink", "kitchen_stove", "fridge", "guitar", "taxidermy", "phone_mobile", \
-		"life_paper_02", "life_paper_07", "rug", "card_box", "magazines", "teddy", "clothes", "dumbbell", "bottle", "bag", "shoes":
+		"life_paper_02", "life_paper_07", "rug", "card_box", "magazines", "teddy", "clothes", "dumbbell", "bottle", "bag", "shoes", "toilet_slippers", "standee":
 			hud.show_message(MESSAGES[id])
 		"phone_black":
 			_phone_dial()
+		"cork_gun":
+			if inventory.has("cork_gun"):
+				return
+			_item_models["cork_gun"] = CorkGunScript.zoom_model()
+			room.apartment.kitchen.remove_gun()
+			add_item("cork_gun")
+			hud.show_message(MESSAGES["cork_gun"])
+		"figure":
+			if selected_item() == "cork_gun":
+				_fire(target)
+			else:
+				hud.show_message(MESSAGES["figure"])
 		"peephole":
 			_open_peephole()
 		"mail_catcher":
@@ -943,6 +1003,8 @@ func _show_zoom() -> void:
 ## F の案内（照準の対象に選んだ物が使えるときだけ）。
 func _use_prompt(target: Object) -> String:
 	var id := selected_item()
+	if id == "cork_gun" and player.pose != PlayerScript.Pose.TRANSITION:
+		return "F：コルク銃を撃つ"
 	if id.is_empty() or target == null or player.pose == PlayerScript.Pose.TRANSITION:
 		return ""
 	var tid := String(target.get_meta("interact_id", ""))
@@ -964,6 +1026,9 @@ func use_selected() -> void:
 		return
 	var target := player.get_focused(true)
 	var tid := String(target.get_meta("interact_id", "")) if target else ""
+	if id == "cork_gun":
+		_fire(target)
+		return
 	if id == "driver" and tid in ["mirror_door", "mirror_lock"] and (room.mirror_cabinet.locked or room.mirror_cabinet.unlocking):
 		if room.mirror_cabinet.unlock():
 			hud.show_message(MESSAGES["cabinet_unlocked"])
@@ -1180,6 +1245,7 @@ func _setup_input_map() -> void:
 	_add_key_action("item_3", [KEY_3])
 	_add_key_action("item_4", [KEY_4])
 	_add_key_action("item_5", [KEY_5])
+	_add_key_action("item_6", [KEY_6])
 	_add_key_action("inspect_item", [KEY_Q])
 	if not InputMap.has_action("interact"):
 		InputMap.add_action("interact")

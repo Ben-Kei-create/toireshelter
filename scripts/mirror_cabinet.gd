@@ -17,6 +17,7 @@ extends Node3D
 ## 留め具には小さな照準の判定（mirror_lock）があり、扉の判定より手前にある。
 
 const MeshKit := preload("res://scripts/mesh_kit.gd")
+const CharacterScript := preload("res://scripts/character.gd")
 
 const WALL_X := 0.9                         # 壁面（部屋側）
 const BACK_X := 1.0                         # 壁の外側
@@ -39,6 +40,10 @@ var locked := true
 var unlocking := false   # 留め具を回している間（この間の F は無視して、メッセージを重ねない）
 var busy := false
 var door_pivot: Node3D
+var reflection: MeshInstance3D   # 鏡に映る主人公の顔（見る角度で向きが変わる）
+var reflection_view := ""
+var _door_w := 0.0
+var _door_h := 0.0
 
 
 func _ready() -> void:
@@ -202,6 +207,7 @@ func _build_door() -> void:
 	# 鏡面（仮の材質）。壁面から 1mm 手前、縁を 1.5cm 残す
 	MeshKit.box(door_pivot, Vector3(0.002, h - 0.03, w - 0.03), Vector3(-0.001, h * 0.5, w * 0.5),
 			MeshKit.mat("mirror", Color(0.72, 0.78, 0.82), 0.08, 0.6), "Mirror")
+	_build_reflection(h, w)
 	# 取っ手代わりの小さなつまみ（蝶番と反対側の縁）
 	MeshKit.box(door_pivot, Vector3(0.01, 0.05, 0.012), Vector3(-0.005, h * 0.5, w - 0.02),
 			MeshKit.mat("metal", Color(0.75, 0.75, 0.78), 0.25, 0.8), "Knob")
@@ -219,6 +225,52 @@ func _build_door() -> void:
 	MeshKit.shape_box(lock_area, Vector3(0.016, 0.03, 0.03), Vector3(-0.006, 0, 0))
 	var area := MeshKit.interact_area(door_pivot, "DoorArea", "mirror_door", self)
 	MeshKit.shape_box(area, Vector3(DOOR_T + 0.012, h, w), Vector3(DOOR_T * 0.5 - 0.006, h * 0.5, w * 0.5))
+
+
+## 鏡に映る顔。鏡面の 2.5mm 手前に顔のアップを貼り、見る人の位置で向きと横の位置を変える（見る人が鏡の横に外れると薄れて消える）。
+func _build_reflection(h: float, w: float) -> void:
+	_door_w = w
+	_door_h = h
+	reflection = CharacterScript.quad("head_front", 0.34)
+	reflection.name = "Reflection"
+	reflection.rotation.y = -PI * 0.5   # 鏡面の向き（-x）
+	reflection.position = Vector3(-0.0025, h * 0.5 - 0.02, w * 0.5)
+	var m := reflection.material_override as StandardMaterial3D
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	m.albedo_color = Color(0.82, 0.9, 0.95, 0.9)   # 鏡の色を少し乗せる
+	door_pivot.add_child(reflection)
+
+
+func _process(_delta: float) -> void:
+	if reflection == null:
+		return
+	var cam := get_viewport().get_camera_3d()
+	if cam == null:
+		return
+	var normal: Vector3 = door_pivot.global_transform.basis * Vector3(-1, 0, 0)
+	var to_cam: Vector3 = cam.global_position - reflection.global_position
+	var flat := Vector2(to_cam.x, to_cam.z)
+	var n2 := Vector2(normal.x, normal.z).normalized()
+	var angle := rad_to_deg(atan2(n2.cross(flat), n2.dot(flat)))
+	var view: Array = CharacterScript.head_view(angle)
+	var name: String = view[0]
+	if reflection_view != name:
+		reflection_view = name
+		var t := CharacterScript.tex(name)
+		var q := reflection.mesh as QuadMesh
+		q.size = Vector2(0.34 * float(t.get_width()) / float(t.get_height()), 0.34)
+		(reflection.material_override as StandardMaterial3D).albedo_texture = t
+	var mat := reflection.material_override as StandardMaterial3D
+	# 鏡に映ると左右が反転する。向きの反転は、見る側（angle の符号）と鏡の反転の両方
+	var flip: bool = not bool(view[1])
+	mat.uv1_scale = Vector3(-1.0 if flip else 1.0, 1.0, 1.0)
+	mat.uv1_offset = Vector3(1.0 if flip else 0.0, 0.0, 0.0)
+	# 見る人の位置（扉の幅の中）に顔を寄せ、外れたら消える
+	var local: Vector3 = door_pivot.to_local(cam.global_position)
+	reflection.position.z = clampf(local.z, 0.13, _door_w - 0.13)
+	var outside := maxf(0.0, maxf(-local.z, local.z - _door_w))
+	var facing := normal.dot(to_cam.normalized())
+	mat.albedo_color.a = 0.9 * clampf(1.0 - outside / 0.5, 0.0, 1.0) * clampf(facing * 4.0, 0.0, 1.0)
 
 
 # ---------------------------------------------------------------- main.gd から呼ばれる

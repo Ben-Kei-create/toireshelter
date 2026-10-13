@@ -20,6 +20,7 @@ signal crouch_blocked   # 頭上が狭くて立てなかった
 enum Pose { WALK, CROUCH, SEATED, IN_TUB, TRANSITION, DUCT, KOTATSU_SEAT, KOTATSU_IN }
 
 const Sfx := preload("res://scripts/sfx.gd")
+const CharacterBodyScript := preload("res://scripts/character_body.gd")
 
 const SPEED := 1.8
 const CROUCH_SPEED := 0.8
@@ -57,7 +58,9 @@ var _shape: CollisionShape3D
 var _capsule: CapsuleShape3D
 var _eye_target := EYE_HEIGHT
 var head_bob := true               # 視点のゆれ（歩くときの上下・呼吸）。設定で切れる
+var body_rig: Node3D            # 自分の目から見える体（ちょー雑な3D。character_body.gd）
 var _last_bob := 0.0
+var _walk_phase := 0.0
 var _bob_phase := 0.0
 var _bob_t := 0.0
 var eye_height := EYE_HEIGHT          # 立っているときの目の高さ（設定で変えられる。EYE_HEIGHT_MIN〜MAX）
@@ -78,6 +81,8 @@ func _ready() -> void:
 	_shape.position = Vector3(0.0, BODY_HEIGHT * 0.5, 0.0)
 	add_child(_shape)
 
+	body_rig = CharacterBodyScript.build()
+	add_child(body_rig)
 	camera = Camera3D.new()
 	camera.name = "Camera"
 	camera.position = Vector3(0.0, EYE_HEIGHT, 0.0)
@@ -129,7 +134,24 @@ func look_at_point(p: Vector3) -> void:
 	camera.rotation.x = _pitch
 
 
+## 体の見た目を、姿勢と歩きに合わせる。歩く・しゃがむときだけ見せ、座る・浴槽・こたつ・ダクトの中では隠す。
+func _update_body(delta: float) -> void:
+	var show := pose == Pose.WALK or pose == Pose.CROUCH
+	body_rig.visible = show
+	if not show:
+		return
+	var s := eye_height / EYE_HEIGHT
+	# しゃがむと体は縮み、目の高さ（0.6m）の低さに合わせる
+	var squat := 0.42 if pose == Pose.CROUCH else 1.0
+	body_rig.scale = Vector3(s, s * squat, s)
+	var speed := Vector2(velocity.x, velocity.z).length()
+	var walk := clampf(speed / SPEED, 0.0, 1.0) if controls_enabled else 0.0
+	_walk_phase += delta * speed * 3.4
+	CharacterBodyScript.animate(body_rig, walk, _walk_phase)
+
+
 func _process(delta: float) -> void:
+	_update_body(delta)
 	# 立つ／しゃがむときの目の高さは滑らかに追従させる（移動演出中は Tween が動かす）。
 	# 視点のゆれ（head_bob）：歩くと歩幅に合わせて上下に小さくゆれ、止まっていると呼吸でごくわずかにゆれる
 	if pose == Pose.WALK or pose == Pose.CROUCH:

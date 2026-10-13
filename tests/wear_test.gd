@@ -41,7 +41,8 @@ func _run() -> void:
 		if str(c.name).begins_with("Wear08_"):
 			prints += 1
 	check(prints == 2, "鏡の扉の指紋が扉の子として 2 枚（開閉に付いて動く）")
-	check(_count(wear, [CollisionObject3D, CollisionShape3D, Area3D]) == 0, "汚れ・傷・影・額に当たり判定と調べる判定がない")
+	var wear_areas := _count(wear, [CollisionObject3D, CollisionShape3D, Area3D])
+	check(wear_areas == 3, "汚れ・傷・影・額に当たり判定と調べる判定がない（あるのはトイレ用スリッパの調べる判定 1 つだけ：%d）" % wear_areas)
 	check(wear.get_node("OverheadPicture/Picture") != null, "俯瞰の額がある")
 	var shade: Node = wear.get_node("ContactShade")
 	check(shade.get_child_count() == 14, "接地影の帯12と丸い影2（%d）" % shade.get_child_count())

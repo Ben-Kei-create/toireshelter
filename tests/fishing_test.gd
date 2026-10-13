@@ -34,7 +34,7 @@ func _run() -> void:
 	check(main.PROMPTS[f.get_prompt("fish_spot")] == "左クリック：調べる" and f.interact("fish_spot") == "fish_need_rod" and f.state == "idle", "竿がないうちは手すりを調べるだけ")
 	main._on_interact_requested(rod_area)
 	check(main.inventory.has("fishing_rod") and f.has_rod and not f.get_node("RodProp").visible and rod_area.collision_layer == 0, "拾うと持ち物に入り、ベランダの竿は消える")
-	check(main.inventory.size() == 1 and main.hud._slot_labels.size() == 5, "持ち物欄は5つ")
+	check(main.inventory.size() == 1 and main.hud._slot_labels.size() == 6, "持ち物欄は6つ")
 	# 4つ持てる
 	main.add_item("driver")
 	main.add_item("spare_roll")

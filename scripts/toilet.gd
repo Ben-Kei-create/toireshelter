@@ -78,6 +78,8 @@ func _ready() -> void:
 	_build_body(visual)
 	_build_seat()
 	_build_lid()
+	_build_covers()
+	_build_spray()
 	_build_tank_lid()
 	_build_coin()
 
@@ -193,6 +195,7 @@ func _build_lever(metal: Material) -> void:
 
 
 func _process(delta: float) -> void:
+	_spray_step(delta)
 	if flushing:
 		bowl_swirl.rotation.y -= delta * 9.0
 		var m: StandardMaterial3D = bowl_swirl.material_override
@@ -267,6 +270,114 @@ func _build_lid() -> void:
 	MeshKit.box(lid_pivot, size, center, MeshKit.mat("lid", Color(0.95, 0.95, 0.94), 0.4), "Lid")
 	var area := MeshKit.interact_area(lid_pivot, "LidArea", "toilet_lid", self)
 	MeshKit.shape_box(area, size, center)
+
+
+## 便座カバーと蓋カバー：ピンクのふわふわ。便座・蓋の動きにいっしょに付いてくる（見た目だけ。判定は便座・蓋のまま）。
+func _build_covers() -> void:
+	var fur := MeshKit.mat("toilet_cover", Color(0.95, 0.72, 0.78), 1.0)
+	var fur_dark := MeshKit.mat("toilet_cover_edge", Color(0.88, 0.6, 0.68), 1.0)
+	var t := 0.025
+	var parts := [
+		[Vector3(0.035, t, 0.34), Vector3(0.0175, t * 0.5, 0.0)],
+		[Vector3(0.07, t, 0.34), Vector3(0.335, t * 0.5, 0.0)],
+		[Vector3(0.265, t, 0.055), Vector3(0.1675, t * 0.5, -0.1425)],
+		[Vector3(0.265, t, 0.055), Vector3(0.1675, t * 0.5, 0.1425)],
+	]
+	for p in parts:
+		var m := MeshKit.box(seat_pivot, p[0] + Vector3(0.008, 0.012, 0.008), p[1] + Vector3(0, 0.0045, 0), fur, "SeatCover")
+		m.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var lid := MeshKit.box(lid_pivot, Vector3(0.405, 0.012, 0.365), Vector3(0.2, 0.026, 0.0), fur, "LidCover")
+	lid.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	MeshKit.box(lid_pivot, Vector3(0.38, 0.004, 0.34), Vector3(0.2, 0.033, 0.0), fur_dark, "LidCoverInner").cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+
+
+## 温水洗浄の水：座った状態で「おしり」「ビデ」を選ぶと、便器の奥のノズルから水が出る（細い水の筋。音つき）。
+## おしり＝後ろ（壁側 -x）へ広めに、ビデ＝前（+x）へ細く。立つと止まる（toilet_panel.gd が set_spray を呼ぶ）。
+var spray_mode := ""
+var _spray_nodes := {}
+var _spray_player: AudioStreamPlayer
+var _spray_t := 0.0
+
+
+func _build_spray() -> void:
+	var water := StandardMaterial3D.new()
+	water.albedo_color = Color(0.7, 0.88, 1.0, 0.75)
+	water.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	water.emission_enabled = true
+	water.emission = Color(0.6, 0.8, 1.0)
+	water.emission_energy_multiplier = 1.2
+	for kind in ["rear", "bidet"]:
+		var root := Node3D.new()
+		root.name = "Spray_" + kind
+		root.position = Vector3(-0.5, 0.215, 0.0)   # 便器の中の奥（水面の少し上）
+		root.visible = false
+		add_child(root)
+		var count := 5 if kind == "rear" else 3
+		var spread := 0.16 if kind == "rear" else 0.05
+		var dir := -1.0 if kind == "rear" else 1.0
+		for i in count:
+			var a := (float(i) - (count - 1) * 0.5) * spread
+			var c := CylinderMesh.new()
+			c.top_radius = 0.005
+			c.bottom_radius = 0.007
+			c.height = 0.2
+			c.radial_segments = 5
+			c.rings = 1
+			var mi := MeshInstance3D.new()
+			mi.mesh = c
+			mi.material_override = water
+			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			# 斜め上へ。x 方向に寝かせた筋を、左右（z）へ a だけ振る
+			mi.rotation = Vector3(0.0, a, dir * deg_to_rad(-62.0) + 0.0)
+			mi.position = Vector3(dir * 0.04, 0.07, 0.0)
+			mi.position = Vector3(dir * 0.05, 0.07, a * 0.4)
+			root.add_child(mi)
+		_spray_nodes[kind] = root
+	_spray_player = AudioStreamPlayer.new()
+	_spray_player.name = "SpraySound"
+	_spray_player.bus = "SFX"
+	_spray_player.volume_db = -20.0
+	var n := 22050
+	var s := PackedByteArray()
+	s.resize(n * 2)
+	var y := 0.0
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 5
+	for i in n:
+		y += 0.3 * (rng.randf_range(-1.0, 1.0) - y)
+		s.encode_s16(i * 2, int(clampf(y * 0.9, -1.0, 1.0) * 22000.0))
+	var w := AudioStreamWAV.new()
+	w.format = AudioStreamWAV.FORMAT_16_BITS
+	w.mix_rate = 22050
+	w.data = s
+	w.loop_mode = AudioStreamWAV.LOOP_FORWARD
+	w.loop_end = n
+	_spray_player.stream = w
+	add_child(_spray_player)
+
+
+## 水を出す／止める。mode は "" / "rear" / "bidet"。
+func set_spray(mode: String) -> void:
+	if mode == spray_mode:
+		return
+	spray_mode = mode
+	for k in _spray_nodes:
+		(_spray_nodes[k] as Node3D).visible = (k == mode)
+	if mode.is_empty():
+		_spray_player.stop()
+	else:
+		_spray_player.pitch_scale = 1.0 if mode == "rear" else 1.25
+		_spray_player.play()
+
+
+func _spray_step(delta: float) -> void:
+	if spray_mode.is_empty():
+		return
+	_spray_t += delta
+	var root: Node3D = _spray_nodes[spray_mode]
+	for i in root.get_child_count():
+		var mi: Node3D = root.get_child(i)
+		mi.scale = Vector3(1.0, 0.85 + 0.2 * sin(_spray_t * 37.0 + i * 1.7), 1.0)
 
 
 ## タンクの中のコイン：浮き球（フロート）の上に、UFOキャッチャー用のコインが1枚のっている。蓋を外したときだけ狙える。
