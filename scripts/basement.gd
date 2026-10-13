@@ -20,7 +20,7 @@ const ROOM_X := Vector2(0.9, 2.2)   # 部屋の x
 const ROOM_Z := Vector2(0.5, 2.1)
 const CORR_Z := Vector2(0.9, 1.7)   # 階段と通路の z
 const FEET := Vector3(1.95, FLOOR_Y, 1.3)          # 降りたあとの足元
-const STAIR_EXIT := Vector3(4.3, 0.0, 1.9)         # 上がったあとの足元（穴のすぐ南）
+const STAIR_EXIT := Vector3(4.3, 0.0, 0.62)        # 上がったあとの足元（穴のすぐ北。南側は台所の台で埋まる）
 ## 昇り降りの経路（足元）。穴の真上から階段の下まで
 const PATH_DOWN := [Vector3(4.3, 0.0, 1.3), Vector3(4.3, -0.5, 1.3), Vector3(3.7, -1.1, 1.3), Vector3(3.0, -1.6, 1.3), Vector3(2.4, FLOOR_Y, 1.3)]
 
@@ -89,8 +89,8 @@ func _ready() -> void:
 	_light.name = "BulbLight"
 	_light.position = Vector3(1.35, -0.55, 1.3)
 	_light.light_color = Color(1.0, 0.85, 0.55)
-	_light.light_energy = 0.9
-	_light.omni_range = 3.2
+	_light.light_energy = 1.8
+	_light.omni_range = 4.5
 	_light.shadow_enabled = false
 	add_child(_light)
 	# 階段の下の「上へ戻る」判定（階段の側面を狙う）

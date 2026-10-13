@@ -231,6 +231,8 @@ func _carry(id: String) -> String:
 
 ## 持っている食べ物を冷蔵庫に入れた。全部そろったら階段が現れる。入れた数を返す。
 func food_stored() -> int:
+	if carrying_id.is_empty() or stored.has(carrying_id):
+		return stored.size()
 	stored.append(carrying_id)
 	carrying_id = ""
 	carrying_name = ""
@@ -243,6 +245,7 @@ func food_stored() -> int:
 func reveal_stairs() -> void:
 	stairs_open = true
 	(get_node("Bottom") as Node3D).visible = false
+	(get_node("WallW") as Node3D).visible = false   # 西の壁も抜けて、階段が西へ下りていく
 	Sfx.play("clunk", 0.7)
 	_refresh_areas()
 	stairs_revealed.emit()

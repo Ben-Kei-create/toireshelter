@@ -609,23 +609,40 @@ const BASEMENT_LETTER := [
 
 
 ## 貯蔵庫の穴から階段を降りて、地下室へ。穴の真上から階段の下までの経路を、滑らかに移る。
-func _descend() -> void:
-	if player.pose != PlayerScript.Pose.WALK and player.pose != PlayerScript.Pose.CROUCH:
+## 階段の昇り降り。穴が 0.6m と狭く、床下の頭上に余裕がないので、歩かずに画面を暗くして移す。
+## 暗くなりきってから足元と向きを移し、そのあと明るくする（視点が跳ぶ瞬間は見えない）。
+var _stairs_busy := false
+
+
+func _stairs_travel(feet: Vector3, yaw: float, creak_pitch: float) -> void:
+	if _stairs_busy or player.pose != PlayerScript.Pose.WALK and player.pose != PlayerScript.Pose.CROUCH:
 		return
-	var b = room.apartment.basement
-	SfxScript.play("creak", 0.8)
-	player.move_to(PlayerScript.Pose.WALK, b.FEET, PI * 0.5, player.eye_height, b.PATH_DOWN, true, PlayerScript.BODY_HEIGHT, PlayerScript.BODY_RADIUS)
+	_stairs_busy = true
+	player.controls_enabled = false
+	player.pose = PlayerScript.Pose.TRANSITION   # 移っている間は調べられない・動けない
+	player.velocity = Vector3.ZERO
+	SfxScript.play("creak", creak_pitch)
+	var t := hud.fade_to(1.0, 0.45)
+	t.tween_callback(func() -> void:
+		player.global_position = feet
+		player.velocity = Vector3.ZERO
+		player.rotation.y = yaw
+		player._pitch = -0.12
+		player.camera.rotation.x = -0.12
+		player.pose = PlayerScript.Pose.WALK)
+	t.tween_interval(0.35)
+	t.tween_callback(func() -> void:
+		hud.fade_to(0.0, 0.5)
+		player.controls_enabled = not mj_playing
+		_stairs_busy = false)
+
+
+func _descend() -> void:
+	_stairs_travel(room.apartment.basement.FEET, PI * 0.5, 0.8)
 
 
 func _ascend() -> void:
-	if player.pose != PlayerScript.Pose.WALK and player.pose != PlayerScript.Pose.CROUCH:
-		return
-	var b = room.apartment.basement
-	var up: Array = b.PATH_DOWN.duplicate()
-	up.reverse()
-	up.append(Vector3(4.3, 0.0, 1.3))
-	SfxScript.play("creak", 0.9)
-	player.move_to(PlayerScript.Pose.WALK, b.STAIR_EXIT, 0.0, player.eye_height, up, true, PlayerScript.BODY_HEIGHT, PlayerScript.BODY_RADIUS)
+	_stairs_travel(room.apartment.basement.STAIR_EXIT, PI, 0.9)
 
 
 # ---------------------------------------------------------------- 黒電話

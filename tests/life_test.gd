@@ -30,13 +30,16 @@ func _run() -> void:
 	var med_z := []
 	var arowana_y := 0.0
 	var moved := {}
-	var start := {}
+	var last := {}   # 魚ごとの前フレームの位置。終点が偶然始点に近くても動いたと分かるよう、道のりを足し合わせる
 	for f in aq.fish:
-		start[f.node.name] = f.node.position
+		last[f.node.name] = f.node.position
+		moved[f.node.name] = 0.0
 	for step in 1200:   # 20 秒ぶん
 		await physics_frame
 		for f in aq.fish:
 			var p: Vector3 = f.node.position
+			moved[f.node.name] += p.distance_to(last[f.node.name])
+			last[f.node.name] = p
 			if f.kind == "medaka":
 				if p.z < 0.02 or p.z > 0.11 or p.y > 1.0:
 					medaka_ok = false
@@ -45,11 +48,9 @@ func _run() -> void:
 				if p.y < 0.95:
 					arowana_ok = false
 				arowana_y = p.y
-	for f in aq.fish:
-		moved[f.node.name] = (f.node.position - start[f.node.name]).length()
 	check(medaka_ok, "メダカは手前のガラスのそば（z 0.02〜0.11）の、水面より下を泳ぐ")
 	check(arowana_ok and arowana_y > 0.95, "アロワナは水面近くの上のほうを泳ぐ（y %.2f）" % arowana_y)
-	check(moved.values().all(func(d): return d > 0.02), "魚は自動で動いている")
+	check(moved.values().all(func(d): return d > 0.3), "魚は自動で動いている（20秒の道のりが各 0.3m 超）")
 	check(aq.interact("aquarium") == "aquarium_fed" and aq.feed_left > 9.0, "えさをやれる")
 	check(aq.interact("aquarium") == "aquarium_full", "続けてはあげられない")
 	for step in 360:

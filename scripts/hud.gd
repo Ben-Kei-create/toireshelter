@@ -48,6 +48,8 @@ var _bob_check: CheckButton
 var _peep: Control
 var _peep_tex: TextureRect
 var _mj: Control
+var _fade: ColorRect
+var _fade_tween: Tween
 var _mj_tiles: Array = []   # [PanelContainer, 上のLabel, 下のLabel]
 var _mj_info: Label
 var _mj_river: Label
@@ -112,6 +114,13 @@ func _ready() -> void:
 	_place(_hint_label, 0.0, 0.0, 1.0, 0.0, 20.0, 12.0, -20.0, 38.0)   # 上端（所持品欄と重ならないよう、下から移した）
 
 	_build_peephole()
+	_fade = ColorRect.new()
+	_fade.name = "Fade"
+	_fade.color = Color.BLACK
+	_fade.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_root.add_child(_fade)
+	_fade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_fade.modulate.a = 0.0
 	_build_mahjong()
 	_pause_menu = _make_menu("PauseMenu", "設定")
 	_build_settings(_pause_menu)
@@ -745,7 +754,21 @@ func show_mahjong(g: RefCounted, cursor: int, help: String) -> void:
 			var wt := "待ち：" + ("　".join(w.map(func(k): return g.tile_name(k))) if w.size() > 0 else "なし")
 			_mj_status.text = "選んだ牌を切ると　" + wt
 		"won":
-			_mj_status.text = "ツモ！　%s　%d点" % ["・".join(g.yaku), g.points]
+			_mj_status.text = "ツモ！　%s　%d点（簡易採点：符・翻の計算なし）" % ["・".join(g.yaku), g.points]
 		"exhausted":
 			_mj_status.text = "流局。山がなくなった。"
 	_mj_help.text = help
+
+
+## 画面を暗くする／戻す（階段の昇り降りなど）。alpha 1 で真っ暗。
+func fade_to(alpha: float, seconds: float) -> Tween:
+	if _fade_tween:
+		_fade_tween.kill()
+	_fade_tween = create_tween()
+	_fade_tween.set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
+	_fade_tween.tween_property(_fade, "modulate:a", alpha, seconds)
+	return _fade_tween
+
+
+func fade_alpha() -> float:
+	return _fade.modulate.a

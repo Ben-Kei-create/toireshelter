@@ -10,7 +10,7 @@ const Sfx := preload("res://scripts/sfx.gd")
 signal disc_set
 
 const CENTER := Vector3(1.52, 0.0, 0.62)
-const WALL_LOCAL_Z := -0.384         # 壁の面（ローカル z）。西の壁 x=1.136
+const WALL_LOCAL_Z := -0.234         # 低い棚の前面（ローカル z）。x=1.286
 const MIX := 16000
 const BPM := 120.0
 const BARS := 8
@@ -25,6 +25,7 @@ var _disc_on_platter: Node3D
 var _display: Node3D
 var _player: AudioStreamPlayer3D
 var _wave_cache: AudioStreamWAV
+var _gen_task := -1               # ジャズの生成（別スレッド。起動直後に始め、操作を止めない）
 var _rng := RandomNumberGenerator.new()
 
 
@@ -94,25 +95,42 @@ func _ready() -> void:
 	MeshKit.shape_box(a, Vector3(0.44, 0.22, 0.5), Vector3(0, top_y + 0.1, 0))
 	_build_display()
 	MeshKit.auto_round = true
+	_gen_task = WorkerThreadPool.add_task(_generate)
 
 
-## 壁に飾ってあるレコード盤：木の額に黒い盤と赤いラベル。台の真上の壁（ローカル z = 壁）
+func _generate() -> void:
+	_wave_cache = _make_jazz()
+
+
+## 生成が終わるのを待つ（普通は盤を拾って置くころには終わっている）。
+func _await_wave() -> void:
+	if _gen_task >= 0:
+		WorkerThreadPool.wait_for_task_completion(_gen_task)
+		_gen_task = -1
+
+
+func _exit_tree() -> void:
+	_await_wave()
+
+
+## 飾ってあるレコード盤：プレーヤーの横の床に、額に入れた盤を低い棚へ立て掛けてある（壁のカセット棚には重ねない）。
+## 盤の面が部屋側（+z）を向き、上を壁側へ少し倒す。
 func _build_display() -> void:
 	_display = Node3D.new()
 	_display.name = "RecordDisplay"
-	_display.position = Vector3(0, 1.45, WALL_LOCAL_Z + 0.02)
+	_display.position = Vector3(0.4, 0.158, WALL_LOCAL_Z + 0.03)
+	_display.rotation.x = deg_to_rad(-12.0)
 	add_child(_display)
 	var frame := MeshKit.mat("rp_frame", Color(0.3, 0.2, 0.12), 0.6)
-	MeshKit.box(_display, Vector3(0.36, 0.36, 0.03), Vector3.ZERO, frame, "Frame")
-	MeshKit.box(_display, Vector3(0.32, 0.32, 0.005), Vector3(0, 0, 0.016), MeshKit.mat("rp_backing", Color(0.88, 0.82, 0.68), 0.9), "Backing")
-	var disc := _make_disc(0.14)
+	MeshKit.box(_display, Vector3(0.3, 0.3, 0.025), Vector3.ZERO, frame, "Frame")
+	MeshKit.box(_display, Vector3(0.27, 0.27, 0.004), Vector3(0, 0, 0.013), MeshKit.mat("rp_backing", Color(0.88, 0.82, 0.68), 0.9), "Backing")
+	var disc := _make_disc(0.115)
 	disc.rotation.x = PI * 0.5
-	disc.position = Vector3(0, 0, 0.022)
+	disc.position = Vector3(0, 0, 0.017)
 	_display.add_child(disc)
-	# 盤の面が部屋側（+z）を向くように _make_disc の軸（y）を z へ倒してある
 	var area := MeshKit.interact_area(self, "RecordDiscArea", "record_disc", null)
 	area.position = _display.position + Vector3(0, 0, 0.03)
-	MeshKit.shape_box(area, Vector3(0.38, 0.38, 0.1), Vector3.ZERO)
+	MeshKit.shape_box(area, Vector3(0.3, 0.3, 0.1), Vector3.ZERO)
 
 
 ## レコード盤（黒い盤、溝の同心円、赤いラベル、中心の穴）。軸は y。
@@ -183,8 +201,7 @@ func interact(_id: String) -> String:
 func _start() -> void:
 	playing = true
 	_set_arm(true)
-	if _wave_cache == null:
-		_wave_cache = _make_jazz()
+	_await_wave()
 	_player.stream = _wave_cache
 	_player.play()
 

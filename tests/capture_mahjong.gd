@@ -9,6 +9,14 @@ func _initialize() -> void:
 	_run()
 
 
+func _key(code: int) -> InputEventKey:
+	var e := InputEventKey.new()
+	e.keycode = code
+	e.physical_keycode = code
+	e.pressed = true
+	return e
+
+
 func _look(pos: Vector3, at: Vector3) -> void:
 	p.global_position = pos
 	var d: Vector3 = at - p.camera.global_position
@@ -33,13 +41,16 @@ func _run() -> void:
 	p = main.player
 	p.set_physics_process(false)
 	var apt = main.room.apartment
-	_look(Vector3(2.9, 0, 0.62), Vector3(1.4, 0.9, 0.62))
+	_look(Vector3(2.9, 0, 0.62), Vector3(1.4, 0.8, 0.5))
 	await _shot("record_player")
+	_look(Vector3(2.2, 0, 0.1), Vector3(1.4, 0.3, 0.3))
+	await _shot("record_disc_leaning")
 	apt.closet.interact("fusuma")
 	await create_timer(1.0).timeout
 	_look(Vector3(4.3, 0, 0.3), Vector3(3.95, 1.45, -0.8))
 	await _shot("mahjong_box")
 	main._on_interact_requested(apt.closet.mahjong_box.get_node("MahjongArea"))
+	_look(Vector3(2.9, 0, 0.62), Vector3(1.4, 0.8, 0.5))
 	main._on_interact_requested(apt.record_player.get_node("RecordDiscArea"))
 	main.hud.show_item_zoom(main._item_models["mahjong"], "麻雀牌", "x")
 	await _shot("zoom_mahjong")
@@ -54,7 +65,16 @@ func _run() -> void:
 	p.pose = p.Pose.KOTATSU_IN
 	main.select_item(main.inventory.find("mahjong"))
 	main.use_selected()
-	await _shot("mahjong_ui")
+	await _shot("mahjong_start")
+	main._mahjong_input(_key(KEY_LEFT))
+	main._mahjong_input(_key(KEY_LEFT))
+	await _shot("mahjong_select")
+	var gm = main.mahjong
+	gm.hand = [0, 1, 2, 3, 4, 5, 9, 10, 11, 12, 13, 14, 27]
+	gm.wall[gm.wall_pos] = 27
+	main.mj_cursor = 13
+	gm.discard(13)
+	await _shot("mahjong_result")
 	main._stop_mahjong()
 	p.pose = p.Pose.WALK
 	# 冷蔵庫の棚と地下
@@ -66,10 +86,21 @@ func _run() -> void:
 		main._on_interact_requested(apt.kitchen.get_node("InsideArea"))
 	_look(Vector3(4.85, 0, 1.2), Vector3(5.1, 1.0, 1.9))
 	await _shot("fridge_shelf")
-	_look(Vector3(4.3, 0, 1.0), Vector3(4.3, -1.0, 1.35))
-	await _shot("stairs_open")
+	_look(Vector3(4.3, 0, 0.62), Vector3(4.0, -1.0, 1.4))
+	await _shot("stairs_top")
+	_look(Vector3(4.3, 0, 0.55), Vector3(3.6, -1.2, 1.3))
+	await _shot("stairs_hole")
 	main._descend()
-	await create_timer(4.0).timeout
-	_look(Vector3(1.95, -2.1, 1.3), Vector3(1.35, -1.5, 1.3))
-	await _shot("basement")
+	await create_timer(0.4).timeout
+	await _shot("stairs_fading")
+	await create_timer(1.6).timeout
+	await _shot("stairs_bottom")
+	_look(Vector3(1.95, -2.1, 1.3), Vector3(1.35, -1.2, 1.3))
+	await _shot("basement_letter")
+	main._open_reader("手紙", main.BASEMENT_LETTER, null, Color(0.95, 0.9, 0.78))
+	await _shot("letter_reader")
+	main._close_reader()
+	main._ascend()
+	await create_timer(2.0).timeout
+	await _shot("stairs_up_exit")
 	quit()
