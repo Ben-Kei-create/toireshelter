@@ -1,0 +1,19 @@
+[remap]
+
+importer="mp3"
+type="AudioStreamMP3"
+uid="uid://dgu7fgkmnjmye"
+path="res://.godot/imported/ページをめくる2 (1).mp3-bf0aa0a7277f3dffeb9f9bae21f8cf4e.mp3str"
+
+[deps]
+
+source_file="res://assets/audio/sfx/ページをめくる2 (1).mp3"
+dest_files=["res://.godot/imported/ページをめくる2 (1).mp3-bf0aa0a7277f3dffeb9f9bae21f8cf4e.mp3str"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

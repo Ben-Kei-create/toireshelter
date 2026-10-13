@@ -12,10 +12,22 @@ const AudioSettings := preload("res://scripts/audio_settings.gd")
 const MIX := 22050
 const NAMES := ["click", "thunk", "creak", "cloth", "slide", "beep", "rustle", "page", "pop", "step", "chime", "buzz", "clunk", "flush", "strum", "ring", "tick", "crack", "sizzle", "ignite", "static", "plop", "intercom", "shot"]
 const MASTER_DB := -10.0
+## 名前 → 音声ファイル（assets/audio/sfx/ 内）。[ファイル名, 最大の長さ（秒。0 なら全部）]。載っていない名前は、コードで作った波形のまま。
+## 足音（歩く 3 種）と時計の針は長いループ素材なので、一回きりの音には使わず、合成のまま。
+const FILES := {
+	"click": ["スイッチを押す.mp3", 0.0], "thunk": ["ドアを閉める2.mp3", 0.0], "creak": ["ドアを開ける1.mp3", 0.0],
+	"cloth": ["カーテンを開ける.mp3", 0.0], "slide": ["引き戸を開ける1.mp3", 0.0], "beep": ["ビープ音4.mp3", 0.6],
+	"rustle": ["衣擦れ.mp3", 0.0], "page": ["ページをめくる1.mp3", 0.0], "pop": ["パッ.mp3", 0.5],
+	"chime": ["クイズ正解2.mp3", 0.0], "buzz": ["キャンセル6.mp3", 0.0], "clunk": ["金属.mp3", 0.0],
+	"flush": ["トイレを流す1.mp3", 0.0], "ring": ["黒電話のベルが鳴る.mp3", 4.0], "crack": ["卵を割る.mp3", 0.0],
+	"sizzle": ["目玉焼きを焼く.mp3", 0.0], "ignite": ["ガスコンロ点火.mp3", 3.0], "static": ["マイクのホワイトノイズ.mp3", 0.6],
+	"plop": ["水滴1.mp3", 0.0], "intercom": ["ドアチャイム2.mp3", 0.0],
+}
 
 static var instance: Node
 
 var _streams := {}
+var _limits := {}
 var _players: Array[AudioStreamPlayer] = []
 var _next := 0
 var _rng := RandomNumberGenerator.new()
@@ -61,9 +73,20 @@ func _play(sound: String, pitch: float, db: float) -> void:
 	p.pitch_scale = pitch
 	p.volume_db = MASTER_DB + db
 	p.play()
+	var limit: float = _limits.get(sound, 0.0)
+	if limit > 0.0:
+		var stream := p.stream
+		get_tree().create_timer(limit / pitch).timeout.connect(func() -> void:
+			if is_instance_valid(p) and p.stream == stream:
+				p.stop())
 
 
 func _load_or_make(n: String) -> AudioStream:
+	if FILES.has(n):
+		var path: String = "res://assets/audio/sfx/" + String(FILES[n][0])
+		if ResourceLoader.exists(path):
+			_limits[n] = float(FILES[n][1])
+			return load(path)
 	for ext in ["ogg", "wav", "mp3"]:
 		var path := "res://assets/audio/sfx/%s.%s" % [n, ext]
 		if ResourceLoader.exists(path):
