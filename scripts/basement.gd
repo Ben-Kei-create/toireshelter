@@ -50,6 +50,9 @@ func _ready() -> void:
 	solid.call(Vector3(0.1, h, ROOM_Z.y - ROOM_Z.x), Vector3(ROOM_X.x - 0.05, FLOOR_Y + h * 0.5, (ROOM_Z.x + ROOM_Z.y) * 0.5), concrete, "WallW")
 	solid.call(Vector3(ROOM_X.y - ROOM_X.x, h, 0.1), Vector3((ROOM_X.x + ROOM_X.y) * 0.5, FLOOR_Y + h * 0.5, ROOM_Z.x - 0.05), concrete, "WallN")
 	solid.call(Vector3(ROOM_X.y - ROOM_X.x, h, 0.1), Vector3((ROOM_X.x + ROOM_X.y) * 0.5, FLOOR_Y + h * 0.5, ROOM_Z.y + 0.05), concrete, "WallS")
+	# 部屋の東の壁（通路の口をはさんだ両側）。ここが空いていると、地下から空が見えてしまう
+	solid.call(Vector3(0.1, h, CORR_Z.x - ROOM_Z.x), Vector3(ROOM_X.y + 0.05, FLOOR_Y + h * 0.5, (ROOM_Z.x + CORR_Z.x) * 0.5), concrete, "WallE_N")
+	solid.call(Vector3(0.1, h, ROOM_Z.y - CORR_Z.y), Vector3(ROOM_X.y + 0.05, FLOOR_Y + h * 0.5, (CORR_Z.y + ROOM_Z.y) * 0.5), concrete, "WallE_S")
 	# 通路（階段の部分）：床下の天井は部屋の床板、壁は両脇
 	var x_bot := X_TOP - RUN * STEPS   # 階段の西端（床に着く所）
 	solid.call(Vector3(X_TOP - ROOM_X.y, 0.1, CORR_Z.y - CORR_Z.x), Vector3((ROOM_X.y + X_TOP) * 0.5, FLOOR_Y - 0.05, (CORR_Z.x + CORR_Z.y) * 0.5), floor_m, "CorridorFloor")

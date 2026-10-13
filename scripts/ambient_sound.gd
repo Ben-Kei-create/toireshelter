@@ -23,7 +23,7 @@ var _rng := RandomNumberGenerator.new()
 
 func _ready() -> void:
 	_rng.seed = 20260
-	_add_loop("VentHum", _hum(), VENT_POS, -40.0, 1.5, 4.0)   # 換気扇：ブーという単音ではなく、ごく小さな空気の流れの音
+	_add_loop("VentHum", _hum(), VENT_POS, -50.0, 1.5, 3.0)   # 換気扇：ブーという単音ではなく、ごく小さな空気の流れの音
 	_add_loop("AlleyMurmur", _murmur(), ALLEY_POS, -32.0, 4.0, 14.0)
 	AudioSettings.ensure_buses()
 	_drip = AudioStreamPlayer3D.new()

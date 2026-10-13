@@ -7,6 +7,7 @@ signal retry_pressed
 signal eye_height_changed(value: float)
 signal audio_changed(key: String, value: Variant)
 signal head_bob_changed(on: bool)
+signal body_visible_changed(on: bool)
 
 const JP_FONTS := [
 	"Hiragino Sans", "Hiragino Kaku Gothic ProN", "Hiragino Kaku Gothic Pro",
@@ -45,6 +46,7 @@ var _height_value: Label
 var _catch_label: Label
 var _carry_label: Label
 var _bob_check: CheckButton
+var _body_check: CheckButton
 var _peep: Control
 var _peep_tex: TextureRect
 var _mj: Control
@@ -561,6 +563,19 @@ func _build_settings(menu: Control) -> void:
 		_bob_check.text = "視点のゆれ（歩くとき・呼吸）%s" % ("オン" if on else "オフ")
 		head_bob_changed.emit(on))
 	box.add_child(_bob_check)
+	_body_check = CheckButton.new()
+	_body_check.name = "BodyToggle"
+	_body_check.text = "自分の体（雑な3D）オフ"
+	_body_check.add_theme_font_size_override("font_size", 20)
+	_body_check.toggled.connect(func(on: bool) -> void:
+		_body_check.text = "自分の体（雑な3D）%s" % ("オン" if on else "オフ")
+		body_visible_changed.emit(on))
+	box.add_child(_body_check)
+
+
+func set_body_ui(on: bool) -> void:
+	_body_check.set_pressed_no_signal(on)
+	_body_check.text = "自分の体（雑な3D）%s" % ("オン" if on else "オフ")
 
 
 func set_head_bob_ui(on: bool) -> void:

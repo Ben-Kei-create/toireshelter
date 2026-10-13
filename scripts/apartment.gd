@@ -918,6 +918,8 @@ func _build_bed() -> void:
 	MeshKit.box(root, Vector3(0.35, 0.1, 0.55), Vector3(3.4, 0.29, z1 - 0.42), MeshKit.mat("pillow", Color(0.9, 0.9, 0.92), 0.95))
 	MeshKit.box(root, Vector3(0.9, 0.05, 0.78), Vector3(2.55, 0.265, z1 - 0.42), MeshKit.mat("blanket", Color(0.45, 0.55, 0.65), 0.95))
 	MeshKit.shape_box(_body, Vector3(1.5, 0.3, 0.8), Vector3(2.85, 0.15, z1 - 0.42))
+	var bed_area := MeshKit.interact_area(root, "BedArea", "bed")
+	MeshKit.shape_box(bed_area, Vector3(1.5, 0.12, 0.8), Vector3(2.85, 0.36, z1 - 0.42))
 
 
 # ---------------------------------------------------------------- 岩石の標本（机の上の小さなトレー）

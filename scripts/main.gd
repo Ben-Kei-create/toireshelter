@@ -185,6 +185,9 @@ const MESSAGES := {
 	"tank_note": "タンクの下の壁に小さな紙。『しゃがむと、いろいろ見える。』",
 	"door_fixed": "ドライバーでドアノブのネジを締め直した。……ドアが開いた！",
 	"no_headroom": "頭上が狭くて、ここでは立ち上がれない。",
+	"sleep_in": "ふとんにもぐって、あおむけに寝ころんだ。天井の木目が、顔のように見える気がする。",
+	"sleep_out": "起き上がった。体が少し軽い。",
+	"bed": "小さな寝床。敷きっぱなしのふとんと、枕、青いブランケット。E で寝られる。",
 	"no_way_out": "出る場所がふさがっている。",
 }
 
@@ -297,7 +300,15 @@ const ACTION_PROMPTS := {
 	"kotatsu_sit": "E：こたつに座る",
 	"kotatsu_stand": "E：立つ",
 	"kotatsu_out": "E：こたつから出る",
+	"sleep": "E：ふとんで寝る",
+	"get_up": "E：起きる",
 }
+
+# 寝床（ふとんの上）。頭は枕のある東（+x）。目は敷布団の面から 0.2m、ほぼ真上を見る
+const BED_FEET := Vector3(2.95, 0.27, 1.98)
+const BED_YAW := -PI * 0.5
+const BED_EYE := 0.2
+const BED_EXITS := [Vector3(1.7, 0.0, 1.98), Vector3(1.7, 0.0, 1.75), Vector3(1.7, 0.0, 2.15)]   # ふとんの西のはし（南側はこたつとのすき間が狭く立てない）
 
 const TUB_TARGETS := ["bathtub", "bath_plug", "bath_faucet", "tub_note"]   # 入浴剤を使える照準先（浴槽のどこか）
 
@@ -405,6 +416,7 @@ func _ready() -> void:
 	hud.eye_height_changed.connect(_on_eye_height_changed)
 	hud.audio_changed.connect(_on_audio_changed)
 	hud.head_bob_changed.connect(_on_head_bob_changed)
+	hud.body_visible_changed.connect(_on_body_visible_changed)
 	_load_settings()
 	room.apartment.intercom.front_door = room.front_door
 	room.apartment.intercom.notice.connect(func(text: String) -> void: hud.show_message(text, 5.0))
@@ -841,6 +853,8 @@ func _action_for(target: Object) -> String:
 			return "tub_exit"
 		PlayerScript.Pose.TRANSITION:
 			return ""
+		PlayerScript.Pose.LYING:
+			return "get_up"
 		PlayerScript.Pose.KOTATSU_SEAT:
 			return "kotatsu_stand"
 		PlayerScript.Pose.KOTATSU_IN:
@@ -857,6 +871,8 @@ func _action_for(target: Object) -> String:
 	var id := String(target.get_meta("interact_id", ""))
 	if id == "kotatsu" and player.pose == PlayerScript.Pose.WALK:
 		return "kotatsu_sit"
+	if id == "bed" and player.pose == PlayerScript.Pose.WALK:
+		return "sleep"
 	if id in ["toilet", "toilet_seat", "toilet_lid"] and room.toilet.can_sit():
 		return "sit"
 	if id in ["bathtub", "bath_plug"]:
@@ -876,6 +892,16 @@ func do_action() -> void:
 			kotatsu_seat = KotatsuScript.nearest_seat(player.global_position)
 			var seat: Dictionary = KotatsuScript.SEATS[kotatsu_seat]
 			player.enter_fixed(PlayerScript.Pose.KOTATSU_SEAT, seat.feet, seat.yaw, KotatsuScript.EYE_SEATED)
+		"sleep":
+			SfxScript.play("rustle")
+			player.enter_fixed(PlayerScript.Pose.LYING, BED_FEET, BED_YAW, BED_EYE)
+			hud.show_message(MESSAGES["sleep_in"])
+		"get_up":
+			if player.leave_fixed(BED_EXITS):
+				SfxScript.play("rustle")
+				hud.show_message(MESSAGES["sleep_out"])
+			else:
+				hud.show_message(MESSAGES["no_way_out"])
 		"kotatsu_stand":
 			if not player.leave_fixed(KotatsuScript.SEATS[kotatsu_seat].exits):
 				hud.show_message(MESSAGES["no_way_out"])
@@ -981,7 +1007,7 @@ func _on_interact_requested(target: Object) -> void:
 		"toilet_cleaner", "plunger", "toilet_brush", "vent_sticker", "bath_bucket", "shampoo", "rinse", "razor", \
 		"face_wash", "toner", "cotton_swabs", "tub_note", "towel_scratch", "shelf_note", "tank_note", \
 		"kitchen_sink", "kitchen_stove", "fridge", "guitar", "taxidermy", "phone_mobile", \
-		"life_paper_02", "life_paper_07", "rug", "card_box", "magazines", "teddy", "clothes", "dumbbell", "bottle", "bag", "shoes", "toilet_slippers", "standee":
+		"life_paper_02", "life_paper_07", "bed", "rug", "card_box", "magazines", "teddy", "clothes", "dumbbell", "bottle", "bag", "shoes", "toilet_slippers", "standee":
 			hud.show_message(MESSAGES[id])
 		"phone_black":
 			_phone_dial()
@@ -1270,10 +1296,9 @@ func _physics_process(_delta: float) -> void:
 		# こたつの中を這っていて、布団の外へ出たら、抜けて立つ
 		var d := player.global_position - KotatsuScript.CENTER
 		if absf(d.x) > KotatsuScript.OUT_DISTANCE or absf(d.z) > KotatsuScript.OUT_DISTANCE:
-			player.leave_crawl()
-			room.apartment.kotatsu.set_solid(true)
-			SfxScript.play("rustle")
-			hud.show_message(MESSAGES["kotatsu_exit"])
+			if _crawl_out(d):
+				SfxScript.play("rustle")
+				hud.show_message(MESSAGES["kotatsu_exit"])
 	region = _region_of(player.global_position)
 	_update_space()
 	if region.is_empty() or region == _last_region:
@@ -1285,6 +1310,30 @@ func _physics_process(_delta: float) -> void:
 
 
 ## 場所ごとの音の響き。浴室は大きく響き、廊下も響く。こたつの中ではこもる。
+## こたつの中から布団の外へ出る。本体の判定を戻すと、這っている体（半径 0.2）が本体（半幅 0.425）に食い込んで動けなくなるので、
+## 先に判定を戻して、布団の縁から体が離れる位置（出た向きに 0.7m、ずらした位置も）へ移してから立つ。どこも空いていなければ出ない（そのまま這える）。
+func _crawl_out(d: Vector3) -> bool:
+	var k = room.apartment.kotatsu
+	k.set_solid(true)
+	var axis_x := absf(d.x) >= absf(d.z)
+	var sgn := signf(d.x) if axis_x else signf(d.z)
+	var here := player.global_position
+	for dist in [0.7, 0.76, 0.84]:
+		for lat in [0.0, 0.12, -0.12, 0.25, -0.25]:
+			var c := KotatsuScript.CENTER
+			c.y = here.y
+			if axis_x:
+				c += Vector3(sgn * dist, 0.0, d.z + lat)
+			else:
+				c += Vector3(d.x + lat, 0.0, sgn * dist)
+			if player.is_space_free(c, PlayerScript.CROUCH_BODY_HEIGHT, PlayerScript.BODY_RADIUS):
+				player.global_position = c
+				player.leave_crawl()
+				return true
+	k.set_solid(false)
+	return false
+
+
 const SPACES := {"bath": [0.32, 20000.0], "hall": [0.14, 20000.0], "room": [0.07, 20000.0], "corridor": [0.3, 20000.0],
 		"duct": [0.28, 5000.0], "balcony": [0.02, 20000.0]}
 var _space_key := ""
@@ -1376,6 +1425,8 @@ func _load_settings() -> void:
 		player.set_eye_height(float(cfg.get_value("player", "eye_height", PlayerScript.EYE_HEIGHT)))
 	player.head_bob = bool(cfg.get_value("player", "head_bob", true))
 	hud.set_head_bob_ui(player.head_bob)
+	player.show_body = bool(cfg.get_value("player", "show_body", false))
+	hud.set_body_ui(player.show_body)
 	AudioSettingsScript.load_from(cfg)
 	hud.set_audio_ui({"master": AudioSettingsScript.master, "sfx": AudioSettingsScript.sfx, "ambient": AudioSettingsScript.ambient,
 			"sfx_on": AudioSettingsScript.sfx_on, "ambient_on": AudioSettingsScript.ambient_on})
@@ -1396,6 +1447,14 @@ func _on_head_bob_changed(on: bool) -> void:
 	var cfg := ConfigFile.new()
 	cfg.load(SETTINGS_PATH)
 	cfg.set_value("player", "head_bob", on)
+	cfg.save(SETTINGS_PATH)
+
+
+func _on_body_visible_changed(on: bool) -> void:
+	player.show_body = on
+	var cfg := ConfigFile.new()
+	cfg.load(SETTINGS_PATH)
+	cfg.set_value("player", "show_body", on)
 	cfg.save(SETTINGS_PATH)
 
 

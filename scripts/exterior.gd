@@ -122,6 +122,18 @@ func _build_duct() -> void:
 	var band := MeshKit.mat("duct_band", Color(0.4, 0.42, 0.44), 0.5, 0.3)
 	for x in [0.0, 0.8, 1.5]:
 		MeshKit.box(duct, Vector3(0.03, 0.004, 0.6), Vector3(x, DUCT_FLOOR + 0.002, -0.3), band)
+	# 管の内側に貼られたステッカー（既存の絵のうち、這いながら読める小さな物。見た目だけ）
+	var dy := DUCT_FLOOR + 0.3
+	var back_wall := [[15, -0.2, 0.17, 4.0], [26, 0.35, 0.2, -6.0], [29, 0.85, 0.17, 5.0], [31, 1.35, 0.2, -3.0]]   # [番号, x, 高さ, 傾き]
+	for e in back_wall:
+		MeshKit.sticker(duct, e[0], e[2], Vector3(e[1], dy, -0.6), Vector3.BACK, e[3])
+	var front_wall := [[16, 0.1, 0.2, -5.0], [21, 0.7, 0.17, 6.0], [34, 1.25, 0.2, -4.0], [24, 1.8, 0.17, 8.0]]
+	for e in front_wall:
+		MeshKit.sticker(duct, e[0], e[2], Vector3(e[1], dy, 0.0), Vector3.FORWARD, e[3])
+	MeshKit.sticker(duct, 22, 0.2, Vector3(2.2, DUCT_FLOOR + 0.3, -1.0), Vector3.LEFT, 3.0)    # 出口の部屋の右の壁（-x を向く）
+	MeshKit.sticker(duct, 27, 0.2, Vector3(1.6, DUCT_FLOOR + 0.3, -1.0), Vector3.RIGHT, -5.0)    # 出口の部屋の左の壁（+x を向く）
+	MeshKit.sticker(duct, 17, 0.2, Vector3(-0.7, DUCT_FLOOR + 0.3, -1.2), Vector3.BACK, 2.0)    # 換気口のうしろの壁
+	MeshKit.sticker(duct, 36, 0.26, Vector3(0.9, DUCT_TOP, -0.3), Vector3.DOWN, 20.0)           # 天井（見上げると読める）
 	MeshKit.auto_round = true
 
 func _floor(add: Callable, a: Vector2, b: Vector2, y: float, m: Material) -> void:

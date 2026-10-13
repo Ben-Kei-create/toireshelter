@@ -193,7 +193,7 @@ func _set_hood(level: int) -> void:
 		_hood.position = _hood_base
 		_hood.rotation = Vector3.ZERO
 	else:
-		_hood_sound.volume_db = [-30.0, -20.0, -6.0][level - 1]
+		_hood_sound.volume_db = [-34.0, -26.0, -12.0][level - 1]
 		_hood_sound.pitch_scale = [0.8, 1.05, 1.9][level - 1]
 		if not _hood_sound.playing:
 			_hood_sound.play()

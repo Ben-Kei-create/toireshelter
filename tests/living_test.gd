@@ -148,14 +148,15 @@ func _run() -> void:
 	var moved: float = player.global_position.distance_to(before)
 	check(moved > 0.25 and moved < 0.7, "WASD でこたつの中を這って進める（0.8秒で %.2fm、速さ 0.6m/s 以下）" % moved)
 	# 中を進み続けて布団の外へ出ると、抜けて立つ（または屈む）
-	Input.action_press("move_forward")
+	# 北の座布団から入ったので、後ろ（北）へ戻る向きに進む。南側は寝床が近く、体が立てないので、這ったまま（sleep_test で確認）
+	Input.action_press("move_back")
 	for i in 300:
 		await physics_frame
 		if player.pose != player.Pose.KOTATSU_IN:
 			break
-	Input.action_release("move_forward")
+	Input.action_release("move_back")
 	check(player.pose == player.Pose.WALK or player.pose == player.Pose.CROUCH, "布団の反対側へ出ると、立つ（または屈む）")
-	check(player.global_position.z > 1.2, "こたつの反対側（南）まで抜けた（z %.2f）" % player.global_position.z)
+	check(player.global_position.z < 0.3, "こたつの北まで抜けた（z %.2f）" % player.global_position.z)
 	check(main.room.apartment.kotatsu.body.collision_layer == 1, "抜けたら、こたつの当たり判定が戻る")
 	# --- 浴室のドアを開けたり閉めたりできる
 	check(room.door_area.collision_layer == 0 and not room.door_unlocked, "直す前は、開け閉め用の判定は無効")

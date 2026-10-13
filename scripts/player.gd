@@ -17,7 +17,7 @@ extends CharacterBody3D
 signal interact_requested(target: Object)
 signal crouch_blocked   # 頭上が狭くて立てなかった
 
-enum Pose { WALK, CROUCH, SEATED, IN_TUB, TRANSITION, DUCT, KOTATSU_SEAT, KOTATSU_IN }
+enum Pose { WALK, CROUCH, SEATED, IN_TUB, TRANSITION, DUCT, KOTATSU_SEAT, KOTATSU_IN, LYING }
 
 const Sfx := preload("res://scripts/sfx.gd")
 const CharacterBodyScript := preload("res://scripts/character_body.gd")
@@ -42,6 +42,7 @@ const PITCH_LIMIT_DEG := 85.0
 const MOVE_TIME := 0.6            # 座る／浴槽に入るときの移動演出の長さ
 const DUCT_SPEED := 0.7
 const KOTATSU_SPEED := 0.6        # こたつの中を這う速さ
+const LYING_PITCH := 1.4          # 寝たときの視線（ほぼ真上。ラジアン）
 const KOTATSU_BODY_HEIGHT := 0.4
 const KOTATSU_BODY_RADIUS := 0.2
 const STEP_DISTANCE := 0.62       # 足音を鳴らす歩幅（しゃがむ・這うときは短い）
@@ -57,6 +58,7 @@ var _pitch := 0.0
 var _shape: CollisionShape3D
 var _capsule: CapsuleShape3D
 var _eye_target := EYE_HEIGHT
+var show_body := false             # 自分の体（ちょー雑な3D）を見せる。設定で切り替え（初期はオフ）
 var head_bob := true               # 視点のゆれ（歩くときの上下・呼吸）。設定で切れる
 var body_rig: Node3D            # 自分の目から見える体（ちょー雑な3D。character_body.gd）
 var _last_bob := 0.0
@@ -102,7 +104,7 @@ func _ready() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if not controls_enabled or pose == Pose.TRANSITION:
+	if not controls_enabled or pose == Pose.TRANSITION or pose == Pose.LYING:   # 寝ている間は天井を見上げたまま
 		return
 	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		var motion := event as InputEventMouseMotion
@@ -136,7 +138,7 @@ func look_at_point(p: Vector3) -> void:
 
 ## 体の見た目を、姿勢と歩きに合わせる。歩く・しゃがむときだけ見せ、座る・浴槽・こたつ・ダクトの中では隠す。
 func _update_body(delta: float) -> void:
-	var show := pose == Pose.WALK or pose == Pose.CROUCH
+	var show := show_body and (pose == Pose.WALK or pose == Pose.CROUCH)
 	body_rig.visible = show
 	if not show:
 		return
@@ -308,7 +310,7 @@ func enter_fixed(target_pose: Pose, feet: Vector3, yaw: float, eye: float) -> vo
 ## 座っている／浴槽にいる／換気経路にいる状態から、候補の足元のうち最初に空いている所へ立って移る。
 ## どこも空いていなければ何もせず false。
 func leave_fixed(candidates: Array, via: Array = []) -> bool:
-	if pose != Pose.SEATED and pose != Pose.IN_TUB and pose != Pose.DUCT and pose != Pose.KOTATSU_SEAT:
+	if pose != Pose.SEATED and pose != Pose.IN_TUB and pose != Pose.DUCT and pose != Pose.KOTATSU_SEAT and pose != Pose.LYING:
 		return false
 	for c in candidates:
 		var feet: Vector3 = c
@@ -324,6 +326,7 @@ func move_to(target_pose: Pose, feet: Vector3, yaw: float, eye: float, via: Arra
 		enable_body := false, body_h := BODY_HEIGHT, body_r := BODY_RADIUS) -> void:
 	_shape.disabled = true
 	_settled_pose = target_pose
+	var was_lying := pose == Pose.LYING
 	pose = Pose.TRANSITION
 	velocity = Vector3.ZERO
 	if target_pose == Pose.WALK or target_pose == Pose.CROUCH:
@@ -337,6 +340,12 @@ func move_to(target_pose: Pose, feet: Vector3, yaw: float, eye: float, via: Arra
 	look.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 	look.tween_property(self, "rotation:y", _nearest_angle(rotation.y, yaw), total)
 	look.tween_property(camera, "position:y", eye, total)
+	if target_pose == Pose.LYING:   # 寝るときは、天井を見上げる
+		look.tween_property(camera, "rotation:x", LYING_PITCH, total)
+		_pitch = LYING_PITCH
+	elif was_lying or absf(_pitch) > 0.9:
+		look.tween_property(camera, "rotation:x", 0.0, total)
+		_pitch = 0.0
 	var tween := create_tween()
 	tween.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 	for i in points.size():

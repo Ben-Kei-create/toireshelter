@@ -169,6 +169,7 @@ func _run() -> void:
 	check(mc.reflection.material_override.albedo_color.a < 0.3, "鏡から大きく外れると映らない")
 	check(main.hud.get_node("Root/PauseMenu/Portrait") != null, "設定画面に主人公の肖像がある")
 	# --- 自分の目から見える体（ちょー雑な3D）
+	player.show_body = true   # 初期はオフ。ここでは見え方を確かめるためオンにする
 	var rig: Node3D = player.body_rig
 	player.set_physics_process(true)
 	player.pose = player.Pose.WALK
