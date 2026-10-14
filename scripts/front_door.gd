@@ -61,7 +61,7 @@ func _ready() -> void:
 	plate.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	var num := Label3D.new()
 	num.name = "RoomNumber"
-	num.text = "505"
+	num.text = "503"
 	num.font_size = 64
 	num.pixel_size = 0.0012
 	num.modulate = Color(0.15, 0.12, 0.1)

@@ -25,6 +25,7 @@ const RecordPlayerRef := preload("res://scripts/record_player.gd")
 const MeshKit := preload("res://scripts/mesh_kit.gd")
 const SfxScript := preload("res://scripts/sfx.gd")
 const BooksScript := preload("res://scripts/books.gd")
+const TitleScript := preload("res://scripts/title_screen.gd")
 const CorridorScript := preload("res://scripts/corridor.gd")
 
 const MESSAGES := {
@@ -397,6 +398,9 @@ var _reader_cover: Texture2D
 var _reader_tint := Color.WHITE
 var _reader_opened_frame := -1
 
+static var _title_seen := false   # 起動後、タイトル画面を一度出したか（やり直しの再読み込みでは出さない）
+var _title: Node
+
 var room: RoomScript
 var fishing: Node3D                # ベランダの釣り（fishing.gd）
 var player: PlayerScript
@@ -468,6 +472,57 @@ func _ready() -> void:
 	hud.set_catch_text(fishing.collection_text())
 	fishing.collection_changed.connect(hud.set_catch_text)
 
+	if _wants_title():
+		_show_title()
+	else:
+		_begin_play()
+
+
+## タイトル画面を出すか。実際に起動したときの最初の 1 回だけ（やり直しの再読み込み・テスト・撮影では出さない）。
+## 環境変数 TOIRE_TITLE=1 で、テストでも出せる。TOIRE_NO_TITLE=1 で出さない。
+func _wants_title() -> bool:
+	if OS.get_environment("TOIRE_NO_TITLE") == "1":
+		return false
+	if OS.get_environment("TOIRE_TITLE") == "1":
+		return not _title_seen
+	return not _title_seen and DisplayServer.get_name() != "headless" and OS.get_environment("SHOT_DIR") == ""
+
+
+func title_active() -> bool:
+	return _title != null
+
+
+func _show_title() -> void:
+	_title = TitleScript.new()
+	_title.name = "Title"
+	_title.has_save = progress.has_save()
+	_title.start_requested.connect(_on_title_start)
+	_title.settings_requested.connect(func() -> void:
+		_title.show_ui(false)
+		hud.show_pause(true))
+	_title.quit_requested.connect(func() -> void: get_tree().quit())
+	add_child(_title)
+	get_tree().paused = true
+	player.controls_enabled = false
+	hud.set_title_mode(true)
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+
+
+func _on_title_start(continue_save: bool) -> void:
+	if not continue_save:
+		progress.delete_save()
+	_title.queue_free()
+	_title = null
+	_title_seen = true
+	hud.set_title_mode(false)
+	get_tree().paused = false
+	player.controls_enabled = true
+	_begin_play()
+
+
+## 遊びはじめ：視点を掴み、続きがあれば読み込み、最初の一言と操作のヒントを出す。
+func _begin_play() -> void:
+	_title_seen = true
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	if progress.load_game():
 		hud.show_message("……前に来た、あの部屋だ。続きから。", 4.0, "voice")
@@ -483,6 +538,8 @@ func _ready() -> void:
 
 
 func _process(_delta: float) -> void:
+	if _title != null:
+		return
 	var carried: String = room.apartment.cellar.carrying_name
 	hud.set_carry("運んでいる：%s（冷蔵庫の中を狙って、左クリックで入れる）" % carried if not carried.is_empty() else "")
 	if not paused and not cleared:
@@ -526,11 +583,16 @@ func _process(_delta: float) -> void:
 
 ## ウィンドウが選ばれなくなったら自動で一時停止（ゲーム中に別のウィンドウへ移ったとき、勝手に進まないように）
 func _notification(what: int) -> void:
-	if what == NOTIFICATION_APPLICATION_FOCUS_OUT and is_node_ready() and not paused and not cleared and not mj_playing and not gaming and not peeping:
+	if what == NOTIFICATION_APPLICATION_FOCUS_OUT and is_node_ready() and _title == null and not paused and not cleared and not mj_playing and not gaming and not peeping:
 		_pause()
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if _title != null:
+		if event.is_action_pressed("pause") and hud._pause_menu.visible:
+			get_viewport().set_input_as_handled()
+			_resume()
+		return
 	# メッセージの履歴（H）。開いている間は Esc か H で閉じる
 	if hud.is_log_open():
 		if event.is_action_pressed("pause") or event.is_action_pressed("message_log"):
@@ -1500,6 +1562,10 @@ func _pause() -> void:
 
 
 func _resume() -> void:
+	if _title != null:   # タイトル画面の設定を閉じる（ゲームの再開ではない）
+		hud.show_pause(false)
+		_title.show_ui(true)
+		return
 	paused = false
 	hud.show_pause(false)
 	get_tree().paused = false

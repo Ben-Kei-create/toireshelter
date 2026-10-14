@@ -365,6 +365,28 @@ func _fit_settings() -> void:
 	_settings_scroll.custom_minimum_size = Vector2(900.0, clampf(h - 400.0, 150.0, 560.0))
 
 
+## タイトル画面の間：照準・操作案内・所持品欄を隠し、設定画面は「もどる」だけにする（再開・はじめから・終了・記録は出さない）。
+var _title_hidden := {}
+
+
+func set_title_mode(on: bool) -> void:
+	var nodes: Array = [_dot, _hint_label, _inventory_bar, _prompt_panel, _message_panel, _root.get_node_or_null("CrosshairOutline")]
+	for n in nodes:
+		if n == null:
+			continue
+		if on:
+			_title_hidden[n] = n.visible
+			n.visible = false
+		elif _title_hidden.has(n):
+			n.visible = _title_hidden[n]
+	if not on:
+		_title_hidden.clear()
+	_resume_button.text = "もどる" if on else "再開"
+	_restart_button.visible = not on
+	_quit_button.visible = not on
+	_stats_label.visible = not on
+
+
 func show_pause(is_paused: bool) -> void:
 	_fit_settings()
 	_pause_menu.visible = is_paused

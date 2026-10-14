@@ -99,7 +99,7 @@ func force_hint() -> bool:
 
 
 func _process(delta: float) -> void:
-	if main == null or main.player == null:
+	if main == null or main.player == null or main.title_active():
 		return
 	var busy: bool = main.paused or main.cleared or main.reading or main.gaming or main.peeping or main.mj_playing \
 			or main.player.pose == main.PlayerScript.Pose.TRANSITION or main.player.pose == main.PlayerScript.Pose.LYING
