@@ -13,6 +13,7 @@ const MeshKit := preload("res://scripts/mesh_kit.gd")
 const Sfx := preload("res://scripts/sfx.gd")
 const BooksScript := preload("res://scripts/books.gd")
 const KotatsuScript := preload("res://scripts/kotatsu.gd")
+const HallFusumaScript := preload("res://scripts/hall_fusuma.gd")
 const AirconScript := preload("res://scripts/aircon.gd")
 const FanScript := preload("res://scripts/fan.gd")
 const UfoCatcherScript := preload("res://scripts/ufo_catcher.gd")
@@ -63,6 +64,9 @@ const WINDOW_SLIDE := 0.68
 const WINDOW_TIME := 0.5
 
 var window_open := false
+var window_locked := false   # ベランダ側から、部屋の鍵がないと開かない（浴室がせり上がったあとに施錠。room.gd の rise_unit）
+var hall_fusuma: Node3D       # ホールと自室の境のふすま（hall_fusuma.gd）
+signal curtain_changed(closed: bool)
 var window_busy := false
 var window_panel: Node3D   # 外側のレールの引き違い窓（開けると右へ）
 var hall_ceiling: MeshInstance3D          # ホールの天井（浴室が上がったあと、突き破られて消える）
@@ -95,6 +99,8 @@ func _ready() -> void:
 	_body.collision_mask = 0
 	add_child(_body)
 	_build_hall()
+	hall_fusuma = HallFusumaScript.new()
+	add_child(hall_fusuma)
 	_build_movie_posters()
 	_build_corkboard()
 	_build_room_shell()
@@ -425,6 +431,7 @@ func toggle_curtain() -> void:
 	tween.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 	tween.tween_property(curtain, "scale:x", 1.0 if curtain_closed else 0.18, 0.9)
 	tween.tween_callback(func() -> void: curtain_busy = false)
+	curtain_changed.emit(curtain_closed)
 
 
 func _update_curtain_shape() -> void:

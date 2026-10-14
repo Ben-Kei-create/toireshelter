@@ -118,7 +118,7 @@ const RISE_H := 2.2            # 上がる高さ（m）＝浴室の高さ。扉�
 const RISE_TIME := 8.0
 const BLACKOUT_AMBIENT := 0.01   # 停電のあとの環境光の倍率（真っ暗）
 const UNIT_EXCLUDE := ["WorldEnvironment", "SkyClock", "HallLight", "Apartment", "BathLightSwitch", "Exterior",
-		"FrontDoor", "Corridor", "AmbientSound", "Fishing", "Pedestal", "DoorDebris", "FuseHatch", "DoorwayBlocker", "ElevatorCar", "Entrance"]
+		"FrontDoor", "Corridor", "AmbientSound", "Fishing", "Pedestal", "DoorDebris", "FuseHatch", "DoorwayBlocker", "ElevatorCar", "Entrance", "DoorKnob"]
 var risen := false
 var rising := false
 var rise_offset := 0.0         # いまの上昇量（m）。浴室と換気ダクトの座標にこれを足す
@@ -179,6 +179,7 @@ func _ready() -> void:
 	_build_vent()
 	_build_floor_drain()
 	_build_bath_bucket()
+	_build_knob()
 	shower_curtain = ShowerCurtainScript.new()
 	shower_curtain.name = "ShowerCurtain"
 	add_child(shower_curtain)
@@ -289,6 +290,8 @@ func rise_unit(player: Node3D, instant := false) -> void:
 	if risen or rising:
 		return
 	rising = true
+	if apartment:
+		apartment.window_locked = true   # 浴室がせり上がったあと、ベランダの窓は施錠（部屋の鍵で開く）
 	_unit.clear()
 	for c in get_children():
 		if c is Node3D and not UNIT_EXCLUDE.has(String(c.name)):
@@ -372,18 +375,90 @@ func _update_pedestal() -> void:
 	_pedestal.position = Vector3(0, (rise_offset - 1.0) * 0.5, 0)
 
 
-## ホール側の柱の面に、小さな扉（ドアノブの穴だけがある。あとで、ドアノブをつけて開ける）。
+## ホール側の柱の面に、小さな扉（ドアノブの穴だけがある）。ドアノブをつけて（F）開ける。中にヒューズがあり、拾える。入れはしない。
+var hatch_open := false
+var fuse_taken := false
+var _hatch_door: Node3D
+var _fuse_prop: Node3D
+var _fuse_area: Area3D
+const FuseItems := preload("res://scripts/stage3_items.gd")
+
+
+## 壊れたドアノブ：玄関ホールの床に転がっている（浴室が上がったあと、扉の外に見えるが、届かない。ホールに下りて拾う）。
+var knob_node: Node3D
+var knob_taken := false
+
+
+func _build_knob() -> void:
+	knob_node = Node3D.new()
+	knob_node.name = "DoorKnob"
+	knob_node.position = Vector3(0.25, 0.03, 1.8)
+	add_child(knob_node)
+	var model := FuseItems.knob_model()
+	model.rotation = Vector3(0, 0.6, deg_to_rad(80.0))
+	knob_node.add_child(model)
+	var area := MeshKit.interact_area(knob_node, "DoorKnobArea", "door_knob")
+	MeshKit.shape_box(area, Vector3(0.2, 0.1, 0.12), Vector3.ZERO)
+
+
+func take_door_knob() -> void:
+	knob_taken = true
+	if knob_node:
+		knob_node.visible = false
+		var a := knob_node.get_node_or_null("DoorKnobArea") as Area3D
+		if a:
+			a.collision_layer = 0
+
+
 func _build_hatch() -> void:
 	var h := Node3D.new()
 	h.name = "FuseHatch"
 	h.position = Vector3(0.45, 0.4, ROOM_D * 0.5 + WALL_T - 0.02)
 	add_child(h)
+	# 枠と、扉の奥のくぼみ（暗い）。くぼみの中にヒューズ
 	_mesh_box(h, Vector3(0.5, 0.55, 0.02), Vector3.ZERO, _mat("hatch_frame", Color(0.1, 0.1, 0.11), 0.7))
-	_mesh_box(h, Vector3(0.42, 0.47, 0.02), Vector3(0, 0, 0.012), _mat("hatch_panel", Color(0.33, 0.3, 0.27), 0.8))
-	var socket := MeshKit.cylinder(h, 0.014, 0.03, Vector3(-0.15, 0.0, 0.026), _mat("hatch_socket", Color(0.02, 0.02, 0.02), 1.0), "Socket")
+	_mesh_box(h, Vector3(0.42, 0.47, 0.02), Vector3(0, 0, 0.012), _mat("hatch_inside", Color(0.02, 0.02, 0.03), 1.0))
+	_fuse_prop = Node3D.new()
+	_fuse_prop.name = "Fuse"
+	_fuse_prop.position = Vector3(0.0, -0.1, 0.03)
+	_fuse_prop.visible = false
+	h.add_child(_fuse_prop)
+	_fuse_prop.add_child(FuseItems.fuse_model())
+	_fuse_area = MeshKit.interact_area(_fuse_prop, "FuseArea", "fuse")
+	_fuse_area.collision_layer = 0
+	MeshKit.shape_box(_fuse_area, Vector3(0.12, 0.08, 0.1), Vector3.ZERO)
+	# 扉（右の端が蝶番）。ノブの穴がある
+	_hatch_door = Node3D.new()
+	_hatch_door.name = "HatchDoor"
+	_hatch_door.position = Vector3(0.21, 0.0, 0.022)
+	h.add_child(_hatch_door)
+	_mesh_box(_hatch_door, Vector3(0.42, 0.47, 0.02), Vector3(-0.21, 0, 0), _mat("hatch_panel", Color(0.33, 0.3, 0.27), 0.8))
+	var socket := MeshKit.cylinder(_hatch_door, 0.014, 0.03, Vector3(-0.36, 0.0, 0.014), _mat("hatch_socket", Color(0.02, 0.02, 0.02), 1.0), "Socket")
 	socket.rotation.x = PI * 0.5
 	var area := MeshKit.interact_area(h, "FuseHatchArea", "fuse_hatch")
 	MeshKit.shape_box(area, Vector3(0.5, 0.55, 0.08), Vector3(0, 0, 0.03))
+
+
+## ドアノブをつけて、小さな扉を開ける。
+func open_hatch(instant := false) -> void:
+	if hatch_open:
+		return
+	hatch_open = true
+	if not fuse_taken:
+		_fuse_prop.visible = true
+		_fuse_area.collision_layer = MeshKit.LAYER_INTERACT
+	if instant:
+		_hatch_door.rotation.y = deg_to_rad(100.0)
+		return
+	Sfx.play("click")
+	create_tween().tween_property(_hatch_door, "rotation:y", deg_to_rad(100.0), 0.7).set_trans(Tween.TRANS_SINE)
+
+
+## ヒューズを拾った（見た目と判定を消す）。
+func take_fuse() -> void:
+	fuse_taken = true
+	_fuse_prop.visible = false
+	_fuse_area.collision_layer = 0
 
 
 ## 扉がバキッと壊れる：破片がホールへ飛び、枠にギザギザが残り、木の棒が足元に落ちる。
@@ -478,6 +553,19 @@ func set_power(on: bool, instant := false) -> void:
 			create_tween().tween_method(func(v: float) -> void:
 				sky_clock.ambient_scale = v
 				sky_clock.set_time(sky_clock.time), sky_clock.ambient_scale, scale, 1.2)
+
+
+## 停電中のカーテンの開け閉め：開けると、月明かりで部屋の輪郭がうっすら見える（環境光をほんの少し戻す）。
+const MOONLIGHT_AMBIENT := 0.06
+
+
+func set_moonlight(on: bool) -> void:
+	if power_on or sky_clock == null:
+		return
+	var target := MOONLIGHT_AMBIENT if on else BLACKOUT_AMBIENT
+	create_tween().tween_method(func(v: float) -> void:
+		sky_clock.ambient_scale = v
+		sky_clock.set_time(sky_clock.time), sky_clock.ambient_scale, target, 1.0)
 
 
 func open_door() -> void:

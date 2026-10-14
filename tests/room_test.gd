@@ -20,6 +20,8 @@ func _run() -> void:
 		await process_frame
 	var main := current_scene
 	var apt = main.room.apartment
+	# ホールと自室の境のふすまは、はじめ閉まっている。ここは通り抜けの検証なので、開けておく（ふすま自体は stage3_test）
+	apt.hall_fusuma.set_open(true, true)
 	var player = main.player
 	var A := preload("res://scripts/apartment.gd")
 	check(is_equal_approx(A.ROOM.end.x, 5.5) and is_equal_approx(A.ROOM.size.x, 4.5), "自室の幅（本棚の方向の奥行き）が 4.5m（x 1.0〜5.5）に広がった")

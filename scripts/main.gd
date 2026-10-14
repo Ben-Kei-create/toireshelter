@@ -30,6 +30,8 @@ const BooksScript := preload("res://scripts/books.gd")
 const TitleScript := preload("res://scripts/title_screen.gd")
 const CorridorScript := preload("res://scripts/corridor.gd")
 const CreditsData := preload("res://scripts/credits_data.gd")
+const Stage3Items := preload("res://scripts/stage3_items.gd")
+const BurningTorchScript := preload("res://scripts/burning_torch.gd")
 
 const MESSAGES := {
 	"start": "……気がつくと、ユニットバスに閉じ込められていた。ここから出て、部屋の外へ出なければ。",
@@ -358,6 +360,11 @@ const ITEMS := {
 	"bath_powder": {"name": "ユブロマン", "desc": "ゆずの香りの粉末入浴剤。1回分。"},
 	"soap": {"name": "固形せっけん", "desc": "ピンクの固形せっけん。水に浸けておくと、溶けていく。"},
 	"ten_yen": {"name": "十円玉", "desc": "古い十円玉。丸いものは、ふたになる。"},
+	"match_stick": {"name": "マッチ棒", "desc": "1 本だけのマッチ。箱には『火事の元』と印字されていた。"},
+	"room_key": {"name": "部屋の鍵", "desc": "ベランダの窓の鍵。……玄関の鍵ではない。"},
+	"torch": {"name": "松明", "desc": "木の棒の先に、火がついている。部屋が暗くても、まわりだけは見える。"},
+	"door_knob": {"name": "壊れたドアノブ", "desc": "壊れたドアノブ。ホールの柱の、小さな扉の穴に合いそうだ。"},
+	"fuse": {"name": "ヒューズ", "desc": "小さなヒューズ。ブレーカーに差せそうだ。"},
 	"yen100": {"name": "百円玉", "desc": "ぴかぴかの百円玉。自動販売機で使えそうだ。"},
 	"sinker": {"name": "鉛のおもり", "desc": "ずっしり重い鉛の塊。軽いものの上に載せれば、重しになる。"},
 	"lint": {"name": "毛だまり", "desc": "服についていた毛玉と綿ぼこり。ふわふわで軽い。"},
@@ -420,6 +427,42 @@ const ENDING := {
 	"vending_voice": "……よく、頑張ったね。",
 }
 const CLOSET_EYE := 0.8                # 押入れの中に座ったときの目の高さ
+## 段階 3（暗い部屋）の説明。停電中は、電気の物は使えず、調べると説明だけが出る。
+const STAGE3 := {
+	"match_caught": "マッチ棒が釣れた。……たった 1 本だ。箱には『火事の元』と書いてあったらしい。",
+	"key_caught": "部屋の鍵が釣れた。ベランダの窓の鍵だ。……玄関の鍵ではない。",
+	"window_locked": "窓には鍵がかかっている。部屋の鍵がいる。",
+	"window_unlocked": "カチッ。窓の鍵が開いた。",
+	"torch_made": "木の棒の先に、マッチで火をつけた。松明ができた。",
+	"torch_voice": "松明は、危ない。",
+	"torch_thrown": "松明は、窓の外へ飛んでいった。ベランダの床で、ぱちぱちと燃えている。",
+	"torch_out": "松明の火が、ぷすっと消えた。",
+	"knob_pickup": "壊れたドアノブを拾った。",
+	"hatch_open": "ドアノブをつけて、小さな扉を開けた。中に、小さなヒューズが入っている。入れる広さではない。",
+	"fuse_pickup": "ヒューズを手に入れた。",
+	"breaker_closed": "ねじが、ひとつ。ドライバーが使えそうだ。",
+	"breaker_no_fuse": "ヒューズがない。",
+	"breaker_done": "ブレーカーは、ちゃんと入っている。",
+	"breaker_cover_open": "ねじを回すと、蓋が開いた。",
+	"breaker_cover_first": "ヒューズを差したいが、蓋がねじで閉まっている。",
+	"breaker_on": "ヒューズを差し込んだ。カチッ。……部屋の電気が、ついた。",
+	"dark_hint": "電気は、どこから来ているのだろう。",
+	"hatch_hint": "ドアノブのない扉が、あった。",
+	"stick_match_hint": "棒の先に、火をつけられそうだ。",
+	"key_hint": "鍵はどこかに落ちていないか。下を見てみよう。",
+	"no_power": "電気がない。動かない。",
+}
+## 停電中に使えない物（id → 調べたときの説明）。「game_case_」「ufo_」で始まる id も同じ。
+const POWER_DEAD := {
+	"tv_play": "テレビは、真っ暗だ。電気がない。",
+	"tv_remote": "リモコンを押しても、何も起きない。",
+	"record_player": "ターンテーブルは動かない。電気がない。",
+	"radio": "ラジオは、ノイズも出ない。電気がない。",
+	"microwave": "電子レンジは動かない。",
+	"intercom": "インターホンは、真っ暗だ。",
+	"kotatsu": "こたつがある。電気がないと、暖かくない。",
+	"bed": "ふとんがある。……いま眠っている場合ではない。",
+}
 const VENDING_REACH := 1.49            # 自動販売機の最上段のボタンに届く目の高さ（150 cm）。最後の関門が身長
 const RIDE_STOPS := [4, 3, 2, 1]
 # 換気経路：入口で浴槽へ戻れる範囲（換気口の真上からの水平距離）、出口からベランダへ降りる経由点と着地候補
@@ -460,6 +503,11 @@ var region := ""                   # 今いる区画：bath / hall / room / duct
 var _last_region := ""
 var door_open := false
 var cleared := false
+var thrown_torch: Node3D           # ベランダに捨てた、燃える松明
+var _torch_light: OmniLight3D      # 松明を手に持ったときの明かり
+var _torch_t := 0.0
+var _dark_hinted := false
+var power_restored := false        # ブレーカーにヒューズを差して、部屋の電気が戻った
 var closet_hiding := false         # 押入れに閉じこもっている
 var credits_enabled := true        # クリアの前にエンドロールを流す（テストでは切る）
 var ride_speed := 1.0              # エレベーターの待ち時間の速さ（テストでは速める）
@@ -602,6 +650,10 @@ func _ready() -> void:
 	fishing.notice.connect(func(text: String) -> void: hud.show_message(text))
 	hud.set_catch_text(fishing.collection_text())
 	fishing.collection_changed.connect(hud.set_catch_text)
+	fishing.story_next = Callable(self, "_story_catch_next")
+	fishing.item_caught.connect(_on_story_caught)
+	room.apartment.curtain_changed.connect(_on_curtain_changed)
+	room.exterior.breaker.fuse_inserted.connect(_on_fuse_inserted)
 
 	if _wants_title():
 		_show_title()
@@ -685,6 +737,7 @@ func _process(_delta: float) -> void:
 			progress.discover("ko_line")
 			progress.add_note("ko_line", "KO線", "右手の遠くに高架の線路。電車がゆっくり走っている。", "手がかり")
 	_update_lint(_delta)
+	_update_torch_light(_delta)
 	var carried: String = room.apartment.cellar.carrying_name
 	hud.set_carry("運んでいる：%s（冷蔵庫の中を狙って、左クリックで入れる）" % carried if not carried.is_empty() else "")
 	if not paused and not cleared:
@@ -1200,11 +1253,17 @@ func do_action() -> void:
 			room.toilet.occupied = true
 			player.enter_fixed(PlayerScript.Pose.SEATED, _up(SEAT_FEET), SEAT_YAW, SEAT_EYE)
 		"kotatsu_sit":
+			if not room.power_on:
+				hud.show_message(POWER_DEAD["kotatsu"])
+				return
 			SfxScript.play("rustle")
 			kotatsu_seat = KotatsuScript.nearest_seat(player.global_position)
 			var seat: Dictionary = KotatsuScript.SEATS[kotatsu_seat]
 			player.enter_fixed(PlayerScript.Pose.KOTATSU_SEAT, seat.feet, seat.yaw, KotatsuScript.EYE_SEATED)
 		"sleep":
+			if not room.power_on:
+				hud.show_message(POWER_DEAD["bed"])
+				return
 			SfxScript.play("rustle")
 			player.enter_fixed(PlayerScript.Pose.LYING, BED_FEET, BED_YAW, BED_EYE)
 			progress.discover("bed_sleep")
@@ -1328,6 +1387,8 @@ func _prompt_for(target: Object) -> String:
 			return PROMPTS["dice_roll"]
 		"tv_remote":
 			return PROMPTS["tv_remote"]
+		"door_knob", "fuse":
+			return PROMPT_PICKUP
 		"elevator":
 			return "左クリック：エレベーターに乗る"
 		"vending":
@@ -1379,6 +1440,13 @@ func _on_interact_requested(target: Object) -> void:
 			cellar_c.food_stored()
 			progress.save()
 		return
+	if not room.power_on and (POWER_DEAD.has(id) or id.begins_with("game_case_") or id.begins_with("ufo_")):
+		hud.show_message(POWER_DEAD.get(id, STAGE3["no_power"]))
+		return
+	if id == "window" and room.apartment.window_locked and player.global_position.z < ExteriorScript.FACADE_Z:
+		hud.show_message(STAGE3["window_locked"])
+		progress.add_note("window_locked", "ベランダの窓", "鍵がかかっている。部屋の鍵がいる。", "手がかり")
+		return
 	if id == "bath_shower" and player.pose == PlayerScript.Pose.IN_TUB:
 		room.bathtub.hold_shower(player.camera)
 		hud.show_message(MESSAGES["shower_hold"])
@@ -1402,7 +1470,7 @@ func _on_interact_requested(target: Object) -> void:
 		# 便器・浴槽・蛇口など状態を持つ設備は、その設備が操作し、表示する説明のキーを返す
 		var key: String = fixture.interact(id)
 		if not key.is_empty():
-			var text: String = MESSAGES[key]
+			var text: String = MESSAGES[key] if MESSAGES.has(key) else STAGE3[key]
 			if fixture.has_method("format_message"):
 				text = fixture.format_message(key, text)
 			hud.show_message(text)
@@ -1421,6 +1489,18 @@ func _on_interact_requested(target: Object) -> void:
 			hud.show_message(MESSAGES[id])
 		"phone_black":
 			_phone_dial()
+		"door_knob":
+			if inventory.has("door_knob") or room.knob_taken:
+				return
+			_give_stage3("door_knob")
+			room.take_door_knob()
+			hud.show_message(STAGE3["knob_pickup"])
+		"fuse":
+			if inventory.has("fuse") or room.fuse_taken:
+				return
+			_give_stage3("fuse")
+			room.take_fuse()
+			hud.show_message(STAGE3["fuse_pickup"])
 		"elevator":
 			_ride_elevator()
 		"vending":
@@ -1713,6 +1793,7 @@ func select_item(i: int) -> void:
 	hud.set_inventory(names, selected)
 	if hud.is_zoom_open():
 		_show_zoom()
+	_refresh_torch_light()
 
 
 ## UFOコインを n 枚ふやす（持ち物には1つの欄に「×枚数」でまとめる）。
@@ -1796,6 +1877,43 @@ func use_selected() -> void:
 		return
 	if id == "mahjong":
 		_start_mahjong()
+		return
+	if (id == "wood_stick" or id == "match_stick") and inventory.has("wood_stick") and inventory.has("match_stick"):
+		_make_torch()
+		return
+	if id == "room_key" and tid == "window":
+		if room.apartment.window_locked:
+			room.apartment.window_locked = false
+			SfxScript.play("click")
+			hud.show_message(STAGE3["window_unlocked"])
+			progress.discover("window_unlocked")
+		else:
+			hud.show_message(MESSAGES["cannot_use"])
+		return
+	if id == "door_knob" and tid == "fuse_hatch":
+		if room.hatch_open:
+			hud.show_message(MESSAGES["cannot_use"])
+			return
+		room.open_hatch()
+		remove_item("door_knob")
+		hud.show_message(STAGE3["hatch_open"])
+		progress.discover("hatch_open")
+		return
+	if id == "driver" and tid == "breaker":
+		if room.exterior.breaker.open_cover():
+			hud.show_message(STAGE3["breaker_cover_open"])
+			progress.discover("breaker_open")
+		else:
+			hud.show_message(MESSAGES["cannot_use"])
+		return
+	if id == "fuse" and tid == "breaker":
+		match room.exterior.breaker.insert_fuse():
+			"ok":
+				remove_item("fuse")
+			"closed":
+				hud.show_message(STAGE3["breaker_cover_first"])
+			_:
+				hud.show_message(MESSAGES["cannot_use"])
 		return
 	if id == "soap" and tid in SINK_TARGETS:
 		if room.sink.place_soap() == "ok":
@@ -1916,6 +2034,11 @@ func _physics_process(_delta: float) -> void:
 			hud.show_message(ENDING["yen_hint"], 6.0)   # 百円玉を持って出ると、まだクリアにならない（エレベーターで 1 階へ）
 		else:
 			_clear("legit" if route_duct else "shortcut")
+	elif region == "room" and room.risen and not room.power_on:
+		progress.set_chapter(2)   # 第3幕　暗い部屋
+		if not _dark_hinted:
+			_dark_hinted = true
+			hud.show_message(STAGE3["dark_hint"], 6.0, "voice")
 	elif region == "lobby" and _last_region != "lobby" and not vending_done:
 		hud.show_message(ENDING["lobby"], 5.0)
 	elif region == "alley" and _last_region == "lobby" and not vending_done:
@@ -2099,6 +2222,122 @@ func _use_vending() -> void:
 func give_yen100() -> void:
 	_item_models["yen100"] = TowelRef.coin_model()
 	add_item("yen100")
+
+
+# ---------------------------------------------------------------- 段階 3：松明・暗い部屋・ブレーカー
+
+## 段階 3 の持ち物の、拡大表示用のモデル。
+func _give_stage3_model(id: String) -> void:
+	match id:
+		"match_stick":
+			_item_models[id] = Stage3Items.match_model()
+		"room_key":
+			_item_models[id] = Stage3Items.key_model()
+		"torch":
+			_item_models[id] = Stage3Items.torch_model()
+		"door_knob":
+			_item_models[id] = Stage3Items.knob_model()
+		"fuse":
+			_item_models[id] = Stage3Items.fuse_model()
+
+
+## 段階 3 の持ち物を、拡大モデルつきで持ち物に入れる。
+func _give_stage3(id: String) -> void:
+	_give_stage3_model(id)
+	add_item(id)
+	progress.discover(id)
+
+
+## 保存から戻すとき：ベランダに、燃える松明を置き直す（演出なし）。
+func restore_thrown_torch() -> void:
+	thrown_torch = BurningTorchScript.new()
+	thrown_torch.position = Vector3(2.4, 0.06, -1.75)
+	thrown_torch.rotation.y = 0.5
+	room.exterior.add_child(thrown_torch)
+
+
+## 釣りで次に釣れる、お話の持ち物（なければ ""）。ベランダのはしごを下ろしたあと、マッチ棒 → 部屋の鍵の順に、取り逃さず出る。
+func _story_catch_next() -> String:
+	if not room.exterior.ladder_down:
+		return ""
+	for id in ["match_stick", "room_key"]:
+		if not items_found.has(id) and not inventory.has(id):
+			return id
+	return ""
+
+
+func _on_story_caught(id: String) -> void:
+	_give_stage3(id)
+	hud.show_message(STAGE3["match_caught"] if id == "match_stick" else STAGE3["key_caught"], 6.0)
+
+
+## 木の棒とマッチ棒で松明を作る。
+func _make_torch() -> void:
+	remove_item("wood_stick")
+	remove_item("match_stick")
+	SfxScript.play("pop")
+	_give_stage3("torch")
+	select_item(inventory.find("torch"))
+	hud.show_message(STAGE3["torch_made"], 5.0)
+
+
+## 選んでいる物が松明なら、手元に明かりをつける（ゆらぐ）。
+func _refresh_torch_light() -> void:
+	var on := selected_item() == "torch"
+	if on and _torch_light == null:
+		_torch_light = OmniLight3D.new()
+		_torch_light.name = "TorchLight"
+		_torch_light.position = Vector3(0.25, -0.25, -0.5)
+		_torch_light.light_color = Color(1.0, 0.68, 0.32)
+		_torch_light.omni_range = 4.5
+		_torch_light.light_energy = 1.6
+		player.camera.add_child(_torch_light)
+	if _torch_light:
+		_torch_light.visible = on
+
+
+func _update_torch_light(delta: float) -> void:
+	if _torch_light and _torch_light.visible:
+		_torch_t += delta
+		_torch_light.light_energy = 1.6 + sin(_torch_t * 15.0) * 0.18 + sin(_torch_t * 6.1) * 0.12
+
+
+## 暗い部屋でカーテンを開けると、月明かりが差す。松明を持っていたら、神の声が「危ない」と言って、窓の外へ捨てる。
+func _on_curtain_changed(closed: bool) -> void:
+	if room.power_on:
+		return
+	room.set_moonlight(not closed)
+	if not closed and inventory.has("torch"):
+		_throw_torch()
+
+
+func _throw_torch() -> void:
+	remove_item("torch")
+	hud.show_message(STAGE3["torch_voice"], 4.0, "voice")
+	await get_tree().create_timer(1.6).timeout
+	thrown_torch = BurningTorchScript.new()
+	thrown_torch.position = Vector3(2.4, 0.06, -1.75)
+	thrown_torch.rotation.y = 0.5
+	room.exterior.add_child(thrown_torch)
+	SfxScript.play("thunk")
+	hud.show_message(STAGE3["torch_thrown"], 5.0)
+	progress.discover("torch_thrown")
+
+
+## ブレーカーにヒューズを差した：部屋の電気がつく。松明の火は消える。
+func _on_fuse_inserted() -> void:
+	power_restored = true
+	room.set_power(true)
+	hud.show_message(STAGE3["breaker_on"], 6.0)
+	progress.discover("power_back")
+	progress.set_chapter(3)
+	if thrown_torch and is_instance_valid(thrown_torch):
+		thrown_torch.extinguish()
+		await get_tree().create_timer(1.2).timeout
+		hud.show_message(STAGE3["torch_out"], 4.0)
+	elif inventory.has("torch"):
+		remove_item("torch")
+		hud.show_message(STAGE3["torch_out"], 4.0)
 
 
 ## 押入れの左の仕切りに入って、襖を閉じ、真っ暗な中に閉じこもる。

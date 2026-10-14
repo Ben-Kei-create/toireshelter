@@ -12,13 +12,14 @@ const Sfx := preload("res://scripts/sfx.gd")
 
 signal notice(text: String)
 signal coin_caught   # UFOコインが釣れた（持ち物に入る）
+signal item_caught(id: String)   # お話の持ち物（マッチ棒・部屋の鍵）が釣れた。main.gd が持ち物に入れる
 signal collection_changed(text: String)   # 釣果が変わった（設定画面の行を更新する）
 
 const ROD_POS := Vector3(3.64, 0.0, -1.68)      # 室外機のうしろ、右端の隔て板との隙間に立てかけてある
 const ROD_LEN := 1.55
 const RAIL_Z := -2.1
 const SPOT_X := Vector2(1.5, 3.1)
-const GROUND_Y := -6.7                           # 路地の地面（2 階ぶん下）
+const GROUND_Y := -13.6                          # 路地の地面（1 階。5 階の 4 階ぶん下）
 const WAIT_RANGE := Vector2(2.5, 6.0)
 const MAX_SOLID := 5          # 当たり判定のある置き物の数
 const MAX_PLACED := 24
@@ -60,6 +61,14 @@ const KIND_WEIGHTS := {"ゴミ": 50, "アイテム": 30, "お宝": 20}
 const KIND_COLORS := {"ゴミ": Color(0.45, 0.45, 0.42), "アイテム": Color(0.35, 0.6, 0.85), "お宝": Color(1.0, 0.8, 0.2)}
 
 var has_rod := false
+var story_next: Callable                 # 次に釣れるお話の持ち物の id を返す（main.gd）。なければ ""
+var _story_misses := 0                   # お話の物が出ないまま釣った回数（数回で必ず出る）
+const STORY_CHANCE := 0.45
+const STORY_MAX_MISSES := 3
+const STORY_CATCHES := {
+	"match_stick": ["アイテム", "マッチ棒", "たった 1 本のマッチ。箱は、どこかで湿ってしまったらしい。", 0, "story", "match_stick"],
+	"room_key": ["アイテム", "部屋の鍵", "この部屋の窓の鍵。見覚えのあるキーホルダーが付いている。", 0, "story", "room_key"],
+}
 var state := "idle"            # idle / waiting / bite / reeling
 var caught := {}               # 名前 → 回数
 var last_text := ""
@@ -344,6 +353,9 @@ func _land(pick: Array) -> void:
 	if pick.size() > 4 and pick[4] == "coin":
 		coin_caught.emit()
 		return
+	if pick.size() > 5 and pick[4] == "story":
+		item_caught.emit(String(pick[5]))
+		return
 	_place(pick)
 
 
@@ -390,6 +402,14 @@ func _place(pick: Array) -> void:
 
 
 func _pick() -> Array:
+	# お話の持ち物（マッチ棒・部屋の鍵）：ふつうの当たりのひとつとして、高い確率で出る。数回釣れば、必ず出る
+	if story_next.is_valid():
+		var sid := String(story_next.call())
+		if sid != "" and STORY_CATCHES.has(sid):
+			_story_misses += 1
+			if _story_misses > STORY_MAX_MISSES or _rng.randf() < STORY_CHANCE:
+				_story_misses = 0
+				return STORY_CATCHES[sid]
 	var kinds: Array = KIND_WEIGHTS.keys()
 	var kt := 0
 	for k in kinds:

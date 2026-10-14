@@ -17,6 +17,8 @@ func _run() -> void:
 	main.credits_enabled = false   # エンドロールは ending_test で確かめる。ここでは、クリア画面をすぐ出す
 	var player = main.player
 	var room = main.room
+	# ホールと自室の境のふすまは、はじめ閉まっている。ここは通り抜けの検証なので、開けておく（ふすま自体は stage3_test）
+	room.apartment.hall_fusuma.set_open(true, true)
 	player.set_eye_height(1.5)   # 遊ぶ人の設定（目の高さ）に左右されないよう、テストでは 1.5 m に固定する（設定ファイルは書き換えない）
 	var driver_pos: Vector3 = room.get_node("BathBucket").global_position + Vector3(0, 0.06, 0)   # 床の風呂桶（調べるだけ）で、照準と壁越しの遮断を確かめる
 

@@ -21,6 +21,8 @@ func _run() -> void:
 	var main := current_scene
 	var room = main.room
 	var apt = room.apartment
+	# ホールと自室の境のふすまは、はじめ閉まっている。ここは通り抜けの検証なので、開けておく（ふすま自体は stage3_test）
+	apt.hall_fusuma.set_open(true, true)
 	var player = main.player
 	# --- 空模様（プレイ時間）
 	var clk = room.sky_clock

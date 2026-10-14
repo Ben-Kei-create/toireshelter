@@ -22,6 +22,8 @@ func _run() -> void:
 	main.credits_enabled = false   # エンドロールは ending_test で確かめる。ここでは、クリア画面をすぐ出す
 	var player = main.player
 	var room = main.room
+	# ホールと自室の境のふすまは、はじめ閉まっている。ここは通り抜けの検証なので、開けておく（ふすま自体は stage3_test）
+	room.apartment.hall_fusuma.set_open(true, true)
 	var tub = room.bathtub
 
 	# ---------------------------------------------------------------- 空間の寸法と接続

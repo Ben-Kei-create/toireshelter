@@ -24,7 +24,7 @@ const DISCOVERIES := {
 	"driver": "ドライバー", "microwave": "電子レンジ", "calendar": "カレンダー",
 	"inspect_lever": "点検レバー", "vent_stretch": "背伸びで換気口へ", "ladder": "ボロボロのはしご", "lean_out": "手すりから乗り出す", "ko_line": "KO線", "unit_rise": "ゴゴゴ（浴室が上がった）", "wood_stick": "木の棒",
 	"ten_yen": "十円玉", "soap": "固形せっけん", "soap_placed": "せっけんを沈めた", "sink_lid": "洗面台のふた", "soap_dissolved": "せっけんが溶けた", "sinker": "鉛のおもり", "tub_lid": "浴槽のふた", "bath_ball": "入浴剤の玉",
-	"ball_dissolved": "玉が溶けた", "curtain_digits": "カーテンの数字", "lint_washed": "毛だまり", "lint": "毛だまりを拾う", "mirror_paper": "鏡文字のメモ",
+	"ball_dissolved": "玉が溶けた", "match_stick": "マッチ棒", "room_key": "部屋の鍵", "torch": "松明", "torch_thrown": "松明を捨てた", "window_unlocked": "窓の鍵を開けた", "door_knob": "壊れたドアノブ", "hatch_open": "小さな扉が開いた", "fuse": "ヒューズ", "breaker_open": "ブレーカーの蓋", "power_back": "部屋の電気", "curtain_digits": "カーテンの数字", "lint_washed": "毛だまり", "lint": "毛だまりを拾う", "mirror_paper": "鏡文字のメモ",
 }
 
 ## 幕（章）の名前。いまの幕より先は、行くまで「？？？」と出す。
@@ -154,7 +154,13 @@ func saved_chapter_name() -> String:
 func _hints() -> Array:
 	var apt = main.room.apartment
 	var cel = apt.cellar
+	var risen: bool = main.room.risen
+	var dark: bool = risen and not main.room.power_on
 	return [
+		{"id": "s3_key", "ok": dark and main.room.exterior.ladder_down and not main.items_found.has("room_key") and main.room.apartment.window_locked, "text": "鍵はどこかに落ちていないか。下を見てみよう。"},
+		{"id": "s3_torch", "ok": dark and main.inventory.has("wood_stick") and main.inventory.has("match_stick"), "text": "棒の先に、火をつけられそうだ。"},
+		{"id": "s3_dark", "ok": dark and main.region == "room", "text": "電気は、どこから来ているのだろう。"},
+		{"id": "s3_knob", "ok": dark and main.inventory.has("door_knob") and not main.room.hatch_open, "text": "ドアノブのない扉が、あった。"},
 		{"id": "floor", "ok": not discovered.has("cellar"), "text": "そういえば、床の一部が……少しだけ、色が違う気がする。"},
 		{"id": "stairs", "ok": discovered.has("stairs") and not discovered.has("basement_letter"), "text": "階段の下に、何かある。降りてみようか。"},
 		{"id": "food", "ok": discovered.has("cellar") and not cel.stairs_open and cel.carrying_id.is_empty() and cel.stored.size() < cel.FOODS.size(), "text": "床下の食べ物、ずいぶんたくさん入っている。冷蔵庫へ運んだら……どうなるんだろう。"},
@@ -283,6 +289,7 @@ func snapshot() -> Dictionary:
 		"coins_total": main.coins_total,
 		"chapter": chapter,
 		"stage2": _stage2_snapshot(),
+		"stage3": _stage3_snapshot(),
 	}
 
 
@@ -296,6 +303,49 @@ func _stage2_snapshot() -> Dictionary:
 		"has_lint": main.has_lint, "lint_present": room.bathtub.lint_present, "lint_taken": room.bathtub.lint_taken,
 		"curtain_digits_seen": room.shower_curtain.digits_seen, "paper_taken": room.paper_taken,
 	}
+
+
+func _stage3_snapshot() -> Dictionary:
+	var room = main.room
+	return {
+		"window_locked": room.apartment.window_locked,
+		"fusuma_open": room.apartment.hall_fusuma.open,
+		"curtain_closed": room.apartment.curtain_closed,
+		"knob_taken": room.knob_taken, "hatch_open": room.hatch_open, "fuse_taken": room.fuse_taken,
+		"breaker_cover": room.exterior.breaker.cover_open, "breaker_fuse": room.exterior.breaker.fuse_in,
+		"power_restored": main.power_restored, "torch_thrown": main.thrown_torch != null and is_instance_valid(main.thrown_torch),
+	}
+
+
+func _stage3_apply(d: Dictionary) -> void:
+	var room = main.room
+	var apt = room.apartment
+	if d.has("window_locked"):
+		apt.window_locked = bool(d.window_locked)
+	apt.hall_fusuma.set_open(bool(d.get("fusuma_open", false)), true)
+	if not bool(d.get("curtain_closed", true)) and apt.curtain_closed:
+		apt.curtain_closed = false
+		apt.curtain.scale.x = 0.18
+	if bool(d.get("knob_taken", false)) and not room.knob_taken:
+		room.take_door_knob()
+	if bool(d.get("hatch_open", false)) and room.risen:
+		room.open_hatch(true)
+	if bool(d.get("fuse_taken", false)) and room.hatch_open:
+		room.take_fuse()
+	room.exterior.breaker.restore(bool(d.get("breaker_cover", false)), bool(d.get("breaker_fuse", false)))
+	main.power_restored = bool(d.get("power_restored", false))
+	if main.power_restored:
+		room.set_power(true, true)
+	elif bool(d.get("torch_thrown", false)):
+		main.restore_thrown_torch()
+	elif room.risen and not apt.curtain_closed:
+		room.set_moonlight(true)
+
+
+func _restore_stage3_models(inv: Array) -> void:
+	for id in ["match_stick", "room_key", "torch", "door_knob", "fuse"]:
+		if inv.has(id):
+			main._give_stage3_model(id)
 
 
 func _restore_stage2_models(inv: Array) -> void:
@@ -425,6 +475,7 @@ func apply(d: Dictionary) -> void:
 			main.inventory.append(String(id))
 		main.items_found[String(id)] = true
 	_restore_stage2_models(inv)
+	_restore_stage3_models(inv)
 	main.select_item(-1)
 	if d.get("door_open", false):
 		main.door_open = true
@@ -446,4 +497,5 @@ func apply(d: Dictionary) -> void:
 	cel._refresh_areas()
 	if c.get("stairs_open", false) and not cel.stairs_open:
 		cel.reveal_stairs()
+	_stage3_apply(d.get("stage3", {}))
 	_loading = false

@@ -11,6 +11,7 @@ extends Node3D
 ## 向かいのマンション：外壁の手前の面が z=-4.4（手すりから約2.3m、窓から約3.1m）。背景だけで入れない。
 
 const MeshKit := preload("res://scripts/mesh_kit.gd")
+const BreakerScript := preload("res://scripts/breaker.gd")
 const TEX_DUCT := preload("res://assets/textures/surfaces/surface_07.png")
 const TEX_FACADE := preload("res://assets/textures/surfaces/surface_10.png")
 const STREET := "res://assets/textures/street/"
@@ -56,6 +57,7 @@ const POLE_POS := Vector3(0.45, 0.0, -2.55)
 var _rng := RandomNumberGenerator.new()
 var facade_dy := 0.0                   # 外壁の出口の穴が、もとの高さからどれだけ上にあるか
 var ladder_down := false               # ボロボロのはしごを、ダクトの出口から下ろした
+var breaker: Node3D                    # ベランダのブレーカー（breaker.gd）。ヒューズを差すと、部屋の電気がつく
 var vending_machine: Node3D            # ベランダの真下の白い自動販売機（真のクリアの場所）
 var _ladder: Node3D
 var _ko_train: Node3D
@@ -412,6 +414,10 @@ func _build_balcony() -> void:
 	MeshKit.sticker(b, 12, 0.16, Vector3(x0, 0.85, -1.55), Vector3.RIGHT, -7.0)
 	MeshKit.sticker(b, 13, 0.16, Vector3(x1, 1.25, -1.6), Vector3.LEFT, 4.0)
 	MeshKit.sticker(b, 14, 0.14, Vector3(2.0, 0.75, z0 + 0.03), Vector3.BACK, -3.0)
+	# ブレーカー（窓の左の外壁）。蓋はねじ止め、中のヒューズは抜けている
+	breaker = BreakerScript.new()
+	breaker.position = Vector3(1.58, 1.38, FACADE_Z - FACADE_T)
+	b.add_child(breaker)
 	# サンダル（窓の右側の前）と小さな植木鉢（左奥の隅）。見た目だけ
 	var sandal := MeshKit.mat("sandal", Color(0.25, 0.32, 0.42), 0.8)
 	for dz in [-0.05, 0.07]:
