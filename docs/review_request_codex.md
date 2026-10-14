@@ -22,7 +22,7 @@ README.md に機能ごとの経緯がある。まず README 末尾の「2026-10 
 7. **UI**（`hud.gd`）：設定を開いたときの他表示の隠し方（`_set_overlays_hidden`）、ノート（N）、クリア画面、メッセージの文字送りと履歴。
 8. **段階2の新規コード**：`sink.gd` / `bathtub.gd` / `towel.gd` / `shower_curtain.gd` の状態遷移（`lid`・`ball`・`soap_soak`・`wet`）、`main.gd` の `use_selected` 分岐、`room.gd` の青い光の切り替え（4回ごと）とちらつき tween、`Label3D` の鏡文字（`scale.x = -1`）の描画が Compatibility で正しいか。
 9. **音**（`sfx.gd`）：手続き生成の `voice` / `rumble` の安全性（クリップ、長さ、再生中の多重）。
-10. **テストの独立性**：テストが `user://settings.cfg`（eye_height）や `save.json` を汚さないか、`.uid` ファイルの扱い（リポジトリに入れない方針）、`ObjectDB leaked` の警告。
+10. **テストの独立性**：テストが `user://settings.cfg`（eye_height）や `save.json` を汚さないか、`.uid` ファイルの扱い（Godot 4.4 以降の推奨に合わせ、リポジトリに入れる方針。tests/*.uid もコミット済み）、`ObjectDB leaked` の警告。
 
 ## 見なくてよいこと
 
