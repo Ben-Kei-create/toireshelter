@@ -627,6 +627,7 @@ func _on_title_start(continue_save: bool) -> void:
 ## 遊びはじめ：視点を掴み、続きがあれば読み込み、最初の一言と操作のヒントを出す。
 func _begin_play() -> void:
 	_title_seen = true
+	_apply_preview()
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	if progress.load_game():
 		hud.show_message("……前に来た、あの部屋だ。続きから。", 4.0, "voice")
@@ -691,6 +692,17 @@ func _process(_delta: float) -> void:
 	if not action.is_empty():
 		parts.append(ACTION_PROMPTS[action])
 	hud.set_prompt("　／　".join(parts))
+
+
+## 開発用：環境変数 TOIRE_PREVIEW=elevator / entrance で、まだ歩いて来られない場所（エレベーターの箱の中・1 階の入口）に立って始める。
+func _apply_preview() -> void:
+	match OS.get_environment("TOIRE_PREVIEW"):
+		"elevator":
+			player.global_position = room.PREVIEW_CAR_POS + Vector3(0.0, 0.05, -0.2)
+			player.rotation.y = 0.0
+		"entrance":
+			player.global_position = room.PREVIEW_ENTRANCE_POS + Vector3(0.0, 0.05, 1.2)
+			player.rotation.y = 0.0
 
 
 ## ウィンドウが選ばれなくなったら自動で一時停止（ゲーム中に別のウィンドウへ移ったとき、勝手に進まないように）

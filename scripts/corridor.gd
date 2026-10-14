@@ -12,6 +12,7 @@ extends Node3D
 ## 見た目だけの背景（街は入れない）。廊下の中は歩ける。外へ落ちないよう、手すりの位置に高い壁の当たり判定がある。
 
 const MeshKit := preload("res://scripts/mesh_kit.gd")
+const ElevatorCar := preload("res://scripts/elevator_car.gd")
 const STREET := "res://assets/textures/street/"
 const TEX_CONCRETE := preload("res://assets/textures/street/ext_material_04.png")
 const TEX_STUCCO := preload("res://assets/textures/street/ext_material_05.png")
@@ -153,7 +154,8 @@ func _build_doors() -> void:
 	# 向かいの部屋の前：ガスのメーターボックス（灰色の扉）
 	MeshKit.box(doors, Vector3(0.12, 0.9, 0.5), Vector3(X1 - 0.06, 1.15, 4.35), MeshKit.mat("meter_box", Color(0.62, 0.64, 0.62), 0.6, 0.3), "MeterBox")
 	# 消火器と、非常口の緑の表示（エレベーターの横）
-	MeshKit.cylinder(doors, 0.08, 0.38, Vector3(X1 - 0.12, 0.55, 5.85), MeshKit.mat("extinguisher", Color(0.75, 0.1, 0.08), 0.4), "Extinguisher", 0.08)
+	MeshKit.box(doors, Vector3(0.28, 0.08, 0.28), Vector3(X1 - 0.16, 0.04, 5.85), MeshKit.mat("extinguisher_stand", Color(0.06, 0.06, 0.07), 0.6), "ExtinguisherStand")   # 写真のとおり、黒い台の上に立てる
+	MeshKit.cylinder(doors, 0.08, 0.38, Vector3(X1 - 0.16, 0.27, 5.85), MeshKit.mat("extinguisher", Color(0.75, 0.1, 0.08), 0.4), "Extinguisher", 0.08)
 	MeshKit.box(doors, Vector3(0.18, 0.5, 0.012), Vector3(X1 - 0.12, 0.5, 5.935), MeshKit.mat("fire_box", Color(0.55, 0.12, 0.1), 0.5), "ExtinguisherSign")
 	var exit_m := MeshKit.mat("exit_green", Color(0.1, 0.7, 0.35), 0.4)
 	exit_m.emission_enabled = true
@@ -172,9 +174,9 @@ func _build_elevator() -> void:
 	var metal := MeshKit.tiled_mat("elevator_metal", TEX_METAL, 0.5, Color(0.85, 0.85, 0.88), 0.35)
 	var frame := MeshKit.mat("elevator_frame", Color(0.28, 0.28, 0.3), 0.4, 0.6)
 	MeshKit.box(el, Vector3(1.3, 2.2, 0.02), Vector3(cx, 1.1, z - 0.01), frame, "Surround")
-	for s in [-1.0, 1.0]:
-		MeshKit.box(el, Vector3(0.57, 2.1, 0.02), Vector3(cx + s * 0.29, 1.05, z - 0.025), metal, "Door")
-	MeshKit.box(el, Vector3(0.01, 2.1, 0.02), Vector3(cx, 1.05, z - 0.03), MeshKit.mat("elevator_gap", Color(0.05, 0.05, 0.06), 1.0), "Gap")
+	# 暗い二枚扉。窓が二つ光る（左は細く低く、右は広く高い。写真のとおり）。箱の中の明かりが、網入りガラスの窓から漏れる
+	var door_m := MeshKit.mat("elevator_door_dark", Color(0.13, 0.14, 0.16), 0.5, 0.3)
+	ElevatorCar.build_doors(el, Vector3(cx, 0.0, z - 0.03), door_m, true, true)
 	# 階数表示（上）：緑の数字
 	var disp := MeshKit.mat("elevator_display", Color(0.05, 0.05, 0.06), 0.4)
 	MeshKit.box(el, Vector3(0.22, 0.14, 0.02), Vector3(cx, 2.38, z - 0.01), disp, "Display")

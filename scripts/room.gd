@@ -26,6 +26,8 @@ const ToiletPanelScript := preload("res://scripts/toilet_panel.gd")
 const ShowerCurtainScript := preload("res://scripts/shower_curtain.gd")
 const FrontDoorScript := preload("res://scripts/front_door.gd")
 const CorridorScript := preload("res://scripts/corridor.gd")
+const ElevatorCarScript := preload("res://scripts/elevator_car.gd")
+const EntranceScript := preload("res://scripts/entrance.gd")
 const SkyClockScript := preload("res://scripts/sky_clock.gd")
 const LightSwitchScript := preload("res://scripts/light_switch.gd")
 const BathDoorControlScript := preload("res://scripts/bath_door_control.gd")
@@ -94,6 +96,8 @@ var bath_light_on := true
 var bath_light_cycles := 0     # 消してからつけ直した回数
 var bath_purple := false
 var _bulb_mat: StandardMaterial3D
+const PREVIEW_CAR_POS := Vector3(0.0, -80.0, 0.0)
+const PREVIEW_ENTRANCE_POS := Vector3(30.0, -80.0, 0.0)
 var corridor: CorridorScript
 var vent_cover: Node3D
 var bath_remote: BathRemoteScript
@@ -157,6 +161,15 @@ func _ready() -> void:
 	corridor = CorridorScript.new()
 	corridor.name = "Corridor"
 	add_child(corridor)
+	# エレベーターの箱の中と、1 階の入口。まだ歩いて来られない（TOIRE_PREVIEW=elevator / entrance で見に行ける）。ほかの場所から遠く離して置く
+	var car := ElevatorCarScript.new()
+	car.name = "ElevatorCar"
+	car.position = PREVIEW_CAR_POS
+	add_child(car)
+	var entrance := EntranceScript.new()
+	entrance.name = "Entrance"
+	entrance.position = PREVIEW_ENTRANCE_POS
+	add_child(entrance)
 	_build_bath_bulb()
 	_build_bathtub()
 	_build_toilet()
