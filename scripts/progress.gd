@@ -24,7 +24,7 @@ const DISCOVERIES := {
 	"driver": "ドライバー", "microwave": "電子レンジ", "calendar": "カレンダー",
 	"inspect_lever": "点検レバー", "vent_stretch": "背伸びで換気口へ", "ladder": "ボロボロのはしご", "lean_out": "手すりから乗り出す", "ko_line": "KO線", "unit_rise": "ゴゴゴ（浴室が上がった）", "wood_stick": "木の棒",
 	"ten_yen": "十円玉", "soap": "固形せっけん", "soap_placed": "せっけんを沈めた", "sink_lid": "洗面台のふた", "soap_dissolved": "せっけんが溶けた", "sinker": "鉛のおもり", "tub_lid": "浴槽のふた", "bath_ball": "入浴剤の玉",
-	"ball_dissolved": "玉が溶けた", "match_stick": "マッチ棒", "room_key": "部屋の鍵", "torch": "松明", "torch_thrown": "松明を捨てた", "window_unlocked": "窓の鍵を開けた", "door_knob": "壊れたドアノブ", "hatch_open": "小さな扉が開いた", "fuse": "ヒューズ", "breaker_open": "ブレーカーの蓋", "power_back": "部屋の電気", "curtain_digits": "カーテンの数字", "lint_washed": "毛だまり", "lint": "毛だまりを拾う", "mirror_paper": "鏡文字のメモ",
+	"ball_dissolved": "玉が溶けた", "match_stick": "マッチ棒", "room_key": "部屋の鍵", "torch": "松明", "torch_thrown": "松明を捨てた", "window_unlocked": "窓の鍵を開けた", "door_knob": "壊れたドアノブ", "hatch_open": "小さな扉が開いた", "fuse": "ヒューズ", "breaker_open": "ブレーカーの蓋", "power_back": "部屋の電気", "chuuren": "九蓮宝燈", "curtain_digits": "カーテンの数字", "lint_washed": "毛だまり", "lint": "毛だまりを拾う", "mirror_paper": "鏡文字のメモ",
 }
 
 ## 幕（章）の名前。いまの幕より先は、行くまで「？？？」と出す。
@@ -313,7 +313,7 @@ func _stage3_snapshot() -> Dictionary:
 		"curtain_closed": room.apartment.curtain_closed,
 		"knob_taken": room.knob_taken, "hatch_open": room.hatch_open, "fuse_taken": room.fuse_taken,
 		"breaker_cover": room.exterior.breaker.cover_open, "breaker_fuse": room.exterior.breaker.fuse_in,
-		"power_restored": main.power_restored, "torch_thrown": main.thrown_torch != null and is_instance_valid(main.thrown_torch),
+		"power_restored": main.power_restored, "cellar_broken": room.cellar_broken, "cellar_cracks": room.cellar_cracks, "torch_thrown": main.thrown_torch != null and is_instance_valid(main.thrown_torch),
 	}
 
 
@@ -333,6 +333,10 @@ func _stage3_apply(d: Dictionary) -> void:
 	if bool(d.get("fuse_taken", false)) and room.hatch_open:
 		room.take_fuse()
 	room.exterior.breaker.restore(bool(d.get("breaker_cover", false)), bool(d.get("breaker_fuse", false)))
+	room.cellar_broken = bool(d.get("cellar_broken", false))
+	room.cellar_cracks = int(d.get("cellar_cracks", 0))
+	if room.wine_cellar:
+		room.wine_cellar.restore(room.cellar_broken, room.cellar_cracks)
 	main.power_restored = bool(d.get("power_restored", false))
 	if main.power_restored:
 		room.set_power(true, true)

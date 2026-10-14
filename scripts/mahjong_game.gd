@@ -105,7 +105,10 @@ func _finish_win() -> void:
 	var c := _counts(all)
 	yaku = ["門前清自摸和"]
 	points = 1000
-	if _is_kokushi(c):
+	if is_chuuren(c):
+		yaku = ["九蓮宝燈"]
+		points = 32000
+	elif _is_kokushi(c):
 		yaku = ["国士無双"]
 		points = 8000
 	elif _is_chiitoi(c):
@@ -173,6 +176,23 @@ static func is_win(c: Array) -> bool:
 			c[k] += 2
 			if ok:
 				return true
+	return false
+
+
+## 九蓮宝燈：1 種類の数牌だけで、1 を 3 枚・9 を 3 枚・2〜8 を 1 枚ずつ、あと 1 枚は何でも（14 枚）。
+static func is_chuuren(c: Array) -> bool:
+	for suit in 3:
+		var total := 0
+		for k in 9:
+			total += int(c[suit * 9 + k])
+		if total != 14:
+			continue
+		if int(c[suit * 9]) < 3 or int(c[suit * 9 + 8]) < 3:
+			return false
+		for k in range(1, 8):
+			if int(c[suit * 9 + k]) < 1:
+				return false
+		return true
 	return false
 
 

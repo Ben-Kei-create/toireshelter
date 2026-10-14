@@ -28,6 +28,8 @@ const FrontDoorScript := preload("res://scripts/front_door.gd")
 const CorridorScript := preload("res://scripts/corridor.gd")
 const ElevatorCarScript := preload("res://scripts/elevator_car.gd")
 const EntranceScript := preload("res://scripts/entrance.gd")
+const FigureStickersScript := preload("res://scripts/figure_stickers.gd")
+const LiquorCellarScript := preload("res://scripts/liquor_cellar.gd")
 const SkyClockScript := preload("res://scripts/sky_clock.gd")
 const LightSwitchScript := preload("res://scripts/light_switch.gd")
 const BathDoorControlScript := preload("res://scripts/bath_door_control.gd")
@@ -118,7 +120,7 @@ const RISE_H := 2.2            # 上がる高さ（m）＝浴室の高さ。扉�
 const RISE_TIME := 8.0
 const BLACKOUT_AMBIENT := 0.01   # 停電のあとの環境光の倍率（真っ暗）
 const UNIT_EXCLUDE := ["WorldEnvironment", "SkyClock", "HallLight", "Apartment", "BathLightSwitch", "Exterior",
-		"FrontDoor", "Corridor", "AmbientSound", "Fishing", "Pedestal", "DoorDebris", "FuseHatch", "DoorwayBlocker", "ElevatorCar", "Entrance", "DoorKnob"]
+		"FrontDoor", "Corridor", "AmbientSound", "Fishing", "Pedestal", "DoorDebris", "FuseHatch", "DoorwayBlocker", "ElevatorCar", "Entrance", "DoorKnob", "LiquorCellar"]
 var risen := false
 var rising := false
 var rise_offset := 0.0         # いまの上昇量（m）。浴室と換気ダクトの座標にこれを足す
@@ -196,6 +198,7 @@ func _ready() -> void:
 	var wear := BathWearScript.new()
 	wear.name = "BathWear"
 	add_child(wear)
+	FigureStickersScript.paste(self)   # 置物の絵のシールを、排水口のまわりなどにペタペタ貼る
 	var ambient := AmbientSoundScript.new()   # 換気扇・しずく・遠くの路地（コードで作った小さな環境音）
 	ambient.name = "AmbientSound"
 	add_child(ambient)
@@ -351,6 +354,7 @@ func _finish_rise() -> void:
 	add_child(blocker)
 	MeshKit.shape_box(blocker, Vector3(DOOR_W + 0.3, 2.4, 0.12), Vector3.ZERO)
 	_build_hatch()
+	_build_wine_cellar()
 	apartment.open_hall_ceiling()      # ホールの天井が抜ける（扉の外を見下ろせる）
 	exterior.set_exit_rise(RISE_H)     # 換気ダクトの出口の穴を、上がった高さへ
 	bath_light.omni_range = 8.0        # 上がった浴室の電球は、遠く下のホールまで、扉から漏れて届く
@@ -373,6 +377,31 @@ func _update_pedestal() -> void:
 	var bm := _pedestal.mesh as BoxMesh
 	bm.size = Vector3(ROOM_W + WALL_T * 2.0 - 0.04, rise_offset + 1.0, ROOM_D + WALL_T * 2.0 - 0.04)
 	_pedestal.position = Vector3(0, (rise_offset - 1.0) * 0.5, 0)
+
+
+## お酒のセラー：せり上がった浴室の下の柱（ホール側の面）に、はめ込まれている。ただの飾り。射的でヒビだけ入り、九蓮宝燈を出すと割れる。
+var wine_cellar: Node3D
+var cellar_broken := false   # 九蓮宝燈で割れた（セラーができる前に出しても、あとで割れた姿で現れる）
+var cellar_cracks := 0
+
+
+func _build_wine_cellar() -> void:
+	wine_cellar = LiquorCellarScript.new()
+	wine_cellar.position = Vector3(-0.9, 0.26, ROOM_D * 0.5 + WALL_T - 0.02)   # 柱の面（左寄り。右には小さな扉）。床につかない高さ
+	add_child(wine_cellar)
+	var lamp := wine_cellar.get_node("LiquorLight") as OmniLight3D
+	_power_energy[lamp] = lamp.light_energy
+	if not power_on:   # せり上がりと同時に停電しているので、できたときから消えている
+		lamp.light_energy = 0.0
+	if cellar_broken or cellar_cracks > 0:
+		wine_cellar.restore(cellar_broken, cellar_cracks)
+
+
+## 九蓮宝燈：セラーのガラスが割れる。まだ柱が現れていなければ、現れたときに割れている。
+func break_wine_cellar() -> void:
+	cellar_broken = true
+	if wine_cellar:
+		wine_cellar.break_glass()
 
 
 ## ホール側の柱の面に、小さな扉（ドアノブの穴だけがある）。ドアノブをつけて（F）開ける。中にヒューズがあり、拾える。入れはしない。
@@ -531,6 +560,7 @@ func set_power(on: bool, instant := false) -> void:
 	if apartment:
 		for pat in ["RoomLight*", "ClosetLight", "InnerLight", "HeaterLight", "TankLight"]:
 			lights.append_array(apartment.find_children(pat, "OmniLight3D", true, false))
+	lights.append_array(find_children("LiquorLight", "OmniLight3D", true, false))   # ホールのお酒のセラーの明かり（room の子）
 	for l in lights:
 		if l == null:
 			continue

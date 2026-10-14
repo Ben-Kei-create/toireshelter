@@ -25,14 +25,14 @@ func _run() -> void:
 	var t = player.get_focused(true)
 	_check(t != null and String(t.get_meta("interact_id", "")) == "fusuma", "押入れの襖を狙える")
 	_check(main._action_for(t) == "closet_enter" and main.ACTION_PROMPTS["closet_enter"] == "E：押し入れに入る", "「E：押し入れに入る」が出る")
-	_check(cl.crane_visible, "はじめは襖が左に寄っていて、左の仕切りはふさがれている")
+	_check(cl.state == "closed", "はじめは、襖が両方しまっている")
 	main.do_action()
 	var guard := 0
 	while not (main.hud.is_hiding() and player.pose == Pose.CLOSET and not cl.busy) and guard < 900:
 		await physics_frame
 		guard += 1
 	_check(player.pose == Pose.CLOSET and main.closet_hiding, "押入れの中に座る")
-	_check(cl.crane_visible and not cl.busy, "中から襖を閉めた（左の仕切りに襖がかぶさる）")
+	_check(cl.state == "closed" and not cl.busy, "中から襖を閉めた（両方しまる）")
 	_check(main.hud.is_hiding(), "真っ暗になる（暗闇の幕と、襖の合わせ目の細い光）")
 	var inside: Vector3 = player.global_position
 	_check(absf(inside.x - (cl.global_position.x - cl.SLIDE_X)) < 0.05 and inside.z < cl.global_position.z + 0.3 and player.camera.position.y < 1.0,
@@ -48,7 +48,8 @@ func _run() -> void:
 		await physics_frame
 		guard += 1
 	_check(player.pose == Pose.WALK and not main.closet_hiding and not main.hud.is_hiding(), "出ると、立って歩ける。暗闇が消える")
-	_check(not cl.crane_visible, "襖は右へ寄せて開けてある（ふとんの仕切りが見える）")
+	await create_timer(2.2).timeout
+	_check(cl.state == "closed" and not cl.busy, "出たあと、襖は両方しまっておく")
 	_check(player.global_position.z > cl.global_position.z + 0.3, "押入れの前に出ている（%s）" % player.global_position)
 	print("CLOSET HIDE TEST: %s (%d failure(s))" % ["PASS" if _failures == 0 else "FAIL", _failures])
 	quit(1 if _failures > 0 else 0)

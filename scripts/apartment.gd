@@ -14,6 +14,7 @@ const Sfx := preload("res://scripts/sfx.gd")
 const BooksScript := preload("res://scripts/books.gd")
 const KotatsuScript := preload("res://scripts/kotatsu.gd")
 const HallFusumaScript := preload("res://scripts/hall_fusuma.gd")
+const FigureArt := preload("res://scripts/figure_art.gd")
 const AirconScript := preload("res://scripts/aircon.gd")
 const FanScript := preload("res://scripts/fan.gd")
 const UfoCatcherScript := preload("res://scripts/ufo_catcher.gd")
@@ -109,6 +110,7 @@ func _ready() -> void:
 	_build_card_case()
 	_build_desk_and_chair()
 	_build_figure_shelves()
+	_build_ornaments()
 	_build_gem()
 	_build_paintings()
 	_build_bed()
@@ -740,6 +742,23 @@ func _build_figure_shelves() -> void:
 		var y := 1.6 + i * 0.4
 		MeshKit.box(root, Vector3(1.4, 0.02, 0.18), Vector3(2.9, y - 0.01, front_z - 0.09), white)
 		_figure_row(root, Vector3(2.3, y, front_z - 0.09), Vector3(0.12, 0, 0), 11, -1.0)
+
+
+## 動かない置物（コルク銃で撃っても、びくともしない）：机の上と、カーテンの前の床。絵は assets/textures/figures（figure_art.gd）。
+func _build_ornaments() -> void:
+	var root := Node3D.new()
+	root.name = "Ornaments"
+	add_child(root)
+	var x0 := ROOM.position.x + 0.14
+	# 机の上（上面 y 0.735）：奥の縁に沿って 6 点
+	var desk_top := 0.735
+	var desk := [[0, 0.17, x0 + 0.11, -0.84], [1, 0.16, x0 + 0.25, -0.85], [2, 0.21, x0 + 0.39, -0.84], [3, 0.15, x0 + 0.13, -0.66], [4, 0.17, x0 + 0.38, -0.56], [5, 0.16, x0 + 0.27, -0.3]]
+	for d in desk:
+		FigureArt.ornament(root, FigureArt.ORNAMENTS[int(d[0])], float(d[1]), Vector3(float(d[2]), desk_top, float(d[3])), _rng.randf_range(-0.6, 0.6))
+	# カーテンの前の床（窓の左右の端）：背の高いものを 3 点
+	var floor_set := [[6, 0.32, 1.95, -1.06], [7, 0.3, 3.3, -1.06], [8, 0.26, 3.55, -0.7]]
+	for f in floor_set:
+		FigureArt.ornament(root, FigureArt.ORNAMENTS[int(f[0])], float(f[1]), Vector3(float(f[2]), 0.0, float(f[3])), _rng.randf_range(-0.5, 0.5))
 
 
 ## 棚のフィギュアをコルク銃で撃ち落とす。node は figures の中のフィギュア。落ちる間は倒れて、下の面（机・寝床・床）に落ち着く。

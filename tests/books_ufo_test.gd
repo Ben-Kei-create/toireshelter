@@ -120,14 +120,20 @@ func _run() -> void:
 		q.collide_with_areas = true
 		var h: Dictionary = space2.intersect_ray(q)
 		return String(h.collider.get_meta("interact_id", "")) if h.has("collider") else "なし"
-	check(closet.crane_visible and aim.call() == "ufo_catcher", "押入れの襖が左に寄っていて、右にクレーンゲームが見える（照準：%s）" % aim.call())
-	check(main.PROMPTS.has(closet.get_prompt("fusuma")), "襖の案内がある")
+	check(closet.state == "closed" and aim.call() == "fusuma_r", "はじめは襖が両方しまっていて、右にはクレーンゲームでなく襖が見える（照準：%s）" % aim.call())
+	check(main.PROMPTS.has(closet.get_prompt("fusuma")) and main.PROMPTS.has(closet.get_prompt("fusuma_r")), "襖の案内がある")
+	closet.interact("fusuma_r")
+	await create_timer(1.0).timeout
+	check(closet.crane_visible and aim.call() == "ufo_catcher", "右の襖を開けると、クレーンゲームが見える（照準：%s）" % aim.call())
+	closet.interact("fusuma")   # 寄せた襖の山をクリック → 閉める
+	await create_timer(1.0).timeout
+	check(closet.state == "closed" and aim.call() == "fusuma_r", "もう一度クリックすると、両方しまる（照準：%s）" % aim.call())
 	closet.interact("fusuma")
 	await create_timer(1.0).timeout
-	check(not closet.crane_visible and aim.call() == "fusuma", "襖を右へ寄せると、クレーンゲームは襖に隠れる（照準：%s）" % aim.call())
-	closet.interact("fusuma")
+	check(closet.futon_visible and not closet.crane_visible and aim.call() == "fusuma_r", "左の襖を開けると、ふとんの仕切りが開き、クレーンゲームは襖に隠れたまま（照準：%s）" % aim.call())
+	closet.interact("fusuma_r")
 	await create_timer(1.0).timeout
-	check(closet.crane_visible and aim.call() == "ufo_catcher", "もう一度寄せると、また見える")
+	check(closet.state == "closed", "閉めると、また両方しまる")
 	check(apt.ufo_catcher == closet.ufo and closet.get_node("UfoCatcher").global_position.x > 4.9, "クレーンゲームは押入れの中（x %.2f）にある" % closet.get_node("UfoCatcher").global_position.x)
 	check(main.inventory.is_empty(), "景品は持ち物にならない（取得なし）")
 	print("BOOKS UFO TEST: %s (%d failure(s))" % ["PASS" if failures == 0 else "FAIL", failures])

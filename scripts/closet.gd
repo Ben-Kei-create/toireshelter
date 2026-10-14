@@ -20,7 +20,16 @@ const H := 2.0
 const FLOOR_T := 0.05
 const SLIDE_X := 0.375   # 襖の中心（左 -0.375、右 +0.375）
 
-var crane_visible := true   # 襖が左に寄っていて、右半分（クレーンゲーム）が見える
+## 襖は 2 枚。左の襖（手前のレール）は左の仕切り（ふとん）を、右の襖（奥のレール）は右の仕切り（クレーンゲーム）をふさぐ。
+## はじめは両方しまっている（closed）。左の襖をクリックすると、手前へ右へ寄って、ふとんの仕切りが開く（futon）。
+## 右の襖をクリックすると、奥を左へ寄って、クレーンゲームの仕切りが開く（crane）。開けた側を、もう一度クリックすると、両方しまる。
+var state := "closed"
+var crane_visible: bool:   # 右の仕切り（クレーンゲーム）が開いている
+	get:
+		return state == "crane"
+var futon_visible: bool:   # 左の仕切り（ふとん）が開いている
+	get:
+		return state == "futon"
 var busy := false
 var ufo: Node3D
 var mahjong_box: Node3D
@@ -91,7 +100,7 @@ func _ready() -> void:
 		var p := Node3D.new()
 		p.name = "Fusuma%d" % (k + 1)
 		var zz2: float = D * 0.5 - 0.006 - 0.0125 if k == 0 else D * 0.5 - 0.034 - 0.0125
-		p.position = Vector3(-SLIDE_X, FLOOR_T + 0.985, zz2)
+		p.position = Vector3(-SLIDE_X if k == 0 else SLIDE_X, FLOOR_T + 0.985, zz2)
 		add_child(p)
 		MeshKit.box(p, Vector3(0.76, 1.95, 0.02), Vector3.ZERO, fcream, "Panel")
 		for dx in [-0.375, 0.375]:
@@ -102,15 +111,10 @@ func _ready() -> void:
 		# 上下に薄い水色の波の飾り
 		MeshKit.box(p, Vector3(0.6, 0.12, 0.004), Vector3(0, -0.6, 0.011), deco, "Deco")
 		_panels.append(p)
-	# 襖の調べる判定（襖が寄っていない側を除く、襖が出ている側の半分）。体の判定は前面の透明な板
-	_area = MeshKit.interact_area(self, "FusumaArea", "fusuma", self)
-	var cs := CollisionShape3D.new()
-	var box := BoxShape3D.new()
-	box.size = Vector3(0.76, 1.95, 0.08)
-	cs.shape = box
-	_area.add_child(cs)
-	_area_cs = cs
-	_place_area()
+	# 襖の調べる判定：左の襖（id fusuma）と右の襖（id fusuma_r）。開けた側は、寄せた襖の山が反対側に出るので、そちらが「閉める」判定になる
+	_area_l = _make_fusuma_area("FusumaArea", "fusuma")
+	_area_r = _make_fusuma_area("FusumaAreaR", "fusuma_r")
+	_place_areas()
 	var blocker := StaticBody3D.new()
 	blocker.name = "BodyBlocker"
 	blocker.collision_layer = MeshKit.LAYER_BODY_ONLY
@@ -120,40 +124,63 @@ func _ready() -> void:
 	MeshKit.auto_round = true
 
 
-var _area_cs: CollisionShape3D
+var _area_l: Area3D
+var _area_r: Area3D
 
 
-func _place_area() -> void:
-	# 襖が出ている側：クレーンゲームが見えている（襖が左）なら左半分、ふとんが見えている（襖が右）なら右半分
-	_area_cs.position = Vector3(-SLIDE_X if crane_visible else SLIDE_X, FLOOR_T + 0.985, D * 0.5 - 0.02)
+func _make_fusuma_area(node_name: String, id: String) -> Area3D:
+	var a := MeshKit.interact_area(self, node_name, id, self)
+	var cs := CollisionShape3D.new()
+	cs.name = "Shape"
+	var box := BoxShape3D.new()
+	box.size = Vector3(0.76, 1.95, 0.08)
+	cs.shape = box
+	a.add_child(cs)
+	return a
 
 
-func get_prompt(_id: String) -> String:
+## 判定を、いまの襖の位置に合わせる。左の判定は、左の仕切りが閉まっているか、襖の山が左にあるとき。右の判定は、右の仕切りが閉まっているか、襖の山が右にあるとき。
+func _place_areas() -> void:
+	var y := FLOOR_T + 0.985
+	var z := D * 0.5 - 0.02
+	(_area_l.get_node("Shape") as CollisionShape3D).position = Vector3(-SLIDE_X, y, z)
+	(_area_r.get_node("Shape") as CollisionShape3D).position = Vector3(SLIDE_X, y, z)
+	_area_l.collision_layer = MeshKit.LAYER_INTERACT if state != "futon" else 0
+	_area_r.collision_layer = MeshKit.LAYER_INTERACT if state != "crane" else 0
+
+
+func get_prompt(id: String) -> String:
 	if busy:
 		return ""
-	return "fusuma_right" if crane_visible else "fusuma_left"
+	if state == "closed":
+		return "fusuma_open_l" if id == "fusuma" else "fusuma_open_r"
+	return "fusuma_close"
 
 
-func interact(_id: String) -> String:
+func interact(id: String) -> String:
 	if busy:
 		return ""
-	slide_to(not crane_visible)
+	if state == "closed":
+		set_state("futon" if id == "fusuma" else "crane")
+	else:
+		set_state("closed")
 	return ""
 
 
-## 襖を寄せる。crane_on_view が true なら左へ寄せる（クレーンゲームが見える・左の仕切りは襖に隠れる）、false なら右へ寄せる（ふとんの仕切りが見える）。
-func slide_to(crane_on_view: bool, seconds := 0.8) -> Tween:
+## 襖の状態を変える。closed：両方しまる／futon：左の襖が右へ寄って、ふとんの仕切りが開く／crane：右の襖が左へ寄って、クレーンゲームの仕切りが開く。
+func set_state(new_state: String, seconds := 0.8) -> Tween:
 	busy = true
-	crane_visible = crane_on_view
+	state = new_state
 	Sfx.play("slide")
 	var tw := create_tween()
 	tw.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-	var target_x := -SLIDE_X if crane_visible else SLIDE_X
-	for i in _panels.size():
-		tw.parallel().tween_property(_panels[i], "position:x", target_x + (0.02 * i), seconds)
+	var x0 := SLIDE_X if new_state == "futon" else -SLIDE_X   # 左の襖
+	var x1 := -SLIDE_X if new_state == "crane" else SLIDE_X   # 右の襖
+	tw.parallel().tween_property(_panels[0], "position:x", x0, seconds)
+	tw.parallel().tween_property(_panels[1], "position:x", x1, seconds)
 	tw.tween_callback(func() -> void:
 		busy = false
-		_place_area())
+		_place_areas())
 	return tw
 
 

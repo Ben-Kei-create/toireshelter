@@ -331,8 +331,9 @@ const PROMPTS := {
 	"stove_clear_prompt": "左クリック：こげた卵を捨てる",
 	"front_door_open": "左クリック：玄関のドアを開ける",
 	"bath_door_open": "左クリック：トイレのドアを開ける",
-	"fusuma_right": "左クリック：襖を右へ寄せる（ふとんを見る）",
-	"fusuma_left": "左クリック：襖を左へ寄せる（つかみどりを見る）",
+	"fusuma_open_l": "左クリック：左の襖を開ける（ふとんを見る）",
+	"fusuma_open_r": "左クリック：右の襖を開ける（つかみどりを見る）",
+	"fusuma_close": "左クリック：襖を閉める",
 	"bath_door_close": "左クリック：トイレのドアを閉める",
 	"book_read": "左クリック：本を読む",
 	"bath_light_off": "左クリック：トイレの電気を消す",
@@ -462,6 +463,18 @@ const POWER_DEAD := {
 	"intercom": "インターホンは、真っ暗だ。",
 	"kotatsu": "こたつがある。電気がないと、暖かくない。",
 	"bed": "ふとんがある。……いま眠っている場合ではない。",
+}
+## ホールのお酒のセラーの説明（調べる）と、動かない置物の説明。
+const LIQUOR := {
+	"liquor_cellar": "透明な扉のお酒のセラー。変なラベルの瓶と缶が、六本。冷えている。……ぜんぶ、飲む気にはなれない。",
+	"liquor_1": "『終電の抜け殻』（缶）。夜空に浮かぶ電車の絵。乗り過ごしたあとの、静けさの味がするらしい。",
+	"liquor_2": "『配管ブルース』（缶）。むき出しの管と、サックスを吹く影。蛇口をひねると、ジャズが流れそうだ。",
+	"liquor_3": "『冷蔵庫の満月』（瓶）。満月の前に、小さな冷蔵庫。……中身も、ずいぶん冷えている。",
+	"liquor_4": "『午前零時の蛇口』（瓶）。蛇口から、星がこぼれている。零時ちょうどに開ける酒らしい。",
+	"liquor_5": "『留守番酒』（瓶）。崖の上の家に、ひとつだけ灯った窓。待っている間に飲むやつ。",
+	"liquor_6": "『石の寝言』（瓶）。眠る石の絵。……ときどき、中で寝返りを打つ音がする。",
+	"ornament": "手の込んだ置物。コルク銃で撃っても、びくともしなさそうだ。",
+	"broken": "お酒は20歳になってから。",
 }
 const VENDING_REACH := 1.49            # 自動販売機の最上段のボタンに届く目の高さ（150 cm）。最後の関門が身長
 const RIDE_STOPS := [4, 3, 2, 1]
@@ -946,6 +959,14 @@ func _fire(target: Object) -> void:
 		if room.apartment.knock_figure(fig):
 			hud.show_message("命中！ フィギュアが棚から落ちた！（%d 個目）" % room.apartment.figures_down)
 		return
+	if tid == "liquor_cellar" or tid.begins_with("liquor_"):
+		if room.cellar_broken:
+			hud.show_message("パンッ！ ……ガラスは、もう割れている。" + LIQUOR["broken"])
+		else:
+			var n: int = room.wine_cellar.add_crack(player.ray.get_collision_point() if player.ray.is_colliding() else target.global_position)
+			room.cellar_cracks = room.wine_cellar.cracks
+			hud.show_message("パンッ！ ガラスに、ヒビが入った。……割れはしない。" if n <= 1 else "パンッ！ ヒビが増えた。でも、割れる気配はない。")
+		return
 	hud.show_message("パンッ！ コルクが飛んでいって、はね返った。")
 
 
@@ -1114,6 +1135,7 @@ func _start_mahjong() -> void:
 	SfxScript.play("click")
 	hud.show_message(MESSAGES["mj_start"], 3.0)
 	_refresh_mahjong()
+	_check_chuuren()
 
 
 func _stop_mahjong() -> void:
@@ -1163,6 +1185,7 @@ func _mahjong_input(event: InputEvent) -> void:
 		mj_cursor = 13 if mahjong.state == "playing" else 0
 		if mahjong.state == "won":
 			SfxScript.play("pop")
+		_check_chuuren()
 
 
 # ---------------------------------------------------------------- 本を読む
@@ -1234,7 +1257,7 @@ func _action_for(target: Object) -> String:
 		return "lean_out"
 	if id == "kotatsu" and player.pose == PlayerScript.Pose.WALK:
 		return "kotatsu_sit"
-	if id == "fusuma" and player.pose == PlayerScript.Pose.WALK:
+	if (id == "fusuma" or id == "fusuma_r") and player.pose == PlayerScript.Pose.WALK:
 		return "closet_enter"
 	if id == "bed" and player.pose == PlayerScript.Pose.WALK:
 		return "sleep"
@@ -1489,6 +1512,11 @@ func _on_interact_requested(target: Object) -> void:
 			hud.show_message(MESSAGES[id])
 		"phone_black":
 			_phone_dial()
+		"liquor_cellar", "liquor_1", "liquor_2", "liquor_3", "liquor_4", "liquor_5", "liquor_6":
+			# 割れたあとは、何を調べても同じ（ガラスは割れても、お酒は飲めない）
+			hud.show_message(LIQUOR["broken"] if room.cellar_broken else LIQUOR[id])
+		"ornament":
+			hud.show_message(LIQUOR[id])
 		"door_knob":
 			if inventory.has("door_knob") or room.knob_taken:
 				return
@@ -2340,19 +2368,29 @@ func _on_fuse_inserted() -> void:
 		hud.show_message(STAGE3["torch_out"], 4.0)
 
 
-## 押入れの左の仕切りに入って、襖を閉じ、真っ暗な中に閉じこもる。
+## 九蓮宝燈を出したら、ホールのお酒のセラーのガラスが割れる。割れても、出るのは「お酒は20歳になってから。」だけ（謎解きには関わらない）。
+func _check_chuuren() -> void:
+	if mahjong == null or mahjong.state != "won" or not mahjong.yaku.has("九蓮宝燈") or room.cellar_broken:
+		return
+	room.break_wine_cellar()
+	progress.discover("chuuren")
+	await get_tree().create_timer(1.2).timeout
+	hud.show_message(LIQUOR["broken"], 6.0)
+
+
+## 押入れの左の仕切りに入って、襖を閉じ、真っ暗な中に閉じこもる。出たあとは、襖は両方しまっておく。
 func _enter_closet() -> void:
 	var cl = room.apartment.closet
 	if cl.busy or closet_hiding:
 		return
 	closet_hiding = true
 	SfxScript.play("rustle")
-	if cl.crane_visible:   # 襖が左の仕切りをふさいでいるので、先に右へ寄せる
-		await cl.slide_to(false).finished
+	if cl.state != "futon":   # 左の仕切りをふさいでいる襖を、先に右へ寄せる
+		await cl.set_state("futon").finished
 	var feet: Vector3 = cl.global_position + Vector3(-cl.SLIDE_X, cl.FLOOR_T, 0.12)
 	player.move_to(PlayerScript.Pose.CLOSET, feet, PI, CLOSET_EYE)
 	await get_tree().create_timer(0.7).timeout
-	await cl.slide_to(true).finished   # 中から襖を閉める
+	await cl.set_state("closed").finished   # 中から襖を閉める
 	hud.set_hiding(true)
 	AudioSettingsScript.set_space(0.03, 900.0)
 	progress.discover("closet_hide")
@@ -2368,14 +2406,17 @@ func _exit_closet() -> void:
 		return
 	hud.set_hiding(false)
 	SfxScript.play("rustle")
-	await cl.slide_to(false).finished
+	await cl.set_state("futon").finished
 	var exits := [cl.global_position + Vector3(-cl.SLIDE_X, 0.0, 0.9), cl.global_position + Vector3(-0.9, 0.0, 0.85), cl.global_position + Vector3(0.1, 0.0, 0.95), cl.global_position + Vector3(0.6, 0.0, 1.0)]   # 押入れの前の透明な板（体だけを止める）から、体の半径ぶん離れた所
 	if player.leave_fixed(exits):
 		closet_hiding = false
 		_space_key = ""
+		await get_tree().create_timer(0.9).timeout
+		if not closet_hiding and cl.state == "futon" and not cl.busy:
+			cl.set_state("closed")   # 出たら、襖は両方しまっておく
 	else:
 		hud.set_hiding(true)
-		await cl.slide_to(true).finished
+		await cl.set_state("closed").finished
 		hud.show_message(MESSAGES["no_way_out"])
 
 
