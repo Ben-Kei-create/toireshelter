@@ -56,6 +56,7 @@ var plug_in := false      # 排水口が塞がれているか（lid が none の
 ## 入浴剤の玉：""（なし）／"sunk"（底に沈んでいる。水だと溶けない）／"gone"（お湯で溶けた＝ドライバーが現れた）
 var ball := ""
 var ball_melt := 0.0
+var ball_landed := false   # 粉の演出が終わって、玉が底に着いた（演出中に保存しても玉が消えないよう、玉の状態は演出の開始時に決める）
 var driver_taken := false
 var lint_taken := false
 var lint_present := false
@@ -81,6 +82,8 @@ var _ball: Node3D
 var _ball_mat: StandardMaterial3D
 var _driver_prop: Node3D
 var _lint: Node3D
+var _driver_area: Area3D
+var _lint_area: Area3D
 
 
 func _ready() -> void:
@@ -110,6 +113,97 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	advance(delta)
+	if shower_held:
+		_update_held_shower(delta)
+
+
+# ---------------------------------------------------------------- 手に持ったシャワー
+
+const SPRAY_SPEED := 3.2     # 水の初速（m/s）。重力で曲がって落ちる
+const SPRAY_STEP := 0.05     # 水の粒の時間間隔（秒）
+const SPRAY_COUNT := 18
+
+var shower_held := false
+var shower_cam: Camera3D
+var curtain: Node3D          # 閉じたカーテンに当たったか調べる相手（shower_curtain.gd）
+var _shower_home := Transform3D.IDENTITY
+var _spray: Array[MeshInstance3D] = []
+
+
+## シャワーを手に取る。向けた先（視点の向き）へ水が飛び、重力で弧を描く。
+func hold_shower(cam: Camera3D) -> void:
+	if shower_held:
+		return
+	shower_held = true
+	shower_cam = cam
+	_shower_home = shower.transform
+	shower.held = true
+	(shower.get_node("ShowerArea") as Area3D).collision_layer = 0   # 持っている間は照準をさえぎらない
+	shower.set_on(true)
+	if _spray.is_empty():
+		for i in SPRAY_COUNT:
+			var d := MeshKit.sphere(self, 0.012, Vector3.ZERO, shower._stream_mat)
+			d.top_level = true
+			d.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			d.visible = false
+			_spray.append(d)
+
+
+func release_shower() -> void:
+	if not shower_held:
+		return
+	shower_held = false
+	shower.held = false
+	(shower.get_node("ShowerArea") as Area3D).collision_layer = MeshKit.LAYER_INTERACT
+	shower.transform = _shower_home
+	shower.set_on(false)
+	for d in _spray:
+		d.visible = false
+
+
+func _update_held_shower(delta: float) -> void:
+	if shower_cam == null or not is_instance_valid(shower_cam):
+		release_shower()
+		return
+	var cb := shower_cam.global_basis
+	var origin := shower_cam.global_position + cb * Vector3(0.12, -0.15, -0.12)
+	shower.global_transform = Transform3D(cb * Basis(Vector3.RIGHT, PI * 0.5), origin)
+	var fwd := -cb.z
+	var v := fwd * SPRAY_SPEED
+	var prev := origin
+	var ended := false
+	var hit_curtain := false
+	var floor_y := to_global(Vector3(0.0, water_y() if level > 0.0005 else BOTTOM_Y, 0.0)).y
+	for i in SPRAY_COUNT:
+		var t := (i + 1) * SPRAY_STEP
+		var p := origin + v * t + Vector3(0.0, -0.5 * 9.8 * t * t, 0.0)
+		if not ended:
+			if curtain != null and curtain.closed:
+				var a: Vector3 = curtain.to_local(prev)
+				var b: Vector3 = curtain.to_local(p)
+				var cz: float = curtain.Z
+				if (a.z - cz) * (b.z - cz) <= 0.0 and a.z != b.z:
+					var k := (cz - a.z) / (b.z - a.z)
+					var h := a.lerp(b, k)
+					if h.x >= curtain.X_RANGE.x and h.x <= curtain.X_RANGE.y and h.y >= curtain.BOTTOM_Y and h.y <= curtain.RAIL_Y:
+						hit_curtain = true
+						ended = true
+						p = curtain.to_global(h)
+			if not ended and p.y <= floor_y:
+				ended = true
+				p.y = floor_y
+		_spray[i].visible = true
+		_spray[i].global_position = p
+		_spray[i].scale = Vector3.ONE * (0.8 if ended else 1.0)
+		if ended and i > 0 and _spray[i - 1].global_position.is_equal_approx(p):
+			_spray[i].visible = false
+		prev = p
+		if ended:
+			for j in range(i + 1, SPRAY_COUNT):
+				_spray[j].visible = false
+			break
+	if hit_curtain and curtain.has_method("wet_hit"):
+		curtain.wet_hit(delta)
 
 
 ## 給水しているか（手の蛇口とふろ自動のどちらか）。
@@ -132,7 +226,7 @@ func advance(delta: float) -> void:
 	level = clampf(level + inflow - outflow, 0.0, 1.0)
 	if lid == "coin" and plug_in:
 		level = minf(level, COIN_CAP)   # 十円玉が浮いて、水が逃げる
-	if ball == "sunk" and level >= MIN_POWDER_LEVEL and (auto_filling or reheating):
+	if ball == "sunk" and ball_landed and level >= MIN_POWDER_LEVEL and (auto_filling or reheating):
 		ball_melt = minf(BALL_DISSOLVE, ball_melt + delta)   # お湯が回っている間だけ溶ける
 		_update_ball()
 		if ball_melt >= BALL_DISSOLVE:
@@ -266,6 +360,7 @@ func add_powder(from: Vector3) -> String:
 	if level < MIN_POWDER_LEVEL:
 		return "low"
 	powder_busy = true
+	reserve_ball()
 	# 粉を入れる簡単な演出：小さな粒が水面へ落ちる（容器は投げ込まない）
 	var target_y := water_y()
 	var grains := Node3D.new()
@@ -307,6 +402,13 @@ func put_lid(with_sinker: bool) -> String:
 	return "already"
 
 
+func take_coin_lid() -> void:
+	if lid == "coin":
+		lid = "none"
+		plug_in = false
+		_refresh_lid()
+
+
 func _refresh_lid() -> void:
 	_plug.visible = lid != "none"
 	_lid_sinker.visible = lid == "full"
@@ -316,7 +418,7 @@ func _refresh_lid() -> void:
 func _update_ball() -> void:
 	if _ball == null:
 		return
-	_ball.visible = ball == "sunk"
+	_ball.visible = ball == "sunk" and ball_landed
 	var k := 1.0 - ball_melt / BALL_DISSOLVE * 0.8
 	_ball.scale = Vector3.ONE * k
 	_ball_mat.albedo_color = Color(0.9, 0.7, 0.3).lerp(Color(0.75, 0.45, 0.3), clampf(ball_melt / BALL_DISSOLVE, 0.0, 1.0)) if powder > 0.0 else Color(0.9, 0.7, 0.3)
@@ -326,33 +428,49 @@ func _ball_gone() -> void:
 	ball = "gone"
 	_ball.visible = false
 	_driver_prop.visible = not driver_taken
+	_set_area(_driver_area, not driver_taken)
 	ball_dissolved.emit()
 
 
 func take_driver() -> void:
 	driver_taken = true
 	_driver_prop.visible = false
+	_set_area(_driver_area, false)
 
 
-## 玉が底に沈む（入浴剤を入れたとき）。
-func sink_ball() -> void:
+## 入浴剤を入れた瞬間に、玉の状態を決める（まだ見えない）。
+func reserve_ball() -> void:
 	if ball == "":
 		ball = "sunk"
 		ball_melt = 0.0
+		ball_landed = false
+
+
+## 粉が水面に着いたあと、玉が底に見えるようになる。
+func sink_ball() -> void:
+	if ball == "sunk" and not ball_landed:
+		ball_landed = true
 		_update_ball()
 		ball_sunk.emit()
+
+
+func _set_area(a: Area3D, on: bool) -> void:
+	if a:
+		a.collision_layer = MeshKit.LAYER_INTERACT if on else 0
 
 
 ## 毛だまりが取れて排水口の近くに残る。
 func drop_lint() -> void:
 	lint_present = not lint_taken
 	_lint.visible = lint_present
+	_set_area(_lint_area, lint_present)
 
 
 func take_lint() -> void:
 	lint_taken = true
 	lint_present = false
 	_lint.visible = false
+	_set_area(_lint_area, false)
 
 
 ## セーブから戻す。
@@ -366,8 +484,12 @@ func restore(p_lid: String, p_plug_in: bool, p_ball: String, p_melt: float, p_dr
 	lint_present = p_lint_present
 	_refresh_lid()
 	_update_ball()
+	ball_landed = ball == "sunk" or ball == "gone"
+	_update_ball()
 	_driver_prop.visible = ball == "gone" and not driver_taken
+	_set_area(_driver_area, _driver_prop.visible)
 	_lint.visible = lint_present
+	_set_area(_lint_area, lint_present)
 
 
 func set_plug(inserted: bool) -> void:
@@ -519,8 +641,9 @@ func _build_props() -> void:
 	h.rotation.z = deg_to_rad(90.0)
 	var sh := MeshKit.cylinder(vis, 0.003, 0.11, Vector3(0.055, 0, 0), MeshKit.mat("metal", Color(0.75, 0.75, 0.78), 0.25, 0.8))
 	sh.rotation.z = deg_to_rad(90.0)
-	var darea := MeshKit.interact_area(_driver_prop, "Pickup", "tub_driver")
-	MeshKit.shape_box(darea, Vector3(0.28, 0.1, 0.14), Vector3(0, 0.02, 0))
+	_driver_area = MeshKit.interact_area(_driver_prop, "Pickup", "tub_driver")
+	MeshKit.shape_box(_driver_area, Vector3(0.28, 0.1, 0.14), Vector3(0, 0.02, 0))
+	_set_area(_driver_area, false)
 	_lint = Node3D.new()
 	_lint.name = "Lint"
 	_lint.position = DRAIN_POS + Vector3(-0.1, 0.012, 0.12)
@@ -529,8 +652,9 @@ func _build_props() -> void:
 	var lm := MeshKit.mat("lint", Color(0.55, 0.52, 0.5), 0.95)
 	for off in [Vector3.ZERO, Vector3(0.015, -0.003, 0.01), Vector3(-0.012, -0.004, 0.012)]:
 		MeshKit.sphere(_lint, 0.014, off, lm)
-	var larea := MeshKit.interact_area(_lint, "Pickup", "tub_lint")
-	MeshKit.shape_box(larea, Vector3(0.1, 0.06, 0.1), Vector3.ZERO)
+	_lint_area = MeshKit.interact_area(_lint, "Pickup", "tub_lint")
+	MeshKit.shape_box(_lint_area, Vector3(0.1, 0.06, 0.1), Vector3.ZERO)
+	_set_area(_lint_area, false)
 
 
 func _build_faucet() -> void:
@@ -567,6 +691,8 @@ func interact(id: String) -> String:
 		"bath_plug":
 			if lid == "none":
 				return "tub_no_plug"
+			if lid == "coin":
+				return "tub_take_coin"   # 十円玉だけのふたは、取り戻せる（洗面台で使う前に置いてしまっても詰まない）
 			set_plug(not plug_in)
 			return ""
 		_:

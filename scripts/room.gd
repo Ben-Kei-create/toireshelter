@@ -167,7 +167,7 @@ func _ready() -> void:
 	shower_curtain = ShowerCurtainScript.new()
 	shower_curtain.name = "ShowerCurtain"
 	add_child(shower_curtain)
-	shower_curtain.shower = bathtub.shower
+	bathtub.curtain = shower_curtain
 	_build_towel()
 	_build_bath_powder()
 	# トイレまわりの生活用品（ペーパーホルダー・棚の予備ロールと洗剤・ラバーカップとブラシ・点検シール）
