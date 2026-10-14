@@ -10,7 +10,7 @@ extends Node
 
 const AudioSettings := preload("res://scripts/audio_settings.gd")
 const MIX := 22050
-const NAMES := ["click", "thunk", "creak", "cloth", "slide", "beep", "rustle", "page", "pop", "step", "chime", "buzz", "clunk", "flush", "strum", "ring", "tick", "crack", "sizzle", "ignite", "static", "plop", "intercom", "shot", "voice"]
+const NAMES := ["click", "thunk", "creak", "cloth", "slide", "beep", "rustle", "page", "pop", "step", "chime", "buzz", "clunk", "flush", "strum", "ring", "tick", "crack", "sizzle", "ignite", "static", "plop", "intercom", "shot", "voice", "rumble"]
 const MASTER_DB := -10.0
 ## 名前 → 音声ファイル（assets/audio/sfx/ 内）。[ファイル名, 最大の長さ（秒。0 なら全部）]。載っていない名前は、コードで作った波形のまま。
 ## 足音（歩く 3 種）と時計の針は長いループ素材なので、一回きりの音には使わず、合成のまま。
@@ -377,6 +377,25 @@ func _make_voice() -> PackedFloat32Array:
 	for i in s.size():
 		var t := float(i) / MIX
 		s[i] *= clampf((2.2 - t) / 0.4, 0.0, 1.0)
+	return s
+
+
+## ゴゴゴ：浴室がせり上がる低い地鳴り（8.5 秒）。だんだん大きくなり、7 割あたりで頂点（ドアが壊れる）、そのあとゆっくり静まる。
+func _make_rumble() -> PackedFloat32Array:
+	var s := _buf(8.5)
+	var nz := _noise(s.size(), 0.012)
+	var nz2 := _noise(s.size(), 0.05)
+	for i in s.size():
+		var t := float(i) / MIX
+		var u := t / 8.5
+		var env := smoothstep(0.0, 0.7, u) * (1.0 - smoothstep(0.82, 1.0, u))
+		var trem := 0.75 + 0.25 * sin(TAU * 7.0 * t)
+		var tone := 0.5 * sin(TAU * (34.0 + 10.0 * u) * t) + 0.25 * sin(TAU * (68.0 + 18.0 * u) * t)
+		s[i] = env * trem * (tone + 5.0 * nz[i] + 2.0 * nz2[i]) * 0.55
+		# 7 割あたりの「バキッ」
+		var tc := t - 5.9
+		if tc > 0.0 and tc < 0.5:
+			s[i] += 0.7 * exp(-tc * 9.0) * _rng.randf_range(-1.0, 1.0)
 	return s
 
 

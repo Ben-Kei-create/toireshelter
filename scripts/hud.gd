@@ -744,22 +744,6 @@ func _make_menu(menu_name: String, title: String) -> Control:
 
 ## 設定画面の中身：操作説明と、身長（立っているときの目の高さ）のスライダー。
 func _build_settings(menu: Control) -> void:
-	# 主人公の肖像（設定画面の左）：ユーザーのキャラクター画を切り抜いたもの
-	var portrait := TextureRect.new()
-	portrait.name = "Portrait"
-	portrait.texture = load("res://assets/textures/character/body_three_quarter.png")
-	portrait.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	portrait.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	menu.add_child(portrait)
-	portrait.anchor_left = 0.0
-	portrait.anchor_right = 0.0
-	portrait.anchor_top = 0.5
-	portrait.anchor_bottom = 0.5
-	portrait.offset_left = 24.0
-	portrait.offset_right = 250.0
-	portrait.offset_top = -250.0
-	portrait.offset_bottom = 250.0
 	var outer := menu.get_node("Center/Box") as VBoxContainer
 	# 設定の項目が増えても、ボタンが画面の外へ出ないよう、項目はスクロールできる箱に入れる（高さは画面に合わせる）
 	_settings_scroll = ScrollContainer.new()

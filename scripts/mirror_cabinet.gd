@@ -42,6 +42,9 @@ var busy := false
 var door_pivot: Node3D
 var reflection: MeshInstance3D   # 鏡に映る主人公の顔（見る角度で向きが変わる）
 var reflection_view := ""
+var lever: Node3D                # 点検レバーの台
+var lever_arm: Node3D            # 引くと倒れる腕
+var lever_pulled := false
 var _door_w := 0.0
 var _door_h := 0.0
 
@@ -163,6 +166,15 @@ func _build_items() -> void:
 		MeshKit.cylinder(swabs, 0.0025, 0.075, off + Vector3(0, 0.04, 0), stick, "", -1.0, 6)
 		MeshKit.sphere(swabs, 0.005, off + Vector3(0, 0.0785, 0), stick)
 	_label(swabs, "bath_label_03", 0.0305, 0.0305, 0.05, 0.03)
+	# 中の段の奥：点検レバー（赤い握り）。引くと、浴室ごと上がる（main.gd → room.rise_unit）。上がったあとは固まって動かない
+	lever = _item(items, "InspectLever", "inspect_lever", Vector3(x, SHELF_YS[0], -0.04), Vector3(0.07, 0.11, 0.07))
+	MeshKit.box(lever, Vector3(0.05, 0.012, 0.05), Vector3(0, 0.006, 0), MeshKit.mat("lever_plate", Color(0.32, 0.32, 0.34), 0.5, 0.5), "Plate")
+	lever_arm = Node3D.new()
+	lever_arm.name = "Arm"
+	lever_arm.position = Vector3(0, 0.014, 0)
+	lever.add_child(lever_arm)
+	MeshKit.cylinder(lever_arm, 0.004, 0.06, Vector3(0, 0.03, 0), MeshKit.mat("lever_rod", Color(0.7, 0.7, 0.72), 0.3, 0.8), "Rod")
+	MeshKit.sphere(lever_arm, 0.014, Vector3(0, 0.066, 0), MeshKit.mat("lever_knob", Color(0.85, 0.1, 0.08), 0.35))
 
 
 ## 円筒の容器の正面（-x）に、画像の比率のまま巻くラベル。r0/r1：下端・上端の半径、h：高さ、cy：中心の高さ。
@@ -274,6 +286,18 @@ func _process(_delta: float) -> void:
 
 
 # ---------------------------------------------------------------- main.gd から呼ばれる
+
+## 点検レバーを引いた見た目（腕が手前へ倒れる）。
+func pull_lever_visual(instant := false) -> void:
+	lever_pulled = true
+	var target := deg_to_rad(55.0)
+	if instant:
+		lever_arm.rotation.z = target
+		return
+	var tw := create_tween()
+	tw.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw.tween_property(lever_arm, "rotation:z", target, 0.4)
+
 
 func get_prompt(_id: String) -> String:
 	if busy:

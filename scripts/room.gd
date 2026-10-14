@@ -101,6 +101,22 @@ var toilet_panel: ToiletPanelScript
 var shower_curtain: ShowerCurtainScript
 var bath_powder_taken := false
 var vent_open := false
+## --- 浴室がせり上がる（第 2 幕）。浴室（と換気ダクト）の節点だけを持ち上げる。ホール・自室・ベランダの座標は変えない。
+signal unit_risen
+const RISE_H := 0.9            # 上がる高さ（m）。ホールの床が約 0.9m 下に見え、体は出られない
+const RISE_TIME := 8.0
+const UNIT_EXCLUDE := ["WorldEnvironment", "SkyClock", "RoomLight", "HallLight", "Apartment", "BathLightSwitch", "Exterior",
+		"FrontDoor", "Corridor", "AmbientSound", "Fishing", "Pedestal", "DoorDebris", "FuseHatch", "DoorwayBlocker"]
+var risen := false
+var rising := false
+var rise_offset := 0.0         # いまの上昇量（m）。浴室と換気ダクトの座標にこれを足す
+var power_on := true           # 自室・ホールの電気（ユニット専用の浴室の電球は別系統）
+var wood_stick: Node3D
+var _unit: Array = []          # [節点, もとの y]
+var _rise_player: Node3D
+var _pedestal: MeshInstance3D
+var _door_broken := false
+var _power_energy := {}
 var toilet: ToiletScript
 var bathtub: BathtubScript
 var sink: SinkScript
@@ -238,6 +254,190 @@ func take_bath_powder() -> void:
 	var node: Node3D = get_node("BathPowder")
 	node.visible = false
 	(node.get_node("Collision") as StaticBody3D).collision_layer = 0
+
+
+# ---------------------------------------------------------------- 浴室がせり上がる
+
+## 点検レバーを引いたあと。浴室と換気ダクトを RISE_H だけ持ち上げる（約 8 秒、ゴゴゴ）。player も一緒に上げる。
+## instant：セーブからの復元用（アニメーションなしで、上がったあとの状態にする）。
+func rise_unit(player: Node3D, instant := false) -> void:
+	if risen or rising:
+		return
+	rising = true
+	_unit.clear()
+	for c in get_children():
+		if c is Node3D and not UNIT_EXCLUDE.has(String(c.name)):
+			_unit.append([c, (c as Node3D).position.y])
+	for n in ["Duct", "DuctLight"]:
+		var d := exterior.get_node_or_null(n)
+		if d is Node3D:
+			_unit.append([d, (d as Node3D).position.y])
+	_build_pedestal()
+	set_power(false, instant)
+	_rise_player = player
+	if instant:
+		_apply_rise(1.0)
+		_finish_rise()
+		return
+	Sfx.play("rumble")
+	if "controls_enabled" in player:
+		player.controls_enabled = false
+	var tw := create_tween()
+	tw.tween_method(_apply_rise, 0.0, 1.0, RISE_TIME).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	tw.tween_callback(_finish_rise)
+
+
+func _apply_rise(t: float) -> void:
+	var target := RISE_H * t
+	var d := target - rise_offset
+	rise_offset = target
+	for e in _unit:
+		(e[0] as Node3D).position.y = float(e[1]) + target
+	if _rise_player and d != 0.0:
+		_rise_player.global_position.y += d
+	_update_pedestal()
+	if _rise_player and rising and t < 1.0 and "camera" in _rise_player:
+		var a := 0.012 * sin(t * PI)   # 山なりに強くなる揺れ
+		var cam: Camera3D = _rise_player.camera
+		cam.h_offset = randf_range(-a, a)
+		cam.v_offset = randf_range(-a, a)
+	if t > 0.72 and not _door_broken:
+		_break_door()
+
+
+func _finish_rise() -> void:
+	rising = false
+	risen = true
+	if _rise_player and "camera" in _rise_player:
+		var cam: Camera3D = _rise_player.camera
+		cam.h_offset = 0.0
+		cam.v_offset = 0.0
+		if "controls_enabled" in _rise_player:
+			_rise_player.controls_enabled = true
+	# 扉のあった開口の前に、体だけを止める透明な板（照準は通る）。ホールの床は約 0.9m 下に見えるが、出られない
+	var blocker := StaticBody3D.new()
+	blocker.name = "DoorwayBlocker"
+	blocker.collision_layer = MeshKit.LAYER_BODY_ONLY
+	blocker.collision_mask = 0
+	blocker.position = Vector3(0.0, RISE_H + 1.1, ROOM_D * 0.5)
+	add_child(blocker)
+	MeshKit.shape_box(blocker, Vector3(DOOR_W + 0.3, 2.4, 0.12), Vector3.ZERO)
+	_build_hatch()
+	unit_risen.emit()
+
+
+## 浴室の下の柱（暗いコンクリート）。上がるにつれ、上端が浴室の底について伸びる。
+func _build_pedestal() -> void:
+	_pedestal = MeshInstance3D.new()
+	_pedestal.name = "Pedestal"
+	_pedestal.mesh = BoxMesh.new()
+	_pedestal.material_override = MeshKit.mat("pedestal", Color(0.17, 0.17, 0.19), 0.9)
+	add_child(_pedestal)
+	_update_pedestal()
+
+
+func _update_pedestal() -> void:
+	if _pedestal == null:
+		return
+	var bm := _pedestal.mesh as BoxMesh
+	bm.size = Vector3(ROOM_W + WALL_T * 2.0 - 0.04, rise_offset + 1.0, ROOM_D + WALL_T * 2.0 - 0.04)
+	_pedestal.position = Vector3(0, (rise_offset - 1.0) * 0.5, 0)
+
+
+## ホール側の柱の面に、小さな扉（ドアノブの穴だけがある。あとで、ドアノブをつけて開ける）。
+func _build_hatch() -> void:
+	var h := Node3D.new()
+	h.name = "FuseHatch"
+	h.position = Vector3(0.45, 0.4, ROOM_D * 0.5 + WALL_T - 0.02)
+	add_child(h)
+	_mesh_box(h, Vector3(0.5, 0.55, 0.02), Vector3.ZERO, _mat("hatch_frame", Color(0.1, 0.1, 0.11), 0.7))
+	_mesh_box(h, Vector3(0.42, 0.47, 0.02), Vector3(0, 0, 0.012), _mat("hatch_panel", Color(0.33, 0.3, 0.27), 0.8))
+	var socket := MeshKit.cylinder(h, 0.014, 0.03, Vector3(-0.15, 0.0, 0.026), _mat("hatch_socket", Color(0.02, 0.02, 0.02), 1.0), "Socket")
+	socket.rotation.x = PI * 0.5
+	var area := MeshKit.interact_area(h, "FuseHatchArea", "fuse_hatch")
+	MeshKit.shape_box(area, Vector3(0.5, 0.55, 0.08), Vector3(0, 0, 0.03))
+
+
+## 扉がバキッと壊れる：破片がホールへ飛び、枠にギザギザが残り、木の棒が足元に落ちる。
+func _break_door() -> void:
+	_door_broken = true
+	door_pivot.visible = false
+	door_body.collision_layer = 0
+	door_area.collision_layer = 0
+	if door_body.has_meta("interact_id"):
+		door_body.remove_meta("interact_id")
+	Sfx.play("thunk", 0.6, 2.0)
+	Sfx.play("crack", 0.7)
+	var wood := _mat("debris_wood", Color(0.58, 0.46, 0.33), 0.85)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 903
+	var debris := Node3D.new()
+	debris.name = "DoorDebris"
+	add_child(debris)
+	var from := Vector3(0.0, rise_offset + 1.0, ROOM_D * 0.5 + 0.1)
+	for i in 9:
+		var piece := MeshInstance3D.new()
+		var bm := BoxMesh.new()
+		bm.size = Vector3(rng.randf_range(0.06, 0.3), rng.randf_range(0.02, 0.05), rng.randf_range(0.04, 0.16))
+		piece.mesh = bm
+		piece.material_override = wood
+		piece.position = from + Vector3(rng.randf_range(-0.3, 0.3), rng.randf_range(-0.5, 0.6), 0.0)
+		debris.add_child(piece)
+		var land := Vector3(rng.randf_range(-0.8, 0.8), 0.03 + bm.size.y * 0.5, rng.randf_range(1.5, 2.3))
+		var tw := create_tween()
+		tw.set_parallel(true)
+		tw.tween_property(piece, "position:x", land.x, 0.85)
+		tw.tween_property(piece, "position:z", land.z, 0.85)
+		tw.tween_property(piece, "position:y", land.y, 0.85).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+		tw.tween_property(piece, "rotation", Vector3(rng.randf_range(-3, 3), rng.randf_range(-3, 3), rng.randf_range(-3, 3)), 0.85)
+	# 枠に残る、ギザギザの板（蝶番の側。浴室といっしょに上がる）
+	var shards := Node3D.new()
+	shards.name = "BrokenDoor"
+	shards.position = Vector3(0, rise_offset, 0)
+	add_child(shards)
+	for k in 4:
+		var shard := _mesh_box(shards, Vector3(0.05, rng.randf_range(0.35, 0.8), 0.03), Vector3(-0.34 + rng.randf_range(0.0, 0.1), 0.4 + k * 0.1, ROOM_D * 0.5 + 0.05), wood)
+		shard.rotation = Vector3(rng.randf_range(-0.3, 0.3), rng.randf_range(-0.4, 0.4), rng.randf_range(-0.5, 0.5))
+	_unit.append([shards, 0.0])
+	# 木の棒（足元に落ちている。拾える）
+	wood_stick = Node3D.new()
+	wood_stick.name = "WoodStick"
+	wood_stick.position = Vector3(-0.1, rise_offset + 0.03, 0.95)
+	add_child(wood_stick)
+	var stick := MeshKit.cylinder(wood_stick, 0.018, 0.7, Vector3.ZERO, wood, "Stick", 0.014, 8)
+	stick.rotation = Vector3(0, 0.3, PI * 0.5)
+	var area := MeshKit.interact_area(wood_stick, "WoodStickArea", "wood_stick")
+	MeshKit.shape_box(area, Vector3(0.75, 0.08, 0.14), Vector3.ZERO)
+	_unit.append([wood_stick, 0.03])
+
+
+## 木の棒を拾った（見た目と判定を消す）。
+func take_wood_stick() -> void:
+	if wood_stick and is_instance_valid(wood_stick):
+		wood_stick.visible = false
+		var a := wood_stick.get_node_or_null("WoodStickArea") as Area3D
+		if a:
+			a.collision_layer = 0
+
+
+## 自室とホールの電気を切る（停電）／戻す。ユニット専用の浴室の電球は別系統で、そのまま。
+func set_power(on: bool, instant := false) -> void:
+	power_on = on
+	var lights: Array = [get_node_or_null("RoomLight"), get_node_or_null("HallLight")]
+	if apartment:
+		lights.append_array(apartment.find_children("RoomLight*", "OmniLight3D", true, false))
+	for l in lights:
+		if l == null:
+			continue
+		if not _power_energy.has(l):
+			_power_energy[l] = (l as OmniLight3D).light_energy
+		var target: float = float(_power_energy[l]) if on else 0.0
+		if instant:
+			(l as OmniLight3D).light_energy = target
+		else:
+			create_tween().tween_property(l, "light_energy", target, 0.6)
+	if apartment and not on and apartment.has_method("set_tv_on"):
+		apartment.set_tv_on(false)
 
 
 func open_door() -> void:

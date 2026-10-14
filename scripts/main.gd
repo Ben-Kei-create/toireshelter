@@ -66,6 +66,11 @@ const MESSAGES := {
 	"plunger": "ラバーカップ。ブラシと妙にきれいに並んでいる。",
 	"toilet_brush": "トイレブラシ。ここでの仕事には慣れていそうだ。",
 	"vent_sticker": "『点検済。異常なし。たぶん。』……たぶん？",
+	"lever_pull": "ガコン。……壁が、床が、震えはじめた。",
+	"lever_stuck": "レバーは動かない。固まっている。",
+	"inspect_lever": "鏡の奥の、赤い握りのレバー。『点検用』と小さく書いてある。引くな、とは書いていない。",
+	"wood_stick": "壊れた扉の枠の破片。細長い木の棒だ。拾った。",
+	"fuse_hatch": "柱の面に、小さな扉。ノブがない。丸い穴だけが空いている。",
 	"cabinet_locked": "鏡の扉は開かない。右端に溝付きの留め具がある。",
 	"cabinet_unlocked": "留め具を外した。鏡の扉が開けられる。",
 	"bath_bucket": "風呂桶。軽いプラスチック製だ。",
@@ -308,6 +313,7 @@ const ITEMS := {
 	"record_disc": {"name": "レコード盤", "desc": "壁に飾ってあった黒いレコード盤。赤いラベルに、かすれた文字で『MIDNIGHT BLUE ROOM』。レコードプレーヤーにのせられそうだ。"},
 	"ufo_coin": {"name": "UFOコイン", "desc": "クレーンゲーム用のコイン。表にエイリアンの絵。1回ぶん。"},
 	"bath_powder": {"name": "ユブロマン", "desc": "ゆずの香りの粉末入浴剤。1回分。"},
+	"wood_stick": {"name": "木の棒", "desc": "壊れた扉の枠の破片。細長い木の棒。先に何かを巻けば、松明の柄になりそうだ。"},
 }
 
 ## E キーで変わる姿勢の案内
@@ -409,6 +415,7 @@ const NOTE_CLUES := {
 }
 const EYE_STEP := 0.02   # [ と ] で変える、目の高さの 1 回ぶん（m）
 
+var _lever_busy := false
 static var _title_seen := false   # 起動後、タイトル画面を一度出したか（やり直しの再読み込みでは出さない）
 var _title: Node
 
@@ -460,6 +467,7 @@ func _ready() -> void:
 	hud.typing_changed.connect(_on_typing_changed)
 	hud.hints_changed.connect(_on_hints_changed)
 	hud.hint_requested.connect(_on_hint_requested)
+	room.unit_risen.connect(_on_unit_risen)
 	hud.restart_pressed.connect(_restart_fresh)
 	_load_settings()
 	room.apartment.intercom.front_door = room.front_door
@@ -559,7 +567,7 @@ func _process(_delta: float) -> void:
 	hud.set_carry("運んでいる：%s（冷蔵庫の中を狙って、左クリックで入れる）" % carried if not carried.is_empty() else "")
 	if not paused and not cleared:
 		play_time += _delta
-		room.sky_clock.set_time(play_time)
+		room.sky_clock.set_time(maxf(play_time, 620.0) if room.risen or room.rising else play_time)
 	room.apartment.record_player.holding = selected_item() == "record_disc"
 	if mj_playing:
 		hud.set_prompt("")
@@ -1087,13 +1095,13 @@ func do_action() -> void:
 				hud.show_message(MESSAGES["no_way_out"])
 		"vent_enter":
 			room.open_vent()
-			player.move_to(PlayerScript.Pose.DUCT, ExteriorScript.DUCT_START, DUCT_YAW, PlayerScript.DUCT_EYE_HEIGHT,
-					[VENT_BELOW, VENT_MOUTH], true, PlayerScript.DUCT_BODY_HEIGHT, PlayerScript.DUCT_BODY_RADIUS)
+			player.move_to(PlayerScript.Pose.DUCT, _up(ExteriorScript.DUCT_START), DUCT_YAW, PlayerScript.DUCT_EYE_HEIGHT,
+					[_up(VENT_BELOW), _up(VENT_MOUTH)], true, PlayerScript.DUCT_BODY_HEIGHT, PlayerScript.DUCT_BODY_RADIUS)
 		"duct_back":
 			var tub_feet: Vector3 = room.bathtub.to_global(TUB_FEET_LOCAL)
-			player.move_to(PlayerScript.Pose.IN_TUB, tub_feet, TUB_YAW, TUB_EYE, [VENT_MOUTH, VENT_BELOW])
+			player.move_to(PlayerScript.Pose.IN_TUB, tub_feet, TUB_YAW, TUB_EYE, [_up(VENT_MOUTH), _up(VENT_BELOW)])
 		"balcony_down":
-			if player.leave_fixed(BALCONY_LANDINGS, [DUCT_EXIT_MOUTH]):
+			if player.leave_fixed(BALCONY_LANDINGS, [_up(DUCT_EXIT_MOUTH)]):
 				route_duct = true
 			else:
 				hud.show_message(MESSAGES["no_way_out"])
@@ -1116,8 +1124,10 @@ func _prompt_for(target: Object) -> String:
 	match id:
 		"":
 			return ""
-		"driver", "spare_roll", "bath_powder", "fishing_rod", "cork_gun", "mahjong", "record_disc":
+		"driver", "spare_roll", "bath_powder", "fishing_rod", "cork_gun", "mahjong", "record_disc", "wood_stick":
 			return PROMPT_PICKUP
+		"inspect_lever":
+			return "左クリック：レバーを引く" if not room.risen and not room.rising else PROMPT_EXAMINE
 		"door":
 			return PROMPT_EXAMINE
 		"kotatsu":
@@ -1267,6 +1277,18 @@ func _on_interact_requested(target: Object) -> void:
 			room.take_bath_powder()
 			add_item("bath_powder")
 			hud.show_message(MESSAGES["bath_powder_pickup"])
+		"inspect_lever":
+			_pull_lever()
+		"wood_stick":
+			if inventory.has("wood_stick"):
+				return
+			_item_models["wood_stick"] = _wood_stick_model()
+			room.take_wood_stick()
+			add_item("wood_stick")
+			hud.show_message(MESSAGES["wood_stick"])
+		"fuse_hatch":
+			hud.show_message(MESSAGES["fuse_hatch"])
+			progress.add_note("fuse_hatch", "柱の小さな扉", "ノブのない丸い穴。ドアノブがあれば、開けられそうだ。", "手がかり")
 		"kotatsu":
 			match player.pose:
 				PlayerScript.Pose.KOTATSU_SEAT:
@@ -1284,6 +1306,42 @@ func _on_interact_requested(target: Object) -> void:
 			if door_open:
 				return
 			hud.show_message(MESSAGES["door_loose"] if has_driver else MESSAGES["door_locked"])
+
+
+# ---------------------------------------------------------------- 点検レバー・浴室がせり上がる
+
+## 鏡の奥のレバーを引く。0.7 秒あとに、浴室が上がりはじめる（ゴゴゴ）。引いたあとは固まって動かない。
+func _pull_lever() -> void:
+	if room.risen or room.rising or _lever_busy:
+		hud.show_message(MESSAGES["lever_stuck"])
+		return
+	_lever_busy = true
+	progress.discover("inspect_lever")
+	room.mirror_cabinet.pull_lever_visual()
+	SfxScript.play("clunk", 0.8)
+	hud.show_message(MESSAGES["lever_pull"], 4.0)
+	progress.add_note("inspect_lever", "点検レバー", "鏡の奥の赤いレバー。引いたら、浴室ごと上がった。もう戻らない。", "手がかり")
+	await get_tree().create_timer(0.7).timeout
+	room.rise_unit(player)
+
+
+## 浴室と換気ダクトの座標（VENT_BELOW など）に、浴室の上昇量を足す。
+func _up(v: Vector3) -> Vector3:
+	return v + Vector3(0.0, room.rise_offset, 0.0)
+
+
+func _on_unit_risen() -> void:
+	progress.set_chapter(1)
+	progress.discover("unit_rise")
+	hud.show_message("扉が壊れた。外は暗く、ホールの床が、ずいぶん下に見える。……出られそうにない。", 6.0, "voice")
+	progress.add_note("rise_view", "上がった浴室", "扉は壊れた。外のホールは暗く、床がずっと下だ。出口は、天井の換気口だけ。", "手がかり")
+
+
+static func _wood_stick_model() -> Node3D:
+	var n := Node3D.new()
+	var mi := MeshKit.cylinder(n, 0.015, 0.34, Vector3.ZERO, MeshKit.mat("stick_zoom", Color(0.58, 0.46, 0.33), 0.9), "Stick", 0.011, 8)
+	mi.rotation.z = deg_to_rad(35.0)
+	return n
 
 
 # ---------------------------------------------------------------- 持ち物
