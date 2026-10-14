@@ -24,4 +24,13 @@ func _run() -> void:
 		await process_frame
 	await RenderingServer.frame_post_draw
 	root.get_texture().get_image().save_png(OS.get_environment("SHOT_DIR").path_join("title_settings.png"))
+	current_scene.hud.show_pause(false)
+	# はじめる → 503 号室の窓へ飛び込む途中
+	title.show_ui(true)
+	title._go(false)
+	for k in 3:
+		while title._fly_t < [0.45, 0.75, 0.92][k]:
+			await process_frame
+		await RenderingServer.frame_post_draw
+		root.get_texture().get_image().save_png(OS.get_environment("SHOT_DIR").path_join("title_fly_%d.png" % k))
 	quit()

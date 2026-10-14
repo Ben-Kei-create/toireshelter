@@ -1161,6 +1161,13 @@ func fade_to(alpha: float, seconds: float) -> Tween:
 	return _fade_tween
 
 
+## 暗幕をすぐ指定の濃さにする（アニメーションなし）。
+func set_fade_now(alpha: float) -> void:
+	if _fade_tween:
+		_fade_tween.kill()
+	_fade.modulate.a = alpha
+
+
 func fade_alpha() -> float:
 	return _fade.modulate.a
 

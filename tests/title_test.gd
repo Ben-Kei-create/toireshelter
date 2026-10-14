@@ -56,14 +56,21 @@ func _run() -> void:
 	await _frames(2)
 	_check(not hud._pause_menu.visible and main._title != null and paused, "「もどる」でタイトルに戻る（ゲームは止まったまま）")
 
-	# はじめる
+	# はじめる：カメラが 503 号室の窓へ寄って、暗くなってから始まる
+	var fov0: float = cam.fov
 	title.buttons()[0].pressed.emit()
-	await _wait(1.2)
+	await _wait(1.0)
+	_check(main._title != null and title._fly_t > 0.1, "押した直後は、まだ飛び込んでいる途中（%.2f）" % title._fly_t)
+	_check(cam.fov > fov0, "寄るほど画角が広がる（%.0f → %.0f）" % [fov0, cam.fov])
+	_check(title._ui.modulate.a < 0.5, "題名とボタンは消えていく")
+	await _wait(2.6)
 	_check(main._title == null and not main.title_active(), "はじめるでタイトルが消える")
 	_check(not paused, "ゲームが動き出す")
 	_check(main.player.controls_enabled, "操作が有効になる")
 	_check(hud._resume_button.text == "再開" and hud._restart_button.visible, "設定は通常の形に戻る")
 	_check(hud._dot.visible, "照準が戻る")
+	await _wait(2.0)
+	_check(hud.fade_alpha() < 0.05, "暗幕から明るくなり、トイレが見える（暗幕 %.2f）" % hud.fade_alpha())
 	print("TITLE TEST: %s (%d failure(s))" % ["PASS" if _failures == 0 else "FAIL", _failures])
 	quit(1 if _failures > 0 else 0)
 

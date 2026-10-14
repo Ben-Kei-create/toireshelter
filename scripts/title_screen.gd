@@ -27,6 +27,9 @@ const STREET_Z := -24.0               # 北の細い通り
 const NEIGHBOR := Vector3(-31.0, 0.0, -12.0)
 const NEIGHBOR_SIZE := Vector3(9.0, 18.0, 8.0)
 const ELEVATOR_POS := Vector3(7.6, 0.0, -2.5)
+const FLY_TIME := 2.8                          # 「はじめる」のあと、503 号室の窓へ飛び込むまでの秒数
+const WINDOW_IN := Vector3(1.5, 13.6, 1.6)     # 503 号室（5 階の窓）の奥。ここで暗くなって、ゲームのトイレへ
+const WINDOW_LOOK := Vector3(1.5, 13.6, -2.0)
 
 var has_save := false                 # add_child の前に main が設定する
 var continue_note := ""               # 「つづきから」に添える、続きの幕の名前
@@ -53,6 +56,10 @@ var _menu: VBoxContainer
 var _fade: ColorRect
 var _ui: Control
 var _busy := false
+var _fly_t := -1.0                    # 飛び込みの進み（0〜1。負なら周回中）
+var _fly_a0 := 0.0                    # 飛び込みを始めたときの周回の角度
+var _fly_continue := false
+var _fly_done := false
 
 
 func _ready() -> void:
@@ -69,11 +76,19 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	_time += delta
+	if _fly_t >= 0.0:
+		_update_fly(delta)
+		_update_scene(delta)
+		return
 	_angle += delta * ORBIT_SPEED
 	var h := ORBIT_HEIGHT + sin(_time * 0.12) * 1.8
 	_camera.position = CENTER + Vector3(sin(_angle) * ORBIT_RADIUS, h - CENTER.y, cos(_angle) * ORBIT_RADIUS)
 	_camera.look_at(CENTER, Vector3.UP)
 	_camera.position -= _camera.basis.x * 5.0   # マンションを画面の右寄りに置く（左の文字と重ならないように）
+	_update_scene(delta)
+
+
+func _update_scene(delta: float) -> void:
 	_update_elevator(delta)
 	_update_train(delta)
 	for c in _road_cars:
@@ -206,7 +221,7 @@ func _build_ui() -> void:
 	_fade.name = "Fade"
 	_fade.color = Color.BLACK
 	_fade.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	root.add_child(_fade)
+	add_child(_fade)   # 題名やボタンを消しても、暗幕は残す（_ui の外）
 	_fade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	focus_menu()
 
@@ -258,14 +273,36 @@ func buttons() -> Array[Button]:
 	return _buttons
 
 
-## 「はじめる」「つづきから」を押したあと、暗くしてから main に知らせる。
+## 「はじめる」「つづきから」を押したあと、カメラがマンションへ寄って 503 号室の窓をすり抜け、暗くなってから main に知らせる。
 func _go(continue_save: bool) -> void:
 	if _busy:
 		return
 	_busy = true
-	var tw := create_tween()
-	tw.tween_property(_fade, "modulate:a", 1.0, 0.6)
-	tw.tween_callback(func() -> void: start_requested.emit(continue_save))
+	_fly_continue = continue_save
+	_fly_a0 = _angle
+	_fly_t = 0.0
+
+
+func _update_fly(delta: float) -> void:
+	_fly_t = minf(_fly_t + delta / FLY_TIME, 1.0)
+	var t := _fly_t
+	# 前半：周回の円に沿って、503 号室の窓がある南の面へ回り込む。後半：窓へまっすぐ、ぐーっと加速して寄る
+	var turn := smoothstep(0.0, 0.5, t)
+	var a_front := asin(WINDOW_IN.x / ORBIT_RADIUS)
+	var a := lerp_angle(_fly_a0, a_front, turn)
+	var h := ORBIT_HEIGHT + sin(_time * 0.12) * 1.8
+	var look := CENTER.lerp(WINDOW_LOOK, smoothstep(0.0, 1.0, t))
+	_camera.position = CENTER + Vector3(sin(a) * ORBIT_RADIUS, h - CENTER.y, cos(a) * ORBIT_RADIUS)
+	_camera.look_at(look, Vector3.UP)
+	_camera.position -= _camera.basis.x * 5.0 * (1.0 - smoothstep(0.0, 0.4, t))   # 周回中の横ずらしを、滑らかに戻す
+	_camera.position = _camera.position.lerp(WINDOW_IN, pow(t, 1.8))
+	_camera.look_at(look, Vector3.UP)
+	_camera.fov = lerpf(50.0, 72.0, t)
+	_ui.modulate.a = 1.0 - clampf(t / 0.18, 0.0, 1.0)
+	_fade.modulate.a = clampf((t - 0.8) / 0.2, 0.0, 1.0)
+	if t >= 1.0 and not _fly_done:
+		_fly_done = true
+		start_requested.emit(_fly_continue)
 
 
 # ---------------------------------------------------------------- 世界
@@ -360,7 +397,7 @@ func _build_world() -> void:
 	env.background_mode = Environment.BG_SKY
 	env.sky = sky
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
-	env.ambient_light_energy = 0.95
+	env.ambient_light_energy = 0.85
 	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 	env.fog_enabled = true
 	env.fog_light_color = Color(0.93, 0.78, 0.68)

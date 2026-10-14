@@ -521,6 +521,7 @@ func _show_title() -> void:
 func _on_title_start(continue_save: bool) -> void:
 	if not continue_save:
 		progress.delete_save()
+	hud.set_fade_now(1.0)   # タイトルの暗がりのまま、ゲームの側へ（トイレの初期位置）
 	_title.queue_free()
 	_title = null
 	_title_seen = true
@@ -528,6 +529,7 @@ func _on_title_start(continue_save: bool) -> void:
 	get_tree().paused = false
 	player.controls_enabled = true
 	_begin_play()
+	hud.fade_to(0.0, 1.6)
 
 
 ## 遊びはじめ：視点を掴み、続きがあれば読み込み、最初の一言と操作のヒントを出す。
