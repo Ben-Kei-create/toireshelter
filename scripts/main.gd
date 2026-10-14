@@ -682,7 +682,7 @@ func _process(_delta: float) -> void:
 	hud.set_aim(focused != null and not _prompt_for(focused).is_empty())
 	var parts := []
 	var click := _prompt_for(focused)
-	if not click.is_empty():
+	if not click.is_empty() and click != PROMPT_EXAMINE:   # 「左クリック：調べる」は出さない（照準の点だけで足りる）
 		parts.append(click)
 	var use := _use_prompt(focused)
 	if not use.is_empty():

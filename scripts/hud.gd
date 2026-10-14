@@ -465,6 +465,10 @@ func set_title_mode(on: bool) -> void:
 	_restart_button.visible = not on
 	_quit_button.visible = not on
 	_stats_label.visible = not on
+	# 神の声（ヒント）は、ゲームの中の設定だけ。スタート画面の設定には出さない
+	for n in [_hints_check, _hint_ask, _hint_note]:
+		if n != null:
+			n.visible = not on
 
 
 ## 設定を開いている間は、セリフ・操作の案内・発見の知らせ・持ち物欄など、ほかの表示をすべて隠す（設定の文字と重ならないように）。閉じると戻す。
