@@ -102,6 +102,30 @@ static func cylinder(parent: Node, radius: float, height: float, center: Vector3
 	return _instance(parent, mesh, center, material, node_name)
 
 
+## 十円玉のふた（排水口にはめる円盤）。縁が少し盛り上がり、中央に飾りの円がある。原点が円盤の中心。
+static func coin10_disc(parent: Node, radius: float, thickness := 0.0016) -> Node3D:
+	var n := Node3D.new()
+	n.name = "Coin"
+	parent.add_child(n)
+	var body := mat("coin10", Color(0.62, 0.36, 0.2), 0.4, 0.7)
+	var light := mat("coin10_rim", Color(0.74, 0.46, 0.27), 0.3, 0.8)
+	cylinder(n, radius, thickness, Vector3.ZERO, body, "Disc", -1.0, 32)
+	var rim := TorusMesh.new()
+	rim.inner_radius = radius * 0.86
+	rim.outer_radius = radius * 0.995
+	rim.rings = 32
+	rim.ring_segments = 6
+	var rim_mi := MeshInstance3D.new()
+	rim_mi.name = "Rim"
+	rim_mi.mesh = rim
+	rim_mi.material_override = light
+	rim_mi.position = Vector3(0, thickness * 0.5, 0)
+	rim_mi.scale = Vector3(1, 0.12, 1)
+	n.add_child(rim_mi)
+	cylinder(n, radius * 0.42, 0.0003, Vector3(0, thickness * 0.5 + 0.00005, 0), light, "Emblem", -1.0, 24)
+	return n
+
+
 ## 点列を細い円柱でつないだ管（排水管・トラップ・タオル掛けなど）。継ぎ目は小さな球で埋める。
 static func pipe(parent: Node, points: Array, radius: float, material: Material) -> void:
 	for i in points.size() - 1:

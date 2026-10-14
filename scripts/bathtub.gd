@@ -45,6 +45,7 @@ const COIN_CAP := 0.08       # 十円玉だけのふた：浮いてしまうの�
 const BALL_DISSOLVE := 5.0   # お湯の中で玉が溶けきるまで（秒）
 const BALL_POS := Vector3(-0.35, BOTTOM_Y, 0.05)
 const COIN_RADIUS := 0.0118
+const DRAIN_HOLE_RADIUS := 0.0105   # 十円玉のほうが少し大きい：ふたをしたとき、穴をふさいで輪にのる
 
 signal ball_dissolved
 signal ball_sunk
@@ -499,7 +500,7 @@ func set_plug(inserted: bool) -> void:
 	if not inserted:
 		auto_filling = false   # 栓を抜いたらふろ自動は止まる
 	if inserted:
-		_plug.position = DRAIN_POS + Vector3(0, 0.003, 0)
+		_plug.position = DRAIN_POS + Vector3(0, 0.0042, 0)   # 十円玉の中心が、穴の黒い円盤の上面（0.004）のすぐ上にくる
 	else:
 		_plug.position = PLUG_OUT_POS   # 外したふたは排水口の横に置いておく
 	_plug.rotation = Vector3.ZERO
@@ -587,7 +588,7 @@ func _build_drain(visual: Node3D) -> void:
 	var metal := MeshKit.mat("metal", Color(0.75, 0.75, 0.78), 0.25, 0.8)
 	var dark := MeshKit.mat("drain_hole", Color(0.05, 0.05, 0.06), 1.0)
 	MeshKit.cylinder(visual, 0.028, 0.003, DRAIN_POS + Vector3(0, 0.0015, 0), metal, "DrainRing")
-	MeshKit.cylinder(visual, 0.02, 0.001, DRAIN_POS + Vector3(0, 0.0035, 0), dark, "DrainHole")
+	MeshKit.cylinder(visual, DRAIN_HOLE_RADIUS, 0.001, DRAIN_POS + Vector3(0, 0.0035, 0), dark, "DrainHole")
 	MeshKit.box(visual, Vector3(0.04, 0.002, 0.004), DRAIN_POS + Vector3(0, 0.005, 0), metal)
 	MeshKit.box(visual, Vector3(0.004, 0.002, 0.04), DRAIN_POS + Vector3(0, 0.005, 0), metal)
 	# あふれ口のプレート（チェーンの留め具）
@@ -600,7 +601,8 @@ func _build_plug() -> void:
 	_plug = Node3D.new()
 	_plug.name = "Plug"
 	add_child(_plug)
-	MeshKit.cylinder(_plug, COIN_RADIUS, 0.0016, Vector3(0, 0.0008, 0), MeshKit.mat("coin10", Color(0.62, 0.36, 0.2), 0.4, 0.7), "Coin")
+	var coin := MeshKit.coin10_disc(_plug, COIN_RADIUS)
+	coin.position = Vector3(0, 0.0008, 0)
 	_lid_sinker = Node3D.new()
 	_lid_sinker.name = "LidSinker"
 	_plug.add_child(_lid_sinker)

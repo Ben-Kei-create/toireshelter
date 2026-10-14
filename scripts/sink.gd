@@ -33,6 +33,8 @@ const SOAP_FLOOR := Vector3(0.6, 0.0, 0.05)           # 固形せっけんが落
 const SOAP_SOAK_LEVEL := 0.4                            # この水位以上に浸かると溶けはじめる
 const SOAP_TIME := 8.0                                  # 浸かり続けて溶けきるまで（秒）
 const COIN_RADIUS := 0.0118
+const DRAIN_HOLE_RADIUS := 0.0105   # 十円玉（半径 1.18cm）のほうが少し大きい：栓にしたとき、穴をふさいで輪にのる
+const COIN_SEAT_Y := 0.0060         # 栓をしたときの十円玉の中心の高さ（穴の黒い円盤の上面 0.005 の上にのる）
 
 signal soap_dissolved
 
@@ -104,7 +106,7 @@ func water_y() -> float:
 func set_plug(inserted: bool) -> void:
 	plug_in = inserted
 	_plug.visible = inserted
-	_plug.position = DRAIN_POS + Vector3(0.0, 0.0035, 0.0)
+	_plug.position = DRAIN_POS + Vector3(0.0, COIN_SEAT_Y, 0.0)
 
 
 func _update_soap() -> void:
@@ -204,7 +206,7 @@ func _build_bowl(visual: Node3D) -> void:
 	# 排水口：金属の輪と暗い穴（栓をすると隠れる）
 	var metal := MeshKit.mat("metal", Color(0.75, 0.75, 0.78), 0.25, 0.8)
 	MeshKit.cylinder(visual, 0.021, 0.003, DRAIN_POS + Vector3(0, 0.0025, 0), metal, "DrainRing")
-	MeshKit.cylinder(visual, 0.014, 0.001, DRAIN_POS + Vector3(0, 0.0045, 0), MeshKit.mat("drain_hole", Color(0.05, 0.05, 0.06), 1.0), "DrainHole")
+	MeshKit.cylinder(visual, DRAIN_HOLE_RADIUS, 0.001, DRAIN_POS + Vector3(0, 0.0045, 0), MeshKit.mat("drain_hole", Color(0.05, 0.05, 0.06), 1.0), "DrainHole")
 	# 壁の受け金具
 	MeshKit.box(visual, Vector3(0.03, 0.05, 0.4), Vector3(WALL_X - 0.015, 0.715, Z), metal)
 
@@ -236,8 +238,8 @@ func _build_plug() -> void:
 	_plug = Node3D.new()
 	_plug.name = "Plug"
 	add_child(_plug)
-	# 十円玉のふた（排水口の輪より少し小さい円盤）
-	MeshKit.cylinder(_plug, COIN_RADIUS, 0.0016, Vector3.ZERO, MeshKit.mat("coin10", Color(0.62, 0.36, 0.2), 0.4, 0.7), "Coin")
+	# 十円玉のふた（排水口の穴よりひと回り大きい円盤。穴をふさぐように、輪の上にはめ込む）
+	MeshKit.coin10_disc(_plug, COIN_RADIUS)
 	_build_soap()
 	# 照準用の判定：栓をした位置と抜いた位置の両方を覆う（水面より下でも当たる）
 	var area := MeshKit.interact_area(self, "PlugArea", "sink_plug", self)
