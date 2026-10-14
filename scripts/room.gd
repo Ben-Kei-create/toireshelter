@@ -110,7 +110,8 @@ var bucket_in_tub := false
 signal unit_risen
 const RISE_H := 0.9            # 上がる高さ（m）。ホールの床が約 0.9m 下に見え、体は出られない
 const RISE_TIME := 8.0
-const UNIT_EXCLUDE := ["WorldEnvironment", "SkyClock", "RoomLight", "HallLight", "Apartment", "BathLightSwitch", "Exterior",
+const BLACKOUT_AMBIENT := 0.06   # 停電のあとの環境光の倍率（真っ暗）
+const UNIT_EXCLUDE := ["WorldEnvironment", "SkyClock", "HallLight", "Apartment", "BathLightSwitch", "Exterior",
 		"FrontDoor", "Corridor", "AmbientSound", "Fishing", "Pedestal", "DoorDebris", "FuseHatch", "DoorwayBlocker"]
 var risen := false
 var rising := false
@@ -428,9 +429,11 @@ func take_wood_stick() -> void:
 ## 自室とホールの電気を切る（停電）／戻す。ユニット専用の浴室の電球は別系統で、そのまま。
 func set_power(on: bool, instant := false) -> void:
 	power_on = on
-	var lights: Array = [get_node_or_null("RoomLight"), get_node_or_null("HallLight")]
+	# 浴室の電球（RoomLight。ユニット専用）は対象外。ホールの灯り、自室の灯り、家電の明かり（押入れ・UFOキャッチャー・こたつ・水槽）を消す
+	var lights: Array = [get_node_or_null("HallLight")]
 	if apartment:
-		lights.append_array(apartment.find_children("RoomLight*", "OmniLight3D", true, false))
+		for pat in ["RoomLight*", "ClosetLight", "InnerLight", "HeaterLight", "TankLight"]:
+			lights.append_array(apartment.find_children(pat, "OmniLight3D", true, false))
 	for l in lights:
 		if l == null:
 			continue
@@ -443,6 +446,16 @@ func set_power(on: bool, instant := false) -> void:
 			create_tween().tween_property(l, "light_energy", target, 0.6)
 	if apartment and not on and apartment.has_method("set_tv_on"):
 		apartment.set_tv_on(false)
+	# 環境光も落とす：遮光カーテンが閉まっていて、電気もないので、自室とホールは真っ暗（浴室の電球と、窓の外の街の灯りだけ）
+	if sky_clock:
+		var scale: float = 1.0 if on else BLACKOUT_AMBIENT
+		if instant:
+			sky_clock.ambient_scale = scale
+			sky_clock.set_time(sky_clock.time)
+		else:
+			create_tween().tween_method(func(v: float) -> void:
+				sky_clock.ambient_scale = v
+				sky_clock.set_time(sky_clock.time), sky_clock.ambient_scale, scale, 1.2)
 
 
 func open_door() -> void:

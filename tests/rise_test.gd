@@ -48,6 +48,12 @@ func _run() -> void:
 	_check(room.wood_stick != null and room.wood_stick.visible, "木の棒が落ちている")
 	_check(room.get_node_or_null("Pedestal") != null and room.get_node_or_null("FuseHatch") != null, "浴室の下の柱と、小さな扉がある")
 	_check(not room.power_on and is_equal_approx(room.get_node("HallLight").light_energy, 0.0) and light0 > 0.0, "停電（ホールの灯りが消える）")
+	_check(room.bath_light.light_energy > 0.3 and is_equal_approx(room.bath_light.position.y, 2.05 + room.RISE_H), "浴室の電球は点いたままで、浴室といっしょに上がる")
+	for pat in ["ClosetLight", "HeaterLight", "TankLight"]:
+		var l := room.apartment.find_child(pat, true, false) as OmniLight3D
+		_check(l != null and l.light_energy < 0.01, "家電の明かりも消える（%s）" % pat)
+	await _wait(1.5)
+	_check(room.sky_clock.ambient_scale <= room.BLACKOUT_AMBIENT + 0.001 and room.sky_clock._env.ambient_light_energy < 0.06, "環境光も落ちて、部屋は真っ暗（環境光 %.3f）" % room.sky_clock._env.ambient_light_energy)
 	_check(main.progress.chapter == 1, "第 2 幕になる")
 	_check(main.progress.has_note("inspect_lever") and main.progress.has_note("rise_view"), "ノートに書かれる")
 	_check(main.progress.discovered.has("unit_rise") and main.progress.discovered.has("inspect_lever"), "発見に数えられる")
