@@ -171,7 +171,7 @@ const MESSAGES := {
 	"book_new_7": "『冷蔵庫の奥にある町』。雪の町の絵。……奥までは、まだ見ていない。",
 	"book_new_8": "『留守のあいだに増えた部屋』。扉だらけの迷路の絵。赤い扉だけが光っている。",
 	"microwave": "電子レンジ。中には何も入っていない。",
-	"game_cover_1": "ソフトのケース。『下北沢、午前二時』。赤い月の下の路地に、女の子がひとり。……架空のゲームだ。",
+	"game_cover_1": "ソフトのケース。『下南澤、午前二時』。赤い月の下の路地に、女の子がひとり。……架空のゲームだ。",
 	"game_cover_2": "ソフトのケース。『団地の向こう側』。空へ伸びる階段を、女の子が見上げている。……架空のゲームだ。",
 	"game_cover_3": "ソフトのケース。『最後の留守番』。陽だまりの部屋で、ロボットが床を拭いている。……架空のゲームだ。",
 	"game_cover_4": "ソフトのケース。『風呂から帰れない』。浴槽の向こうに、荒れた海と赤い夕日。……他人事とは思えない。",
@@ -398,6 +398,15 @@ var _reader_cover: Texture2D
 var _reader_tint := Color.WHITE
 var _reader_opened_frame := -1
 
+## 調べると、推理ノートに自動で書かれる手がかり：調べた物の id → [題, 本文, 種類]
+const NOTE_CLUES := {
+	"tub_note": ["浴槽の紙", "『ここまで来たか。』", "手がかり"],
+	"shelf_note": ["棚の裏の紙", "『下からなら見える。』", "手がかり"],
+	"tank_note": ["タンクの下の紙", "『しゃがむと、いろいろ見える。』", "手がかり"],
+	"towel_scratch": ["タオルの裏の傷", "前からあっただろうか。", "手がかり"],
+}
+const EYE_STEP := 0.02   # [ と ] で変える、目の高さの 1 回ぶん（m）
+
 static var _title_seen := false   # 起動後、タイトル画面を一度出したか（やり直しの再読み込みでは出さない）
 var _title: Node
 
@@ -496,6 +505,7 @@ func _show_title() -> void:
 	_title = TitleScript.new()
 	_title.name = "Title"
 	_title.has_save = progress.has_save()
+	_title.continue_note = progress.saved_chapter_name()
 	_title.start_requested.connect(_on_title_start)
 	_title.settings_requested.connect(func() -> void:
 		_title.show_ui(false)
@@ -532,7 +542,7 @@ func _begin_play() -> void:
 	var seen_cfg := ConfigFile.new()
 	seen_cfg.load(SETTINGS_PATH)
 	if not bool(seen_cfg.get_value("ui", "intro_seen", false)):
-		hud.show_intro("移動：W A S D　視点：マウス　調べる：左クリック\n座る・入る：E　しゃがむ：C　メッセージの履歴：H　設定：Esc")
+		hud.show_intro("移動：W A S D　視点：マウス　調べる：左クリック\n座る・入る：E　しゃがむ：C　メッセージの履歴：H\nノート：N　目の高さ：[ と ]　設定：Esc")
 		seen_cfg.set_value("ui", "intro_seen", true)
 		seen_cfg.save(SETTINGS_PATH)
 
@@ -592,6 +602,26 @@ func _unhandled_input(event: InputEvent) -> void:
 		if event.is_action_pressed("pause") and hud._pause_menu.visible:
 			get_viewport().set_input_as_handled()
 			_resume()
+		return
+	# 推理ノート（N）。開いている間は Esc か N で閉じる
+	if hud.is_notebook_open():
+		if event.is_action_pressed("pause") or event.is_action_pressed("notebook"):
+			get_viewport().set_input_as_handled()
+			hud.close_notebook()
+		return
+	var free_to_use := not paused and not cleared and not mj_playing and not reading and not gaming and not peeping
+	if event.is_action_pressed("notebook") and free_to_use and not hud.is_log_open():
+		get_viewport().set_input_as_handled()
+		hud.toggle_notebook(progress.chapter_lines(), progress.notes_text())
+		return
+	# 目の高さ（[ と ]）。設定を開かずに、いつでも変えられる
+	if free_to_use and (event.is_action_pressed("eye_down") or event.is_action_pressed("eye_up")):
+		get_viewport().set_input_as_handled()
+		var step := EYE_STEP if event.is_action_pressed("eye_up") else -EYE_STEP
+		var h := clampf(snappedf(player.eye_height + step, 0.01), PlayerScript.EYE_HEIGHT_MIN, PlayerScript.EYE_HEIGHT_MAX)
+		_on_eye_height_changed(h)
+		hud.set_eye_height_ui(player.eye_height)
+		hud.show_height_toast(int(round(player.eye_height * 100.0)))
 		return
 	# メッセージの履歴（H）。開いている間は Esc か H で閉じる
 	if hud.is_log_open():
@@ -1108,6 +1138,9 @@ func _on_interact_requested(target: Object) -> void:
 		examined[id] = true
 		progress.note_activity()
 		progress.discover(id)
+		if NOTE_CLUES.has(id):
+			var clue: Array = NOTE_CLUES[id]
+			progress.add_note(id, clue[0], clue[1], clue[2])
 	# 床下の食べ物を持っているとき、開けた冷蔵室の中を狙うと、棚に入れる（全部入れると階段が現れる）
 	var cellar_c = room.apartment.cellar
 	if not cellar_c.carrying_id.is_empty() and id == "fridge_inside":
@@ -1552,6 +1585,7 @@ func _stats_text() -> String:
 
 
 func _pause() -> void:
+	hud.close_notebook()
 	progress.save()
 	hud.set_stats(_stats_text())
 	hud.show_item_zoom(null, "", "")
@@ -1676,6 +1710,9 @@ func _setup_input_map() -> void:
 	_add_key_action("action", [KEY_E])
 	_add_key_action("use_item", [KEY_F])
 	_add_key_action("message_log", [KEY_H])
+	_add_key_action("notebook", [KEY_N])
+	_add_key_action("eye_down", [KEY_BRACKETLEFT])
+	_add_key_action("eye_up", [KEY_BRACKETRIGHT])
 	_add_key_action("item_1", [KEY_1])
 	_add_key_action("item_2", [KEY_2])
 	_add_key_action("item_3", [KEY_3])

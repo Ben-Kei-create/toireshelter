@@ -40,7 +40,7 @@ func _run() -> void:
 	var radius0 := Vector2(p0.x, p0.z).length()
 	var radius1 := Vector2(cam.global_position.x, cam.global_position.z).length()
 	_check(absf(radius0 - radius1) < 1.0, "回る半径は変わらない（%.1f → %.1f）" % [radius0, radius1])
-	_check(cam.global_position.y > 18.0, "俯瞰（高さ %.1f m）" % cam.global_position.y)
+	_check(cam.global_position.y > 12.0, "俯瞰（高さ %.1f m）" % cam.global_position.y)
 	_check(not is_equal_approx(title._elevator.position.y, e0), "エレベーターが動く")
 	_check(title._train_x > t0, "KO線が走る")
 	_check(title.find_children("*", "CPUParticles3D", true, false).size() >= 1, "BBQの煙がある")

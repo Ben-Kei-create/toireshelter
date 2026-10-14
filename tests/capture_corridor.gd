@@ -1,5 +1,5 @@
 extends SceneTree
-## 玄関ホール・玄関ドア・5階の廊下・下北沢の街並みの確認画像（画角 80°）。玄関ドアを開けて撮る。
+## 玄関ホール・玄関ドア・5階の廊下・下南澤の街並みの確認画像（画角 80°）。玄関ドアを開けて撮る。
 ## 実行: SHOT_DIR=保存先 SHOT_PREFIX=接頭辞 Godot --path . --script res://tests/capture_corridor.gd
 const VIEWS := [
 	["hall_door", Vector3(0.4, 0, 1.85), Vector3(-0.95, 1.2, 1.85)],

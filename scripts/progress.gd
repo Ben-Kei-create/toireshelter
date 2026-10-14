@@ -23,6 +23,12 @@ const DISCOVERIES := {
 	"driver": "ドライバー", "microwave": "電子レンジ", "calendar": "カレンダー",
 }
 
+## 幕（章）の名前。いまの幕より先は、行くまで「？？？」と出す。
+const CHAPTERS := [
+	"第1幕　ユニットバス", "第2幕　部屋が上がる", "第3幕　暗い部屋",
+	"第4幕　隣の和室", "第5幕　トイレへ戻る", "第6幕　つかみ取りと、その先",
+]
+
 var main: Node
 var enabled := true
 var hints_on := true
@@ -32,6 +38,8 @@ var idle_t := 0.0
 var since_hint := 0.0
 var _last_pos := Vector3.ZERO
 var _loading := false
+var notes: Array = []            # 推理ノート：[{id, kind, title, text}]（見つけた順）
+var chapter := 0                 # いまの幕（0 始まり。戻らない）
 
 
 func _ready() -> void:
@@ -58,6 +66,76 @@ func discover(id: String) -> void:
 	idle_t = 0.0
 	main.hud.show_discovery(DISCOVERIES[id], discovered.size(), total())
 	save()
+
+
+# ---------------------------------------------------------------- 推理ノート・幕
+
+func has_note(id: String) -> bool:
+	for n in notes:
+		if n.id == id:
+			return true
+	return false
+
+
+## 手がかり・パスワードを、推理ノートに自動で記録する（kind：「手がかり」「パスワード」「物」）。初めてのときだけ true。
+func add_note(id: String, title: String, text: String, kind := "手がかり") -> bool:
+	if has_note(id):
+		return false
+	notes.append({"id": id, "kind": kind, "title": title, "text": text})
+	idle_t = 0.0
+	if not _loading and main != null and main.hud != null:
+		main.hud.show_note_toast(title)
+	save()
+	return true
+
+
+## 幕が進む（戻らない）。
+func set_chapter(n: int) -> void:
+	if n <= chapter or n >= CHAPTERS.size():
+		return
+	chapter = n
+	idle_t = 0.0
+	if not _loading and main != null and main.hud != null:
+		main.hud.show_note_toast(CHAPTERS[n])
+	save()
+
+
+func chapter_name() -> String:
+	return CHAPTERS[clampi(chapter, 0, CHAPTERS.size() - 1)]
+
+
+## 目次（推理ノートの上に出す）。いまの幕に印、終えた幕にチェック、先の幕は「？？？」。
+func chapter_lines() -> String:
+	var lines := PackedStringArray()
+	for i in CHAPTERS.size():
+		if i < chapter:
+			lines.append("✓　" + CHAPTERS[i])
+		elif i == chapter:
+			lines.append("▶　" + CHAPTERS[i])
+		else:
+			lines.append("　　？？？")
+	return "\n".join(lines)
+
+
+## ノートの本文（新しい順）。
+func notes_text() -> String:
+	if notes.is_empty():
+		return "（まだ何も書かれていない。気になる紙や文字を見つけると、ここに残る）"
+	var out := PackedStringArray()
+	for i in range(notes.size() - 1, -1, -1):
+		var n: Dictionary = notes[i]
+		out.append("【%s】%s\n　　%s" % [n.kind, n.title, n.text])
+	return "\n".join(out)
+
+
+## 保存ファイルから、続きの幕の名前を読む（タイトル画面の「つづきから」に添える）。なければ空。
+func saved_chapter_name() -> String:
+	if not has_save():
+		return ""
+	var js := JSON.new()
+	if js.parse(FileAccess.get_file_as_string(SAVE_PATH)) != OK or typeof(js.data) != TYPE_DICTIONARY:
+		return ""
+	return CHAPTERS[clampi(int((js.data as Dictionary).get("chapter", 0)), 0, CHAPTERS.size() - 1)]
 
 
 # ---------------------------------------------------------------- ヒント
@@ -152,6 +230,8 @@ func snapshot() -> Dictionary:
 		"examined": main.examined.keys(),
 		"discovered": discovered.keys(),
 		"hints_shown": hints_shown.keys(),
+		"notes": notes.duplicate(true),
+		"chapter": chapter,
 	}
 
 
@@ -188,6 +268,11 @@ func apply(d: Dictionary) -> void:
 		discovered[String(k)] = true
 	for k in d.get("hints_shown", []):
 		hints_shown[String(k)] = true
+	notes.clear()
+	for n in d.get("notes", []):
+		if typeof(n) == TYPE_DICTIONARY and n.has("id"):
+			notes.append({"id": String(n.id), "kind": String(n.get("kind", "手がかり")), "title": String(n.get("title", "")), "text": String(n.get("text", ""))})
+	chapter = clampi(int(d.get("chapter", 0)), 0, CHAPTERS.size() - 1)
 	# 拾った物を、先にそれぞれ棚や床から消す（見た目と照準の判定）
 	var inv: Array = d.get("inventory", [])
 	if d.get("has_driver", false):

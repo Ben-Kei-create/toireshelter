@@ -12,8 +12,8 @@ const MeshKit := preload("res://scripts/mesh_kit.gd")
 const HudScript := preload("res://scripts/hud.gd")
 
 const CENTER := Vector3(0.0, 7.5, 0.0)
-const ORBIT_RADIUS := 32.0
-const ORBIT_HEIGHT := 22.0
+const ORBIT_RADIUS := 28.0
+const ORBIT_HEIGHT := 19.0
 const ORBIT_SPEED := 0.055            # rad/秒（一周は約 2 分）
 const FLOORS := 5
 const FLOOR_H := 3.0
@@ -24,11 +24,12 @@ const DECK_Y := 7.0                   # 高架の線路の高さ
 const ROAD_X := 17.0                  # 茶沢通り（マンションの東。北東から南西へ）
 const ROAD_YAW := -20.0
 const STREET_Z := -24.0               # 北の細い通り
-const NEIGHBOR := Vector3(-17.0, 0.0, -11.0)
+const NEIGHBOR := Vector3(-31.0, 0.0, -12.0)
 const NEIGHBOR_SIZE := Vector3(9.0, 18.0, 8.0)
 const ELEVATOR_POS := Vector3(7.6, 0.0, -2.5)
 
 var has_save := false                 # add_child の前に main が設定する
+var continue_note := ""               # 「つづきから」に添える、続きの幕の名前
 
 var _viewport: SubViewport
 var _camera: Camera3D
@@ -69,10 +70,10 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	_time += delta
 	_angle += delta * ORBIT_SPEED
-	var h := ORBIT_HEIGHT + sin(_time * 0.12) * 2.5
+	var h := ORBIT_HEIGHT + sin(_time * 0.12) * 1.8
 	_camera.position = CENTER + Vector3(sin(_angle) * ORBIT_RADIUS, h - CENTER.y, cos(_angle) * ORBIT_RADIUS)
 	_camera.look_at(CENTER, Vector3.UP)
-	_camera.position -= _camera.basis.x * 7.0   # マンションを画面の右寄りに置く（左の文字と重ならないように）
+	_camera.position -= _camera.basis.x * 5.0   # マンションを画面の右寄りに置く（左の文字と重ならないように）
 	_update_elevator(delta)
 	_update_train(delta)
 	for c in _road_cars:
@@ -168,7 +169,7 @@ func _build_ui() -> void:
 	col.add_child(title)
 	var sub := Label.new()
 	sub.name = "Subtitle"
-	sub.text = "503号室"
+	sub.text = "下南澤（シモミナ）　503号室"
 	sub.add_theme_font_size_override("font_size", 34)
 	sub.add_theme_color_override("font_color", Color(1.0, 0.9, 0.75))
 	sub.add_theme_color_override("font_outline_color", Color(0.12, 0.09, 0.07, 0.9))
@@ -187,7 +188,7 @@ func _build_ui() -> void:
 	_menu.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	col.add_child(_menu)
 	if has_save:
-		_add_button("つづきから", func() -> void: _go(true))
+		_add_button("つづきから　%s" % continue_note if not continue_note.is_empty() else "つづきから", func() -> void: _go(true))
 		_add_button("はじめから", func() -> void: _go(false))
 	else:
 		_add_button("はじめる", func() -> void: _go(false))
@@ -370,7 +371,7 @@ func _build_world() -> void:
 	var sun := DirectionalLight3D.new()
 	sun.rotation_degrees = Vector3(-24.0, -52.0, 0.0)
 	sun.light_color = Color(1.0, 0.87, 0.72)
-	sun.light_energy = 1.15
+	sun.light_energy = 0.95
 	sun.shadow_enabled = true
 	sun.directional_shadow_max_distance = 110.0
 	world.add_child(sun)
@@ -467,7 +468,7 @@ func _build_building(world: Node3D) -> void:
 	var b := Node3D.new()
 	b.name = "Building"
 	world.add_child(b)
-	var wall := Color(0.9, 0.85, 0.74)
+	var wall := Color(0.76, 0.7, 0.6)
 	_box(b, BUILDING, Vector3(0, BUILDING.y * 0.5, 0), wall)
 	_box(b, Vector3(12.5, 0.4, 8.5), Vector3(0, BUILDING.y + 0.2, 0), Color(0.55, 0.52, 0.5))
 	_box(b, Vector3(12.5, 0.7, 0.2), Vector3(0, BUILDING.y + 0.75, 4.15), Color(0.8, 0.77, 0.7))
@@ -731,20 +732,20 @@ func _build_city(world: Node3D) -> void:
 	rng.seed = 3
 	var placed := 0
 	var guard := 0
-	while placed < 130 and guard < 3000:
+	while placed < 330 and guard < 9000:
 		guard += 1
 		var a := rng.randf() * TAU
-		var r := rng.randf_range(20.0, 150.0)
+		var r := rng.randf_range(15.0, 140.0 if placed > 200 else 70.0)
 		var p := Vector3(cos(a) * r, 0, sin(a) * r)
 		var near := r < 40.0
 		var w := rng.randf_range(4.0, 9.0) if near else rng.randf_range(6.0, 14.0)
 		var d := rng.randf_range(4.0, 9.0) if near else rng.randf_range(6.0, 12.0)
 		if _blocked(p, maxf(w, d) * 0.5 + 0.5):
 			continue
-		# 軌道（半径 32・高さ 22）にぶつからないよう、近くは低く（2〜3 階建ての店・住宅）
-		var h := rng.randf_range(4.0, 11.0) if near else (rng.randf_range(14.0, 42.0) if r > 70.0 else rng.randf_range(8.0, 22.0))
-		if r > 24.0 and r < 40.0:
-			h = minf(h, 11.0)
+		# 軌道（半径 25・高さ 17）にぶつからないよう、近くは低く（2〜3 階建ての店・住宅）
+		var h := rng.randf_range(3.5, 9.0) if near else (rng.randf_range(14.0, 42.0) if r > 70.0 else rng.randf_range(8.0, 22.0))
+		if r > 20.0 and r < 40.0:
+			h = minf(h, 9.0)
 		var c := Color(0.5, 0.52, 0.58).lerp(Color(0.74, 0.64, 0.56), rng.randf())
 		_box(world, Vector3(w, h, d), Vector3(p.x, h * 0.5, p.z), c)
 		if rng.randf() < 0.6:

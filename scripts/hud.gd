@@ -189,6 +189,7 @@ func _ready() -> void:
 	_log_label.clip_text = true
 	lbox.add_child(_log_label)
 	_log.visible = false
+	_build_notebook()
 	_pause_menu = _make_menu("PauseMenu", "設定")
 	_build_settings(_pause_menu)
 	_stats_label = _make_label(18, HORIZONTAL_ALIGNMENT_CENTER)
@@ -310,6 +311,67 @@ func toggle_log() -> void:
 
 func is_log_open() -> bool:
 	return _log.visible
+
+
+# ---------------------------------------------------------------- 推理ノート
+
+var _notebook: PanelContainer
+var _notebook_chapters: Label
+var _notebook_body: Label
+
+
+func _build_notebook() -> void:
+	_notebook = PanelContainer.new()
+	_notebook.name = "Notebook"
+	_notebook.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var st := StyleBoxFlat.new()
+	st.bg_color = Color(0.1, 0.08, 0.05, 0.92)
+	st.border_color = Color(0.85, 0.7, 0.4, 0.8)
+	st.set_border_width_all(2)
+	st.set_corner_radius_all(10)
+	st.content_margin_left = 26.0
+	st.content_margin_right = 26.0
+	st.content_margin_top = 16.0
+	st.content_margin_bottom = 16.0
+	_notebook.add_theme_stylebox_override("panel", st)
+	_place(_notebook, 0.5, 0.0, 0.5, 1.0, -420.0, 56.0, 420.0, -160.0)
+	var box := VBoxContainer.new()
+	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_notebook.add_child(box)
+	var title := _make_label(24, HORIZONTAL_ALIGNMENT_LEFT)
+	title.text = "推理ノート　　N か Esc で閉じる"
+	title.add_theme_color_override("font_color", Color(1.0, 0.9, 0.6))
+	box.add_child(title)
+	_notebook_chapters = _make_label(18, HORIZONTAL_ALIGNMENT_LEFT)
+	_notebook_chapters.name = "Chapters"
+	_notebook_chapters.modulate = Color(1, 1, 1, 0.8)
+	box.add_child(_notebook_chapters)
+	var sep := HSeparator.new()
+	sep.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	box.add_child(sep)
+	_notebook_body = _make_label(19, HORIZONTAL_ALIGNMENT_LEFT)
+	_notebook_body.name = "Body"
+	_notebook_body.autowrap_mode = TextServer.AUTOWRAP_ARBITRARY
+	_notebook_body.vertical_alignment = VERTICAL_ALIGNMENT_TOP
+	_notebook_body.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_notebook_body.clip_text = true
+	box.add_child(_notebook_body)
+	_notebook.visible = false
+
+
+func toggle_notebook(chapters: String, body: String) -> void:
+	_notebook.visible = not _notebook.visible
+	if _notebook.visible:
+		_notebook_chapters.text = chapters
+		_notebook_body.text = body
+
+
+func close_notebook() -> void:
+	_notebook.visible = false
+
+
+func is_notebook_open() -> bool:
+	return _notebook != null and _notebook.visible
 
 
 ## 持ち物の拡大表示。model：表示する3Dモデル（複製して使う）。null なら閉じる。
@@ -668,7 +730,7 @@ func _build_settings(menu: Control) -> void:
 	_fit_settings()
 	var help := _make_label(20, HORIZONTAL_ALIGNMENT_LEFT)
 	help.name = "Controls"
-	help.text = "操作説明\n移動：W A S D（矢印キーも可）　　視点：マウス\n調べる・使う：左クリック　　座る・入る・立つ：E\nしゃがむ：C　　持ち物を使う：F　　選ぶ：1〜8・ホイール　　拡大：Q　　メッセージの履歴：H\n釣り：釣り竿を拾い、ベランダの手すりを狙ってクリック。浮きが跳ねたらもう一度\nテレビゲーム中：W／A／S／D で操作、E でやめる\n設定を開く・閉じる：Esc"
+	help.text = "操作説明\n移動：W A S D（矢印キーも可）　　視点：マウス\n調べる・使う：左クリック　　座る・入る・立つ：E\nしゃがむ：C　　持ち物を使う：F　　選ぶ：1〜8・ホイール　　拡大：Q　　メッセージの履歴：H\n推理ノート（手がかり・パスワード・幕の目次）：N　　目の高さを変える：[ と ]\n釣り：釣り竿を拾い、ベランダの手すりを狙ってクリック。浮きが跳ねたらもう一度\nテレビゲーム中：W／A／S／D で操作、E でやめる\n設定を開く・閉じる：Esc"
 	box.add_child(help)
 	_catch_label = _make_label(18, HORIZONTAL_ALIGNMENT_LEFT)
 	_catch_label.name = "CatchLabel"
@@ -765,11 +827,11 @@ func _build_settings(menu: Control) -> void:
 		sensitivity_changed.emit(v / 100.0))
 	_hints_check = CheckButton.new()
 	_hints_check.name = "HintsToggle"
-	_hints_check.text = "ヒント（独り言）オン"
+	_hints_check.text = "神の声モード（ヒント）オン"
 	_hints_check.button_pressed = true
 	_hints_check.add_theme_font_size_override("font_size", 20)
 	_hints_check.toggled.connect(func(on: bool) -> void:
-		_hints_check.text = "ヒント（独り言）%s" % ("オン" if on else "オフ")
+		_hints_check.text = "神の声モード（ヒント）%s" % ("オン" if on else "オフ")
 		hints_changed.emit(on))
 	box.add_child(_hints_check)
 	_typing_check = CheckButton.new()
@@ -794,7 +856,7 @@ func _build_settings(menu: Control) -> void:
 
 func set_hints_ui(on: bool) -> void:
 	_hints_check.set_pressed_no_signal(on)
-	_hints_check.text = "ヒント（独り言）%s" % ("オン" if on else "オフ")
+	_hints_check.text = "神の声モード（ヒント）%s" % ("オン" if on else "オフ")
 
 
 func set_typing_ui(on: bool) -> void:
@@ -889,6 +951,20 @@ func set_eye_height_ui(meters: float) -> void:
 ## 「終了」は 2 回押さないと終わらない（押し間違いで、遊んだ分が消えないように）。3 秒たつと元に戻る。
 ## 見つけた物の知らせ：右上に小さく出て、すぐ消える（目的を押しつけない）。
 func show_discovery(label: String, n: int, total: int) -> void:
+	_flash_disc("発見　%s　%d / %d" % [label, n, total])
+
+
+## ノートに書き足したときの、右上の小さな知らせ。
+func show_note_toast(title: String) -> void:
+	_flash_disc("ノートに追加　%s　（N で開く）" % title)
+
+
+## 目の高さを変えたときの、右上の小さな知らせ。
+func show_height_toast(cm: int) -> void:
+	_flash_disc("目の高さ　%d cm" % cm)
+
+
+func _flash_disc(text: String) -> void:
 	if _disc_panel == null:
 		var lab := _make_label(17, HORIZONTAL_ALIGNMENT_RIGHT)
 		lab.name = "DiscoveryText"
@@ -896,7 +972,7 @@ func show_discovery(label: String, n: int, total: int) -> void:
 		_disc_panel = _make_panel("Discovery", lab, 0.5)
 		_place(_disc_panel, 1.0, 0.0, 1.0, 0.0, -330.0, 46.0, -16.0, 80.0)
 		_disc_panel.grow_horizontal = Control.GROW_DIRECTION_BEGIN
-	(_disc_panel.get_child(0) as Label).text = "発見　%s　%d / %d" % [label, n, total]
+	(_disc_panel.get_child(0) as Label).text = text
 	_disc_panel.visible = true
 	_disc_panel.modulate.a = 0.0
 	if _disc_tween:

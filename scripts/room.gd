@@ -126,7 +126,7 @@ func _ready() -> void:
 	exterior = ExteriorScript.new()
 	exterior.name = "Exterior"
 	add_child(exterior)
-	# 玄関ドア（玄関ホールの左の壁）と、その外の5階の共用廊下・下北沢の街並み
+	# 玄関ドア（玄関ホールの左の壁）と、その外の5階の共用廊下・下南澤の街並み
 	front_door = FrontDoorScript.new()
 	front_door.name = "FrontDoor"
 	add_child(front_door)
