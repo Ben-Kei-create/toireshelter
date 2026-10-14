@@ -49,16 +49,9 @@ func _run() -> void:
 	await _seconds(0.6)
 	_check(not room.shower_curtain.closed, "（準備）カーテンを開け直した")
 
-	# ---------------------------------------------------------------- 風呂桶を逆さにして浴槽に置く（足場）
-	player.global_position = Vector3(0.2, 0.0, -0.1)
-	_aim(player, room.get_node("BathBucket").global_position + Vector3(0, 0.1, 0))
-	player.try_interact()
-	_check(main.inventory.has("bucket"), "（準備）風呂桶を拾った")
-	main.select_item(main.inventory.find("bucket"))
-	player.global_position = Vector3(0.3, 0.0, -0.2)
-	_aim(player, tub.to_global(Vector3(0.3, 0.3, 0.375)))
-	main.use_selected()
-	_check(room.bucket_in_tub and not main.inventory.has("bucket"), "（準備）風呂桶を逆さにして浴槽に置いた")
+	# ---------------------------------------------------------------- 背を最大（170 cm）にする（換気口に届くのは、設定の身長だけ）
+	main._on_eye_height_changed(1.7)
+	_check(main._tall_enough(), "（準備）目の高さを最大にした")
 
 	# ---------------------------------------------------------------- 換気口へ入る（浴槽から）
 	player.global_position = Vector3(0.3, 0.0, -0.2)
@@ -191,6 +184,7 @@ func _run() -> void:
 			and p2n.global_position.distance_to(m2.room.spawn_position) < 0.06 and not m2.room.vent_open
 			and not m2.room.apartment.window_open, "再プレイで浴室の初期位置・格子と窓は閉・経路の記録なし")
 
+	m2._on_eye_height_changed(1.5)   # 設定ファイルを元に戻す
 	print("ROUTE TEST: %s (%d failure(s))" % ["PASS" if _failures == 0 else "FAIL", _failures])
 	quit(1 if _failures > 0 else 0)
 

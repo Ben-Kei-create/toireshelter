@@ -23,13 +23,18 @@ func _run() -> void:
 	var remote = room.bath_remote
 	var panel = room.toilet_panel
 	var toilet = room.toilet
+	# 浴槽は今は最初から栓がない。水をためる検証のため、十円玉とおもりでふたをして栓をした状態から始める
+	tub.put_lid(false)
+	tub.put_lid(true)
 
 	# ================================================================ 1：ユブロマン
 	player.global_position = Vector3(0.0, 0.0, 0.3)
 	var powder_node: Node3D = room.get_node("BathPowder")
 	_aim(player, room.get_node("BathPowder/Visual").global_position + Vector3(0, 0.08, 0))
 	player.try_interact()
-	_check(main.inventory.has("bath_powder") and not powder_node.visible and main.selected_item() == "bath_powder", "棚のユブロマンを拾い、選択される")
+	_check(main.inventory.has("bath_powder") and not powder_node.visible and main.selected_item() != "bath_powder", "棚のユブロマンを拾う（拾っただけでは手に持たない）")
+	main.select_item(main.inventory.find("bath_powder"))
+	_check(main.selected_item() == "bath_powder", "1〜3 で選ぶと手に持つ")
 	main._on_interact_requested(room.get_node("BathPowder/Collision"))
 	_check(main.inventory.count("bath_powder") == 1, "重複して取れない")
 	# 水が足りない

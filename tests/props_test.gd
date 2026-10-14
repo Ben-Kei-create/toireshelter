@@ -147,7 +147,8 @@ func _run() -> void:
 	main._pause()
 	var menu: Control = main.hud._pause_menu
 	check(menu.visible and main.hud._hint_label.text.begins_with("Esc：設定") and not main.hud._hint_label.text.contains("WASD"), "Esc で設定が開く（上端の案内は Esc：設定）")
-	check((menu.get_node("Center/Box/Controls") as Label).text.contains("E：") or (menu.get_node("Center/Box/Controls") as Label).text.contains("座る・入る・立つ：E"), "設定に操作説明がある")
+	var controls := menu.find_child("Controls", true, false) as Label   # 設定画面の入れ物の階層が変わっても探せるように、名前で探す
+	check(controls != null and (controls.text.contains("E：") or controls.text.contains("座る・入る・立つ：E")), "設定に操作説明がある")
 	main.hud._height_slider.value = 165.0
 	check(is_equal_approx(player.eye_height, 1.65) and is_equal_approx(player._eye_target, 1.65), "身長スライダーで目の高さが変わる（165cm）")
 	main.hud._height_slider.value = 100.0

@@ -150,7 +150,7 @@ func _run() -> void:
 	var plug_pos: Vector3 = tub.to_global(tub.DRAIN_POS + Vector3(0, 0.012, 0))
 	_aim(player, plug_pos)
 	var ph = player.get_focused(true)
-	_check(_id(ph) == "bath_plug" and main._prompt_for(ph) == main.PROMPTS["plug_pull"], "浴槽の中から栓を操作できる（%.2fm）" % cam.distance_to(plug_pos))
+	_check(_id(ph) == "bath_plug", "浴槽の中から栓を狙える（%.2fm）" % cam.distance_to(plug_pos))
 	_aim(player, tub.faucet.to_global(Vector3(0, -0.03, 0.09)))
 	_check(_id(player.get_focused(true)) == "bath_faucet", "浴槽の中から蛇口を操作できる")
 	_aim(player, tub.to_global(Vector3(0.0, 0.3, tub.HALF.z - tub.WALL)))   # 手前の内壁（通路からは見えにくい面）
@@ -252,8 +252,8 @@ func _run() -> void:
 	player.toggle_crouch()
 	await _seconds(0.8)
 	_check(_cam_clear(player, blockers), "しゃがみ：カメラが扉・蓋・水面に埋まらない")
-	_aim(player, room.driver_node.global_position + Vector3(0, 0.02, 0))
-	_check(_id(player.get_focused(true)) == "driver", "しゃがみ：開いた扉の下からドライバーを狙える")
+	_aim(player, room.get_node("BathBucket").global_position + Vector3(0, 0.05, 0))
+	_check(_id(player.get_focused(true)) == "bath_bucket", "しゃがみ：開いた扉の下から床の風呂桶を狙える")
 	_check(player.toggle_crouch() and player.pose == Pose.WALK, "しゃがみから立ち上がる")
 	await _seconds(0.8)
 	# 立ち：開いた扉の向こうの中の物、満水の洗面台の栓
