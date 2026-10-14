@@ -231,6 +231,8 @@ func snapshot() -> Dictionary:
 		"discovered": discovered.keys(),
 		"hints_shown": hints_shown.keys(),
 		"notes": notes.duplicate(true),
+		"items_found": main.items_found.keys(),
+		"coins_total": main.coins_total,
 		"chapter": chapter,
 	}
 
@@ -273,6 +275,9 @@ func apply(d: Dictionary) -> void:
 		if typeof(n) == TYPE_DICTIONARY and n.has("id"):
 			notes.append({"id": String(n.id), "kind": String(n.get("kind", "手がかり")), "title": String(n.get("title", "")), "text": String(n.get("text", ""))})
 	chapter = clampi(int(d.get("chapter", 0)), 0, CHAPTERS.size() - 1)
+	for k in d.get("items_found", []):
+		main.items_found[String(k)] = true
+	main.coins_total = int(d.get("coins_total", 0))
 	# 拾った物を、先にそれぞれ棚や床から消す（見た目と照準の判定）
 	var inv: Array = d.get("inventory", [])
 	if d.get("has_driver", false):
@@ -315,6 +320,7 @@ func apply(d: Dictionary) -> void:
 	for id in inv:
 		if main.ITEMS.has(id) and not main.inventory.has(id):
 			main.inventory.append(String(id))
+		main.items_found[String(id)] = true
 	main.select_item(main.inventory.size() - 1 if not main.inventory.is_empty() else -1)
 	if d.get("door_open", false):
 		main.door_open = true

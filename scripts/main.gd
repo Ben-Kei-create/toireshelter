@@ -382,6 +382,8 @@ var peeping := false               # のぞき穴の画面が開いている
 var reading := false               # 本を読む画面が開いている
 const TISSUE_SHEETS := 12
 var coin_count := 0                # 持っている UFOコインの枚数
+var coins_total := 0               # 集めたコインの枚数（使った分も数える。クリアの記録用）
+var items_found := {}              # 一度でも手に入れた持ち物の id（クリアの記録用）
 var tissue_pulled := 0             # ティッシュを引いた回数
 var progress: Node                  # ヒント・発見・セーブ（progress.gd）
 var examined := {}                 # 調べた物の id（調べた数の記録。軽い集合だけ）
@@ -1291,6 +1293,7 @@ func add_item(id: String) -> bool:
 		return false
 	SfxScript.play("pop")
 	inventory.append(id)
+	items_found[id] = true
 	select_item(inventory.size() - 1)
 	progress.save()
 	return true
@@ -1323,6 +1326,7 @@ func select_item(i: int) -> void:
 ## UFOコインを n 枚ふやす（持ち物には1つの欄に「×枚数」でまとめる）。
 func add_coin(n := 1) -> void:
 	coin_count += n
+	coins_total += n
 	if not inventory.has("ufo_coin"):
 		_item_models["ufo_coin"] = FishingScript.coin_model()
 		add_item("ufo_coin")
@@ -1561,7 +1565,45 @@ func _clear(route: String) -> void:
 	clear_route = route
 	player.controls_enabled = false
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-	hud.show_clear(CLEAR_TITLES[route])
+	hud.show_clear(CLEAR_TITLES[route], _clear_stats_text())
+
+
+## 秒を「m:ss」または「h:mm:ss」にする。
+static func format_time(seconds: float) -> String:
+	var t := int(seconds)
+	if t >= 3600:
+		return "%d:%02d:%02d" % [t / 3600, (t / 60) % 60, t % 60]
+	return "%d:%02d" % [t / 60, t % 60]
+
+
+## クリアの記録（最後に出す）：クリアタイム・ベスト・発見・調べた物・手に入れた物・コイン・ノート・神の声のヒント。
+## ベストは user://settings.cfg の record/best_<ルート> に残す（短いほうが良い）。
+func _clear_stats_text() -> String:
+	var cfg := ConfigFile.new()
+	cfg.load(SETTINGS_PATH)
+	var key := "best_" + clear_route
+	var best := float(cfg.get_value("record", key, -1.0))
+	var line := "クリアタイム　%s" % format_time(play_time)
+	if best < 0.0 or play_time < best:
+		if best >= 0.0:
+			line += "　ベスト更新！（前のベスト %s）" % format_time(best)
+		else:
+			line += "　（はじめての記録）"
+		if progress.enabled or OS.get_environment("TOIRE_SAVE_TEST") == "1":
+			cfg.set_value("record", key, play_time)
+			cfg.save(SETTINGS_PATH)
+	else:
+		line += "　（ベスト %s）" % format_time(best)
+	var lines := PackedStringArray([
+		line,
+		"発見　%d / %d" % [progress.discovered.size(), progress.total()],
+		"調べた物　%d / %d" % [examined.size(), maxi(total_examinable, examined.size())],
+		"手に入れた物　%d / %d 種類" % [items_found.size(), ITEMS.size()],
+		"集めたコイン　%d 枚" % coins_total,
+		"推理ノート　%d 件" % progress.notes.size(),
+		"神の声のヒント　%d 回" % progress.hints_shown.size(),
+	])
+	return "\n".join(lines)
 
 
 func _retry() -> void:

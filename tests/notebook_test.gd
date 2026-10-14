@@ -27,6 +27,8 @@ func _run() -> void:
 	var main = current_scene
 	var progress = main.progress
 	var hud = main.hud
+	main._on_eye_height_changed(1.5)   # 設定ファイルの目の高さが前のテストの値でも、同じ状態から始める
+	main.hud.set_eye_height_ui(1.5)
 
 	# 推理ノート
 	_check(progress.notes.is_empty(), "はじめはノートが空")
@@ -91,6 +93,7 @@ func _run() -> void:
 	_check(is_equal_approx(main.player.eye_height, 1.3), "下限は 130 cm")
 	_check(is_equal_approx(hud._height_slider.value, 130.0), "設定のスライダーも合う")
 
+	main._on_eye_height_changed(1.5)   # 設定ファイルを元の高さに戻す（ほかのテストに影響させない）
 	# 神の声モード（表示の名前）
 	_check(hud._hints_check.text.begins_with("神の声モード"), "設定の項目名は「神の声モード」")
 	print("NOTEBOOK TEST: %s (%d failure(s))" % ["PASS" if _failures == 0 else "FAIL", _failures])

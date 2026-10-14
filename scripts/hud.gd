@@ -42,6 +42,7 @@ var _reader_foot: Label
 var _hint_label: Label
 var _pause_menu: Control
 var _clear_menu: Control
+var _clear_stats: Label
 var _resume_button: Button
 var _retry_button: Button
 var _message_time_left := 0.0
@@ -202,6 +203,10 @@ func _ready() -> void:
 	_pause_menu.visible = false
 
 	_clear_menu = _make_menu("ClearMenu", "脱出成功")
+	_clear_stats = _make_label(22, HORIZONTAL_ALIGNMENT_CENTER)
+	_clear_stats.name = "ClearStats"
+	_clear_stats.modulate = Color(1.0, 0.95, 0.8)
+	(_clear_menu.get_node("Center/Box") as VBoxContainer).add_child(_clear_stats)
 	_retry_button = _add_button(_clear_menu, "もう一度", func() -> void: retry_pressed.emit())
 	_add_button(_clear_menu, "終了", func() -> void: quit_pressed.emit())
 	_clear_menu.visible = false
@@ -458,8 +463,10 @@ func show_pause(is_paused: bool) -> void:
 		_resume_button.grab_focus()
 
 
-func show_clear(title: String = "脱出成功") -> void:
+func show_clear(title: String = "脱出成功", stats := "") -> void:
 	(_clear_menu.get_node("Center/Box").get_child(0) as Label).text = title
+	_clear_stats.text = stats
+	_clear_stats.visible = not stats.is_empty()
 	set_prompt("")
 	_message_panel.visible = false
 	_message_time_left = 0.0
