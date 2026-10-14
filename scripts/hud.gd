@@ -277,8 +277,8 @@ func set_prompt(text: String) -> void:
 ## 所持品欄を更新する。names：持っている物の名前（最大6つ、順に 1〜6 キー）、selected：選択中の番号（なければ -1）。
 func set_inventory(names: Array, selected: int) -> void:
 	var new_count := names.size()
-	if new_count > _last_item_count and selected >= 0 and selected < _slot_panels.size() and is_inside_tree():
-		_pulse_slot(selected)   # 新しく持ち物に加わった欄を、ちょっと光らせる
+	if new_count > _last_item_count and new_count <= _slot_panels.size() and is_inside_tree():
+		_pulse_slot(new_count - 1)   # 新しく持ち物に加わった欄（いちばん後ろ）を、ちょっと光らせる。拾っただけでは手に持たない
 	_last_item_count = new_count
 	for i in _slot_labels.size():
 		var has := i < names.size()

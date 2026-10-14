@@ -93,6 +93,7 @@ func _run() -> void:
 		main._mahjong_input(_key(KEY_SPACE))
 		n_clicks += 1
 	check(main.mahjong.discards.size() == d0 + n_clicks, "切る操作の連打で二重に切れない（%d回→%d枚）" % [n_clicks, main.mahjong.discards.size() - d0])
+	await process_frame   # こたつの中へ置き直される分（テストは外から姿勢だけ変えている）が落ち着いてから測る
 	var pos0: Vector3 = player.global_position
 	player.velocity = Vector3.ZERO
 	check(not player.controls_enabled, "麻雀中は歩けない・視点も動かない（操作を止めている）")
