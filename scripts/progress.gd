@@ -22,7 +22,7 @@ const DISCOVERIES := {
 	"intercom": "インターホン", "kotatsu_in": "こたつの中", "bed_sleep": "ふとんで眠る", "radio": "ラジオ",
 	"tv_play": "テレビゲーム", "aquarium": "水槽", "bath_powder": "入浴剤", "phone_black": "黒電話",
 	"driver": "ドライバー", "microwave": "電子レンジ", "calendar": "カレンダー",
-	"inspect_lever": "点検レバー", "vent_stretch": "背伸びで換気口へ", "unit_rise": "ゴゴゴ（浴室が上がった）", "wood_stick": "木の棒",
+	"inspect_lever": "点検レバー", "vent_stretch": "背伸びで換気口へ", "ladder": "ボロボロのはしご", "lean_out": "手すりから乗り出す", "ko_line": "KO線", "unit_rise": "ゴゴゴ（浴室が上がった）", "wood_stick": "木の棒",
 }
 
 ## 幕（章）の名前。いまの幕より先は、行くまで「？？？」と出す。
@@ -257,6 +257,7 @@ func snapshot() -> Dictionary:
 		"coin_count": main.coin_count,
 		"has_driver": main.has_driver,
 		"risen": room.risen,
+		"ladder_down": room.exterior.ladder_down,
 		"bucket_taken": room.bucket_taken,
 		"bucket_in_tub": room.bucket_in_tub,
 		"stick_taken": main.inventory.has("wood_stick") or main.items_found.has("wood_stick"),
@@ -328,11 +329,15 @@ func apply(d: Dictionary) -> void:
 		room.take_bucket()
 	if d.get("bucket_in_tub", false):
 		room.place_bucket_in_tub()
+	if d.get("ladder_down", false):
+		pass   # はしごは、上がった高さが決まってから（下の risen の処理のあと）下ろす
 	if d.get("risen", false) and not room.risen:
 		room.mirror_cabinet.pull_lever_visual(true)
 		room.rise_unit(main.player, true)
 		if d.get("stick_taken", false):
 			room.take_wood_stick()
+	if d.get("ladder_down", false) and not room.exterior.ladder_down:
+		room.exterior.lower_ladder(room.exterior.DUCT_FLOOR + room.rise_offset, true)
 	# 拾った物を、先にそれぞれ棚や床から消す（見た目と照準の判定）
 	var inv: Array = d.get("inventory", [])
 	if d.get("has_driver", false):

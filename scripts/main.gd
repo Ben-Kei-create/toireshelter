@@ -66,6 +66,9 @@ const MESSAGES := {
 	"plunger": "ラバーカップ。ブラシと妙にきれいに並んでいる。",
 	"toilet_brush": "トイレブラシ。ここでの仕事には慣れていそうだ。",
 	"vent_sticker": "『点検済。異常なし。たぶん。』……たぶん？",
+	"ladder_lowered": "ボロボロのはしごを、出口から下ろした。錆びていて、段が何本か抜けている。ぎしぎし言っている。",
+	"lean_out": "手すりに手をかけて、身を乗り出した。……思ったより、高い。路地が、ずっと下に見える。",
+	"ko_line": "右手の遠くに、高架の線路。KO線だ。電車が、ゆっくり走っていく。",
 	"bucket_pick": "水色の大きな風呂桶を拾った。逆さにして浴槽に置けば、足場になりそうだ。",
 	"bucket_placed": "風呂桶を逆さにして、浴槽の底に置いた。上に乗れそうだ。",
 	"vent_far": "天井の換気口。手が届かない。何かに乗れば、届くかもしれない。",
@@ -330,8 +333,11 @@ const ACTION_PROMPTS := {
 	"vent_enter": "E：換気口へ入る",
 	"vent_far": "E：手を伸ばす",
 	"vent_stretch": "E：背伸びして換気口へ",
+	"ladder_lower": "E：はしごを下ろす",
+	"lean_out": "E：手すりから身を乗り出す",
+	"lean_back": "E：身を戻す",
 	"duct_back": "E：浴室へ戻る",
-	"balcony_down": "E：ベランダへ降りる",
+	"balcony_down": "E：はしごでベランダへ降りる",
 	"kotatsu_sit": "E：こたつに座る",
 	"kotatsu_stand": "E：立つ",
 	"kotatsu_out": "E：こたつから出る",
@@ -423,6 +429,8 @@ const NOTE_CLUES := {
 const EYE_STEP := 0.02   # [ と ] で変える、目の高さの 1 回ぶん（m）
 
 var _lever_busy := false
+var _lean_x := 2.5
+var _ko_seen := false
 static var _title_seen := false   # 起動後、タイトル画面を一度出したか（やり直しの再読み込みでは出さない）
 var _title: Node
 
@@ -570,6 +578,13 @@ func _begin_play() -> void:
 func _process(_delta: float) -> void:
 	if _title != null:
 		return
+	if not _ko_seen and not paused and ExteriorScript.in_balcony(player.global_position):
+		var fwd: Vector3 = -player.camera.global_basis.z
+		if fwd.x > 0.6 and fwd.y > -0.6:   # ベランダで、右手（東）を見た
+			_ko_seen = true
+			hud.show_message(MESSAGES["ko_line"], 5.0, "voice")
+			progress.discover("ko_line")
+			progress.add_note("ko_line", "KO線", "右手の遠くに高架の線路。電車がゆっくり走っている。", "手がかり")
 	var carried: String = room.apartment.cellar.carrying_name
 	hud.set_carry("運んでいる：%s（冷蔵庫の中を狙って、左クリックで入れる）" % carried if not carried.is_empty() else "")
 	if not paused and not cleared:
@@ -1038,13 +1053,17 @@ func _action_for(target: Object) -> String:
 			if Vector2(p.x - VENT_MOUTH.x, p.z - VENT_MOUTH.z).length() < DUCT_BACK_RANGE:
 				return "duct_back"
 			if p.z < ExteriorScript.DUCT_EXIT_EDGE_Z and p.x > ExteriorScript.DUCT_B.position.x:
-				return "balcony_down"
+				return "balcony_down" if room.exterior.ladder_down else "ladder_lower"
 			return ""
+		PlayerScript.Pose.LEAN:
+			return "lean_back"
 	if target == null:
 		return ""
 	var id := String(target.get_meta("interact_id", ""))
 	if id == "vent" and _can_stretch_to_vent():
 		return "vent_stretch"
+	if id == "fish_spot" and player.pose == PlayerScript.Pose.WALK and ExteriorScript.in_balcony(player.global_position):
+		return "lean_out"
 	if id == "kotatsu" and player.pose == PlayerScript.Pose.WALK:
 		return "kotatsu_sit"
 	if id == "bed" and player.pose == PlayerScript.Pose.WALK:
@@ -1108,6 +1127,22 @@ func do_action() -> void:
 					[_up(VENT_BELOW), _up(VENT_MOUTH)], true, PlayerScript.DUCT_BODY_HEIGHT, PlayerScript.DUCT_BODY_RADIUS)
 		"duct_back":
 			player.move_to(PlayerScript.Pose.IN_TUB, _tub_feet(), TUB_YAW, _tub_eye(), [_up(VENT_MOUTH), _up(VENT_BELOW)])
+		"ladder_lower":
+			room.exterior.lower_ladder(ExteriorScript.DUCT_FLOOR + room.rise_offset)
+			SfxScript.play("creak", 0.7)
+			hud.show_message(MESSAGES["ladder_lowered"])
+			progress.discover("ladder")
+			progress.add_note("ladder", "ボロボロのはしご", "ダクトの出口から、ベランダへ下ろせる。錆びて、段が抜けている。", "手がかり")
+		"lean_out":
+			var lx := clampf(player.global_position.x, ExteriorScript.BALCONY.position.x + 0.3, ExteriorScript.BALCONY.end.x - 0.3)
+			_lean_x = lx
+			player.move_to(PlayerScript.Pose.LEAN, Vector3(lx, 0.0, ExteriorScript.BALCONY.position.z - 0.32), 0.0, 1.3)
+			hud.show_message(MESSAGES["lean_out"])
+			progress.discover("lean_out")
+		"lean_back":
+			var back := [Vector3(_lean_x, 0.0, -1.75), Vector3(_lean_x, 0.0, -1.65), Vector3(2.4, 0.0, -1.7)]
+			if not player.leave_fixed(back):
+				hud.show_message(MESSAGES["no_way_out"])
 		"vent_far":
 			hud.show_message(MESSAGES["vent_far"])
 			progress.add_note("vent_far", "天井の換気口", "高くて手が届かない。何かに乗れば届きそうだ。（背が最大なら、背伸びで届く？）", "手がかり")

@@ -41,17 +41,162 @@ const WINDOW_TOP := 2.0
 const FLOOR_PITCH := 3.4      # 上下の階の間隔（背景）
 const OPPOSITE_Z := -4.4
 
+## KO線：右手（+x）の遠くを走る、ゆっくりした電車の高架。背景だけ。
+const KO_X := 22.0
+const KO_DECK_Y := -1.2
+const KO_SPEED := 2.6
+const GROUND_Y := -4.0 * FLOOR_PITCH   # 街の地面（廊下と同じ）
+
 var _rng := RandomNumberGenerator.new()
+var ladder_down := false               # ボロボロのはしごを、ダクトの出口から下ろした
+var _ladder: Node3D
+var _ko_train: Node3D
+var _ko_z := -150.0
+var _ko_wait := 4.0
 
 
 func _ready() -> void:
 	_rng.seed = 2610
+	_build_ko_line()
+	_build_east_view()
 	_build_duct()
 	_build_facade()
 	_build_balcony()
 	_build_opposite()
 	_build_street()
 	_build_lights()
+
+
+## ベランダ（手すりから身を乗り出すところも含む）の内か。
+static func in_balcony(p: Vector3) -> bool:
+	return p.x > BALCONY.position.x - 0.2 and p.x < BALCONY.end.x + 0.2 and p.z > BALCONY.position.z - 0.6 and p.z < FACADE_Z + 0.1 and p.y > -0.4 and p.y < 2.6
+
+
+func _process(delta: float) -> void:
+	if _ko_train == null:
+		return
+	if _ko_z > 60.0:
+		_ko_train.visible = false
+		_ko_wait -= delta
+		if _ko_wait <= 0.0:
+			_ko_z = -150.0
+			_ko_wait = 14.0
+	else:
+		_ko_train.visible = true
+		_ko_z += KO_SPEED * delta
+	_ko_train.position.z = _ko_z
+
+
+## 東の端の建物の向こうの景色：遠くまで続く地面と、低い影の街並み（空や虚無が抜けないように）。
+func _build_east_view() -> void:
+	MeshKit.auto_round = false
+	var v := Node3D.new()
+	v.name = "EastView"
+	add_child(v)
+	MeshKit.box(v, Vector3(140.0, 0.2, 200.0), Vector3(8.4 + 70.0, GROUND_Y - 0.1, -60.0), MeshKit.mat("east_ground", Color(0.3, 0.3, 0.33), 1.0), "Ground")
+	var dark := MeshKit.mat("east_far", Color(0.2, 0.22, 0.28), 1.0)
+	var lit := MeshKit.mat("east_lit", Color(1.0, 0.85, 0.6), 0.6)
+	lit.emission_enabled = true
+	lit.emission = Color(1.0, 0.8, 0.55)
+	lit.emission_energy_multiplier = 0.9
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 88
+	for i in 60:
+		var x := rng.randf_range(12.0, 110.0)
+		if absf(x - KO_X) < 5.0:
+			continue
+		var z := rng.randf_range(-150.0, 10.0)
+		var top := rng.randf_range(-9.0, 6.0) if x > 40.0 else rng.randf_range(-10.0, -4.0)
+		var w := rng.randf_range(4.0, 9.0)
+		var d := rng.randf_range(4.0, 9.0)
+		MeshKit.box(v, Vector3(w, top - GROUND_Y, d), Vector3(x, (top + GROUND_Y) * 0.5, z), dark, "Far")
+		if rng.randf() < 0.7:
+			MeshKit.box(v, Vector3(0.05, 0.6, 0.8), Vector3(x - w * 0.5 - 0.03, top - rng.randf_range(1.0, 5.0), z + rng.randf_range(-1.5, 1.5)), lit, "FarLight")
+	MeshKit.auto_round = true
+
+
+## 高架の KO線（右手の遠く）：高架の橋脚・床・防護壁、架線の柱、4 両の電車。電車はゆっくり南北に走る。
+func _build_ko_line() -> void:
+	MeshKit.auto_round = false
+	var r := Node3D.new()
+	r.name = "KoLine"
+	r.position = Vector3(KO_X, 0.0, 0.0)
+	add_child(r)
+	var concrete := MeshKit.mat("ko_concrete", Color(0.62, 0.6, 0.57), 0.9)
+	var length := 170.0
+	var zc := -60.0
+	MeshKit.box(r, Vector3(4.6, 0.9, length), Vector3(0, KO_DECK_Y - 0.45, zc), concrete, "Deck")
+	MeshKit.box(r, Vector3(3.6, 0.4, length), Vector3(0, KO_DECK_Y + 0.2, zc), MeshKit.mat("ko_ballast", Color(0.45, 0.43, 0.4), 1.0), "Ballast")
+	for x in [-0.72, 0.72]:
+		MeshKit.box(r, Vector3(0.1, 0.12, length), Vector3(x, KO_DECK_Y + 0.46, zc), MeshKit.mat("ko_rail", Color(0.7, 0.7, 0.73), 0.4, 0.6), "Rail")
+	for x in [-2.3, 2.3]:
+		MeshKit.box(r, Vector3(0.2, 0.7, length), Vector3(x, KO_DECK_Y + 0.35, zc), MeshKit.mat("ko_parapet", Color(0.7, 0.68, 0.65), 0.9), "Parapet")
+	var h := KO_DECK_Y - 0.9 - GROUND_Y
+	var z := -140.0
+	while z < 30.0:
+		for x in [-1.5, 1.5]:
+			MeshKit.box(r, Vector3(1.1, h, 1.1), Vector3(x, GROUND_Y + h * 0.5, z), MeshKit.mat("ko_pillar", Color(0.58, 0.56, 0.54), 0.9), "Pillar")
+		MeshKit.box(r, Vector3(4.2, 0.6, 1.3), Vector3(0, KO_DECK_Y - 1.2, z), concrete, "Beam")
+		z += 9.0
+	var pole := MeshKit.mat("ko_pole", Color(0.5, 0.52, 0.55), 0.5, 0.4)
+	z = -140.0
+	while z < 30.0:
+		MeshKit.cylinder(r, 0.12, 6.0, Vector3(-1.9, KO_DECK_Y + 3.0, z), pole, "CatenaryPole")
+		MeshKit.box(r, Vector3(2.4, 0.1, 0.1), Vector3(-0.7, KO_DECK_Y + 5.8, z), pole, "Arm")
+		z += 10.0
+	MeshKit.box(r, Vector3(0.04, 0.04, length), Vector3(0, KO_DECK_Y + 5.6, zc), MeshKit.mat("ko_wire", Color(0.15, 0.15, 0.17), 0.6), "Wire")
+	_ko_train = Node3D.new()
+	_ko_train.name = "Train"
+	_ko_train.position = Vector3(0, KO_DECK_Y + 0.62, _ko_z)
+	r.add_child(_ko_train)
+	for i in 4:
+		var car := Node3D.new()
+		car.position = Vector3(0, 1.3, -i * 6.4)
+		_ko_train.add_child(car)
+		MeshKit.box(car, Vector3(2.5, 2.5, 6.0), Vector3.ZERO, MeshKit.mat("ko_body", Color(0.93, 0.92, 0.86), 0.6), "Body")
+		MeshKit.box(car, Vector3(2.52, 0.35, 6.02), Vector3(0, -0.5, 0), MeshKit.mat("ko_stripe", Color(0.15, 0.5, 0.5), 0.6), "Stripe")
+		MeshKit.box(car, Vector3(2.55, 0.85, 5.2), Vector3(0, 0.45, 0), MeshKit.mat("ko_window", Color(0.22, 0.3, 0.4), 0.3), "Windows")
+		for w in 3:
+			MeshKit.box(car, Vector3(2.56, 0.9, 0.06), Vector3(0, 0.45, -1.8 + w * 1.8), MeshKit.mat("ko_body", Color(0.93, 0.92, 0.86), 0.6), "Pillar")
+		var glow := MeshKit.mat("ko_inside", Color(1.0, 0.92, 0.7), 0.5)
+		glow.emission_enabled = true
+		glow.emission = Color(1.0, 0.9, 0.65)
+		glow.emission_energy_multiplier = 0.6
+		MeshKit.box(car, Vector3(2.4, 0.1, 5.2), Vector3(0, -0.2, 0), glow, "Inside")
+	MeshKit.auto_round = true
+
+
+## ボロボロのはしごを、ダクトの出口（高さ top_y）からベランダの床まで下ろす。上の端を軸に、伸びて落ちる。
+func lower_ladder(top_y: float, instant := false) -> void:
+	if ladder_down:
+		return
+	ladder_down = true
+	_ladder = Node3D.new()
+	_ladder.name = "Ladder"
+	_ladder.position = Vector3(1.66, top_y, FACADE_Z - FACADE_T - 0.07)
+	add_child(_ladder)
+	var rust := MeshKit.mat("ladder_rust", Color(0.45, 0.31, 0.2), 0.9, 0.3)
+	var length := top_y + 0.02
+	MeshKit.auto_round = false
+	for x in [-0.16, 0.16]:
+		MeshKit.box(_ladder, Vector3(0.035, length, 0.03), Vector3(x, -length * 0.5, 0), rust, "Rail")
+	var i := 0
+	var y := 0.15
+	while y < length - 0.1:
+		if i % 5 != 2:   # 3 本に 1 本くらい、段が抜けている
+			var rung := MeshKit.box(_ladder, Vector3(0.32, 0.025, 0.025), Vector3(0, -y, 0.0), rust, "Rung")
+			if i % 7 == 3:   # 傾いて、ぶら下がっている段
+				rung.rotation.z = 0.28
+				rung.position.x = 0.03
+		y += 0.3
+		i += 1
+	MeshKit.auto_round = true
+	if instant:
+		return
+	_ladder.scale.y = 0.02
+	var tw := create_tween()
+	tw.set_trans(Tween.TRANS_BOUNCE).set_ease(Tween.EASE_OUT)
+	tw.tween_property(_ladder, "scale:y", 1.0, 1.3)
 
 
 # ---------------------------------------------------------------- 換気経路
@@ -382,7 +527,7 @@ func _build_street() -> void:
 			MeshKit.box(st, Vector3(0.03, 0.03, 0.14), Vector3(v[0], yy, wall_z + dir * 0.07), bracket)
 	# 路地の両端：別の建物が視界をふさぎ、路地はその先で曲がっていく（空が抜けないように）
 	_end_building(st, -4.6, 1.0, deg_to_rad(10.0), Color(0.78, 0.82, 0.76), [7, 11])
-	_end_building(st, 8.6, -1.0, deg_to_rad(-14.0), Color(0.86, 0.8, 0.7), [2, 12])
+	_end_building(st, 8.6, -1.0, deg_to_rad(-14.0), Color(0.86, 0.8, 0.7), [2, 12], -3.5)   # 東の端の建物は低く：その上に、KO線が見える
 	# 自動販売機：向かいの建物の1階の店先と、自分の建物の1階の壁際
 	_vending(st, Vector3(2.9, -2.0 * FLOOR_PITCH, OPPOSITE_Z + 0.36), 0.0, Color(0.78, 0.12, 0.12), [32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45])
 	_vending(st, Vector3(5.0, -2.0 * FLOOR_PITCH, FACADE_Z - FACADE_T - 0.36), PI, Color(0.92, 0.93, 0.95), [46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59])
@@ -477,7 +622,7 @@ func _street_stickers(parent: Node3D) -> void:
 
 ## 路地の突き当たりの建物。x：壁の位置、facing：路地側の向き（+1 = +x を向く）、yaw：少し振って曲がり角に見せる。
 ## 窓・室外機・配管・縦看板付き。背景だけ（当たり判定なし）。
-func _end_building(parent: Node3D, x: float, facing: float, yaw: float, tint: Color, signs: Array) -> void:
+func _end_building(parent: Node3D, x: float, facing: float, yaw: float, tint: Color, signs: Array, roof := 10.0) -> void:
 	var bld := Node3D.new()
 	bld.name = "EndBuilding"
 	bld.position = Vector3(x, 0.0, (OPPOSITE_Z + FACADE_Z) * 0.5 - 0.4)
@@ -486,7 +631,7 @@ func _end_building(parent: Node3D, x: float, facing: float, yaw: float, tint: Co
 	# ローカル +x が路地側。壁の面はローカル x=0、幅（z）5m
 	var wall := MeshKit.tiled_mat("end_wall_%s" % tint.to_html(false), TEX_STUCCO, 0.9, tint, 0.95)
 	var bottom := -2.0 * FLOOR_PITCH
-	var top := 10.0
+	var top := roof
 	MeshKit.box(bld, Vector3(0.4, top - bottom, 5.0), Vector3(-0.2, (top + bottom) * 0.5, 0), wall, "Wall")
 	var glass := MeshKit.mat("opp_glass", Color(0.16, 0.18, 0.2), 0.2, 0.2)
 	var lit := MeshKit.mat("opp_lit", Color(1.0, 0.85, 0.6), 0.6)

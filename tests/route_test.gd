@@ -111,8 +111,12 @@ func _run() -> void:
 	var p2: Vector3 = player.global_position
 	_check(p2.z > Ext.DUCT_B.position.z - 0.02 and p2.z < Ext.DUCT_EXIT_EDGE_Z and absf(p2.y - y0) < 0.05,
 			"出口側の管を進み、外壁の出口の手前で止まる（落ちない。z=%.2f）" % p2.z)
-	_check(main._action_for(null) == "balcony_down" and main.ACTION_PROMPTS["balcony_down"] in _prompt(main), "出口で「E：ベランダへ降りる」")
+	_check(main._action_for(null) == "ladder_lower" and main.ACTION_PROMPTS["ladder_lower"] in _prompt(main), "出口で、まず「E：はしごを下ろす」")
 	_check(not main.cleared, "（経路の中ではクリアしない）")
+	await _key(KEY_E)
+	await _seconds(1.5)
+	_check(room.exterior.ladder_down and room.exterior.get_node_or_null("Ladder") != null and player.pose == Pose.DUCT, "はしごが下りる（まだダクトの中）")
+	_check(main._action_for(null) == "balcony_down" and main.ACTION_PROMPTS["balcony_down"] in _prompt(main), "はしごを下ろすと「E：はしごでベランダへ降りる」")
 
 	# ---------------------------------------------------------------- ベランダへ降りる
 	await _key(KEY_E)

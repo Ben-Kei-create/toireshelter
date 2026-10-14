@@ -10,6 +10,7 @@ extends CharacterBody3D
 ##   DUCT       … 換気経路の中（低い姿勢で這う。目 0.38m・体 0.5m・半径 0.2m・速さ 0.7m/s。立ち上がれない）
 ##   KOTATSU_SEAT … こたつの座布団に座っている（決まった位置から見回すだけ。目の高さ 0.85m）
 ##   KOTATSU_IN   … こたつの布団の中。這って動ける（WASD、速さ 0.6m/s、目の高さ 0.27m、体の高さ 0.4m・半径 0.2m）。布団の外へ出ると立つ
+##   LEAN       … ベランダの手すりから身を乗り出している（手すりの外へ体を出して、見回すだけ。歩けない）
 ##   TRANSITION … 座る／立つ／浴槽に入る／出るの移動演出中（見回し・操作・移動すべて無効）
 ## SEATED / IN_TUB / TRANSITION の間は体の当たり判定を切り、重力もかけない（決まった位置に置くため）。
 ## 足元（このノードの原点）はどの姿勢でも床の高さで、体の形は足元から上に伸ばす。
@@ -17,7 +18,7 @@ extends CharacterBody3D
 signal interact_requested(target: Object)
 signal crouch_blocked   # 頭上が狭くて立てなかった
 
-enum Pose { WALK, CROUCH, SEATED, IN_TUB, TRANSITION, DUCT, KOTATSU_SEAT, KOTATSU_IN, LYING }
+enum Pose { WALK, CROUCH, SEATED, IN_TUB, TRANSITION, DUCT, KOTATSU_SEAT, KOTATSU_IN, LYING, LEAN }
 
 const Sfx := preload("res://scripts/sfx.gd")
 const CharacterBodyScript := preload("res://scripts/character_body.gd")
@@ -313,7 +314,7 @@ func enter_fixed(target_pose: Pose, feet: Vector3, yaw: float, eye: float) -> vo
 ## 座っている／浴槽にいる／換気経路にいる状態から、候補の足元のうち最初に空いている所へ立って移る。
 ## どこも空いていなければ何もせず false。
 func leave_fixed(candidates: Array, via: Array = []) -> bool:
-	if pose != Pose.SEATED and pose != Pose.IN_TUB and pose != Pose.DUCT and pose != Pose.KOTATSU_SEAT and pose != Pose.LYING:
+	if pose != Pose.SEATED and pose != Pose.IN_TUB and pose != Pose.DUCT and pose != Pose.KOTATSU_SEAT and pose != Pose.LYING and pose != Pose.LEAN:
 		return false
 	for c in candidates:
 		var feet: Vector3 = c
