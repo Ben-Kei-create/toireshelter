@@ -17,6 +17,7 @@ func _run() -> void:
 	await _frames(10)
 	var main := current_scene
 	var player = main.player
+	player.set_eye_height(1.5)   # 遊ぶ人の設定（目の高さ）に左右されないよう、テストでは 1.5 m に固定する（設定ファイルは書き換えない）
 	var room = main.room
 	var toilet = room.toilet
 
@@ -301,7 +302,7 @@ func _run() -> void:
 	var m2 := current_scene
 	var p2 = m2.player
 	_check(m2 != main and p2.pose == Pose.WALK and p2.global_position.distance_to(m2.room.spawn_position) < 0.06
-			and absf(p2.camera.position.y - p2.EYE_HEIGHT) < 0.01 and not p2._shape.disabled
+			and absf(p2.camera.position.y - p2.eye_height) < 0.01 and not p2._shape.disabled
 			and not m2.room.toilet.occupied and not m2.room.toilet.flushing
 			and is_equal_approx(m2.room.toilet.tank_water.position.y, m2.room.toilet.TANK_WATER_Y),
 			"再プレイで立った初期位置・初期設備に戻る")

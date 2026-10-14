@@ -16,6 +16,7 @@ func _run() -> void:
 	var main := current_scene
 	var player = main.player
 	var room = main.room
+	player.set_eye_height(1.5)   # 遊ぶ人の設定（目の高さ）に左右されないよう、テストでは 1.5 m に固定する（設定ファイルは書き換えない）
 	var driver_pos: Vector3 = room.get_node("BathBucket").global_position + Vector3(0, 0.06, 0)   # 床の風呂桶（調べるだけ）で、照準と壁越しの遮断を確かめる
 
 	# --- 照準：対象から視点を外して即クリック（物理フレームを挟まない）
