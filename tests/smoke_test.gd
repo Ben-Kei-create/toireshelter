@@ -499,7 +499,7 @@ func _run() -> void:
 	player.global_position = Vector3(0.2, 0.0, -0.1)   # 洗面台のボウルの陰にならない位置
 	_aim(player, room.get_node("BathBucket").global_position + Vector3(0, 0.06, 0))
 	player.try_interact()
-	_check(main.hud._message_label.text == main.MESSAGES["bath_bucket"], "風呂桶を調べられる")
+	_check(main.hud._message_label.text == main.MESSAGES["bucket_pick"] and main.inventory.has("bucket"), "風呂桶を拾える（逆さにすれば足場になる）")
 	# カセット
 	var carts: Node3D = room.apartment.get_node("Cartridges")
 	var n_carts := 0

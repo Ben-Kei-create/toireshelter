@@ -66,6 +66,10 @@ const MESSAGES := {
 	"plunger": "ラバーカップ。ブラシと妙にきれいに並んでいる。",
 	"toilet_brush": "トイレブラシ。ここでの仕事には慣れていそうだ。",
 	"vent_sticker": "『点検済。異常なし。たぶん。』……たぶん？",
+	"bucket_pick": "水色の大きな風呂桶を拾った。逆さにして浴槽に置けば、足場になりそうだ。",
+	"bucket_placed": "風呂桶を逆さにして、浴槽の底に置いた。上に乗れそうだ。",
+	"vent_far": "天井の換気口。手が届かない。何かに乗れば、届くかもしれない。",
+	"vent_stretch": "背伸びをしたら、ぎりぎり届いた。格子を押し上げ、体を引き上げた。",
 	"lever_pull": "ガコン。……壁が、床が、震えはじめた。",
 	"lever_stuck": "レバーは動かない。固まっている。",
 	"inspect_lever": "鏡の奥の、赤い握りのレバー。『点検用』と小さく書いてある。引くな、とは書いていない。",
@@ -313,6 +317,7 @@ const ITEMS := {
 	"record_disc": {"name": "レコード盤", "desc": "壁に飾ってあった黒いレコード盤。赤いラベルに、かすれた文字で『MIDNIGHT BLUE ROOM』。レコードプレーヤーにのせられそうだ。"},
 	"ufo_coin": {"name": "UFOコイン", "desc": "クレーンゲーム用のコイン。表にエイリアンの絵。1回ぶん。"},
 	"bath_powder": {"name": "ユブロマン", "desc": "ゆずの香りの粉末入浴剤。1回分。"},
+	"bucket": {"name": "風呂桶", "desc": "水色の大きな風呂桶。軽いプラスチック製。逆さにすれば、足場になりそうだ。"},
 	"wood_stick": {"name": "木の棒", "desc": "壊れた扉の枠の破片。細長い木の棒。先に何かを巻けば、松明の柄になりそうだ。"},
 }
 
@@ -323,6 +328,8 @@ const ACTION_PROMPTS := {
 	"tub_enter": "E：浴槽に入る",
 	"tub_exit": "E：浴槽から出る",
 	"vent_enter": "E：換気口へ入る",
+	"vent_far": "E：手を伸ばす",
+	"vent_stretch": "E：背伸びして換気口へ",
 	"duct_back": "E：浴室へ戻る",
 	"balcony_down": "E：ベランダへ降りる",
 	"kotatsu_sit": "E：こたつに座る",
@@ -1016,7 +1023,7 @@ func _action_for(target: Object) -> String:
 		PlayerScript.Pose.IN_TUB:
 			# 浴槽の中から換気口を狙うと「換気口へ入る」
 			if target and String(target.get_meta("interact_id", "")) == "vent":
-				return "vent_enter"
+				return "vent_enter" if room.bucket_in_tub else "vent_far"
 			return "tub_exit"
 		PlayerScript.Pose.TRANSITION:
 			return ""
@@ -1036,6 +1043,8 @@ func _action_for(target: Object) -> String:
 	if target == null:
 		return ""
 	var id := String(target.get_meta("interact_id", ""))
+	if id == "vent" and _can_stretch_to_vent():
+		return "vent_stretch"
 	if id == "kotatsu" and player.pose == PlayerScript.Pose.WALK:
 		return "kotatsu_sit"
 	if id == "bed" and player.pose == PlayerScript.Pose.WALK:
@@ -1087,9 +1096,9 @@ func do_action() -> void:
 			else:
 				hud.show_message(MESSAGES["no_way_out"])
 		"tub_enter":
-			var feet: Vector3 = room.bathtub.to_global(TUB_FEET_LOCAL)
+			var feet: Vector3 = _tub_feet()
 			if player.is_space_free(feet, TUB_BODY_HEIGHT):
-				player.enter_fixed(PlayerScript.Pose.IN_TUB, feet, TUB_YAW, TUB_EYE)
+				player.enter_fixed(PlayerScript.Pose.IN_TUB, feet, TUB_YAW, _tub_eye())
 		"tub_exit":
 			if not player.leave_fixed(TUB_EXITS):
 				hud.show_message(MESSAGES["no_way_out"])
@@ -1098,8 +1107,16 @@ func do_action() -> void:
 			player.move_to(PlayerScript.Pose.DUCT, _up(ExteriorScript.DUCT_START), DUCT_YAW, PlayerScript.DUCT_EYE_HEIGHT,
 					[_up(VENT_BELOW), _up(VENT_MOUTH)], true, PlayerScript.DUCT_BODY_HEIGHT, PlayerScript.DUCT_BODY_RADIUS)
 		"duct_back":
-			var tub_feet: Vector3 = room.bathtub.to_global(TUB_FEET_LOCAL)
-			player.move_to(PlayerScript.Pose.IN_TUB, tub_feet, TUB_YAW, TUB_EYE, [_up(VENT_MOUTH), _up(VENT_BELOW)])
+			player.move_to(PlayerScript.Pose.IN_TUB, _tub_feet(), TUB_YAW, _tub_eye(), [_up(VENT_MOUTH), _up(VENT_BELOW)])
+		"vent_far":
+			hud.show_message(MESSAGES["vent_far"])
+			progress.add_note("vent_far", "天井の換気口", "高くて手が届かない。何かに乗れば届きそうだ。（背が最大なら、背伸びで届く？）", "手がかり")
+		"vent_stretch":
+			hud.show_message(MESSAGES["vent_stretch"])
+			progress.discover("vent_stretch")
+			room.open_vent()
+			player.move_to(PlayerScript.Pose.DUCT, _up(ExteriorScript.DUCT_START), DUCT_YAW, PlayerScript.DUCT_EYE_HEIGHT,
+					[_up(VENT_BELOW), _up(VENT_MOUTH)], true, PlayerScript.DUCT_BODY_HEIGHT, PlayerScript.DUCT_BODY_RADIUS)
 		"balcony_down":
 			if player.leave_fixed(BALCONY_LANDINGS, [_up(DUCT_EXIT_MOUTH)]):
 				route_duct = true
@@ -1124,7 +1141,7 @@ func _prompt_for(target: Object) -> String:
 	match id:
 		"":
 			return ""
-		"driver", "spare_roll", "bath_powder", "fishing_rod", "cork_gun", "mahjong", "record_disc", "wood_stick":
+		"driver", "spare_roll", "bath_powder", "fishing_rod", "cork_gun", "mahjong", "record_disc", "wood_stick", "bath_bucket":
 			return PROMPT_PICKUP
 		"inspect_lever":
 			return "左クリック：レバーを引く" if not room.risen and not room.rising else PROMPT_EXAMINE
@@ -1182,7 +1199,7 @@ func _on_interact_requested(target: Object) -> void:
 		SfxScript.play(INTERACT_SFX[id])
 	match id:
 		"sink", "vent", "poster", \
-		"toilet_cleaner", "plunger", "toilet_brush", "vent_sticker", "bath_bucket", "shampoo", "rinse", "razor", \
+		"toilet_cleaner", "plunger", "toilet_brush", "vent_sticker", "shampoo", "rinse", "razor", \
 		"face_wash", "toner", "cotton_swabs", "tub_note", "towel_scratch", "shelf_note", "tank_note", \
 		"kitchen_sink", "kitchen_stove", "fridge", "guitar", "taxidermy", "phone_mobile", \
 		"life_paper_02", "life_paper_07", "bed", "microwave", "game_cover_1", "game_cover_2", "game_cover_3", "game_cover_4", "record_jacket_1", "record_jacket_2", "record_jacket_3", "record_jacket_4", "game_cover_5", "game_cover_6", "game_cover_7", "book_new_1", "book_new_2", "book_new_3", "book_new_4", "book_new_5", "book_new_6", "book_new_7", "book_new_8", "rug", "card_box", "magazines", "teddy", "clothes", "dumbbell", "bottle", "bag", "shoes", "toilet_slippers", "standee":
@@ -1277,6 +1294,14 @@ func _on_interact_requested(target: Object) -> void:
 			room.take_bath_powder()
 			add_item("bath_powder")
 			hud.show_message(MESSAGES["bath_powder_pickup"])
+		"bath_bucket":
+			if inventory.has("bucket") or room.bucket_taken or room.bucket_in_tub:
+				return
+			_item_models["bucket"] = _bucket_model()
+			room.take_bucket()
+			add_item("bucket")
+			hud.show_message(MESSAGES["bucket_pick"])
+			progress.add_note("bucket", "風呂桶", "大きめの風呂桶。逆さにすれば、足場になりそうだ。", "手がかり")
 		"inspect_lever":
 			_pull_lever()
 		"wood_stick":
@@ -1325,6 +1350,23 @@ func _pull_lever() -> void:
 	room.rise_unit(player)
 
 
+## 浴槽に入ったときの足元（風呂桶が逆さに置いてあれば、その上）と、目の高さ（桶の上では立った高さ）。
+func _tub_feet() -> Vector3:
+	return room.bathtub.to_global(TUB_FEET_LOCAL) + Vector3(0.0, room.BUCKET_H if room.bucket_in_tub else 0.0, 0.0)
+
+
+func _tub_eye() -> float:
+	return player.eye_height - 0.05 if room.bucket_in_tub else TUB_EYE
+
+
+## 背が最大（170 cm）のとき、換気口の近くで、床からの背伸びで届く（小ネタ）。
+func _can_stretch_to_vent() -> bool:
+	if player.pose != PlayerScript.Pose.WALK or player.eye_height < PlayerScript.EYE_HEIGHT_MAX - 0.001:
+		return false
+	var p := player.global_position
+	return Vector2(p.x - VENT_BELOW.x, p.z - VENT_BELOW.z).length() < 1.5
+
+
 ## 浴室と換気ダクトの座標（VENT_BELOW など）に、浴室の上昇量を足す。
 func _up(v: Vector3) -> Vector3:
 	return v + Vector3(0.0, room.rise_offset, 0.0)
@@ -1335,6 +1377,12 @@ func _on_unit_risen() -> void:
 	progress.discover("unit_rise")
 	hud.show_message("扉が壊れた。外は暗く、ホールの床が、ずいぶん下に見える。……出られそうにない。", 6.0, "voice")
 	progress.add_note("rise_view", "上がった浴室", "扉は壊れた。外のホールは暗く、床がずっと下だ。出口は、天井の換気口だけ。", "手がかり")
+
+
+static func _bucket_model() -> Node3D:
+	var n := Node3D.new()
+	MeshKit.cylinder(n, 0.12, 0.17, Vector3.ZERO, MeshKit.mat("bucket", Color(0.62, 0.78, 0.86), 0.35), "Body", 0.1, 20)
+	return n
 
 
 static func _wood_stick_model() -> Node3D:
@@ -1444,6 +1492,8 @@ func _use_prompt(target: Object) -> String:
 	if id.is_empty() or target == null or player.pose == PlayerScript.Pose.TRANSITION:
 		return ""
 	var tid := String(target.get_meta("interact_id", ""))
+	if id == "bucket" and tid in TUB_TARGETS:
+		return "F：風呂桶を逆さにして浴槽に置く"
 	if id == "driver" and tid in ["mirror_door", "mirror_lock"] and room.mirror_cabinet.locked:
 		return "F：ドライバーで留め具を外す"
 	if (id == "driver" and tid == "door" and not door_open) \
@@ -1467,6 +1517,14 @@ func use_selected() -> void:
 		return
 	if id == "mahjong":
 		_start_mahjong()
+		return
+	if id == "bucket" and tid in TUB_TARGETS:
+		room.place_bucket_in_tub()
+		remove_item("bucket")
+		hud.show_message(MESSAGES["bucket_placed"])
+		progress.add_note("bucket_step", "風呂桶の足場", "逆さにした風呂桶に乗れば、換気口に手が届くはずだ。", "手がかり")
+		if player.pose == PlayerScript.Pose.IN_TUB:   # 浴槽の中で置いたら、そのまま桶の上へ
+			player.move_to(PlayerScript.Pose.IN_TUB, _tub_feet(), TUB_YAW, _tub_eye())
 		return
 	if id == "driver" and tid in ["mirror_door", "mirror_lock"] and (room.mirror_cabinet.locked or room.mirror_cabinet.unlocking):
 		if room.mirror_cabinet.unlock():

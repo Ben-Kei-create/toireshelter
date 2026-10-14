@@ -22,7 +22,7 @@ const DISCOVERIES := {
 	"intercom": "インターホン", "kotatsu_in": "こたつの中", "bed_sleep": "ふとんで眠る", "radio": "ラジオ",
 	"tv_play": "テレビゲーム", "aquarium": "水槽", "bath_powder": "入浴剤", "phone_black": "黒電話",
 	"driver": "ドライバー", "microwave": "電子レンジ", "calendar": "カレンダー",
-	"inspect_lever": "点検レバー", "unit_rise": "ゴゴゴ（浴室が上がった）", "wood_stick": "木の棒",
+	"inspect_lever": "点検レバー", "vent_stretch": "背伸びで換気口へ", "unit_rise": "ゴゴゴ（浴室が上がった）", "wood_stick": "木の棒",
 }
 
 ## 幕（章）の名前。いまの幕より先は、行くまで「？？？」と出す。
@@ -257,6 +257,8 @@ func snapshot() -> Dictionary:
 		"coin_count": main.coin_count,
 		"has_driver": main.has_driver,
 		"risen": room.risen,
+		"bucket_taken": room.bucket_taken,
+		"bucket_in_tub": room.bucket_in_tub,
 		"stick_taken": main.inventory.has("wood_stick") or main.items_found.has("wood_stick"),
 		"door_open": main.door_open,
 		"powder_used": main.powder_used,
@@ -322,6 +324,10 @@ func apply(d: Dictionary) -> void:
 	for k in d.get("items_found", []):
 		main.items_found[String(k)] = true
 	main.coins_total = int(d.get("coins_total", 0))
+	if d.get("bucket_taken", false) and not room.bucket_taken:
+		room.take_bucket()
+	if d.get("bucket_in_tub", false):
+		room.place_bucket_in_tub()
 	if d.get("risen", false) and not room.risen:
 		room.mirror_cabinet.pull_lever_visual(true)
 		room.rise_unit(main.player, true)

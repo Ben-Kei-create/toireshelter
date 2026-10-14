@@ -49,6 +49,17 @@ func _run() -> void:
 	await _seconds(0.6)
 	_check(not room.shower_curtain.closed, "（準備）カーテンを開け直した")
 
+	# ---------------------------------------------------------------- 風呂桶を逆さにして浴槽に置く（足場）
+	player.global_position = Vector3(0.2, 0.0, -0.1)
+	_aim(player, room.get_node("BathBucket").global_position + Vector3(0, 0.1, 0))
+	player.try_interact()
+	_check(main.inventory.has("bucket"), "（準備）風呂桶を拾った")
+	main.select_item(main.inventory.find("bucket"))
+	player.global_position = Vector3(0.3, 0.0, -0.2)
+	_aim(player, tub.to_global(Vector3(0.3, 0.3, 0.375)))
+	main.use_selected()
+	_check(room.bucket_in_tub and not main.inventory.has("bucket"), "（準備）風呂桶を逆さにして浴槽に置いた")
+
 	# ---------------------------------------------------------------- 換気口へ入る（浴槽から）
 	player.global_position = Vector3(0.3, 0.0, -0.2)
 	_aim(player, tub.to_global(Vector3(0.3, 0.3, 0.375)))
@@ -60,7 +71,7 @@ func _run() -> void:
 	var vh = player.get_focused(true)
 	_check(main._action_for(vh) == "vent_enter" and main.ACTION_PROMPTS["vent_enter"] in _prompt(main), "浴槽から換気口を狙うと「E：換気口へ入る」")
 	player.global_position = Vector3.ZERO   # （立った状態では出ないことの確認用に一時的に戻す）
-	player.global_position = tub.to_global(main.TUB_FEET_LOCAL)
+	player.global_position = main._tub_feet()
 	await _key(KEY_E)
 	_check(player.pose == Pose.TRANSITION and room.vent_open, "格子が開き、移動演出が始まる")
 	await _seconds(0.25)

@@ -101,6 +101,11 @@ var toilet_panel: ToiletPanelScript
 var shower_curtain: ShowerCurtainScript
 var bath_powder_taken := false
 var vent_open := false
+const BUCKET_R := 0.17
+const BUCKET_H := 0.30         # 風呂桶の高さ。逆さにして乗ると、目の高さがこれだけ上がる
+const BUCKET_TUB_LOCAL := Vector3(-0.05, 0.10, 0.0)   # 浴槽ローカルで、入ったときの足元（main.gd の TUB_FEET_LOCAL と同じ）
+var bucket_taken := false
+var bucket_in_tub := false
 ## --- 浴室がせり上がる（第 2 幕）。浴室（と換気ダクト）の節点だけを持ち上げる。ホール・自室・ベランダの座標は変えない。
 signal unit_risen
 const RISE_H := 0.9            # 上がる高さ（m）。ホールの床が約 0.9m 下に見え、体は出られない
@@ -751,8 +756,8 @@ func _build_bath_bucket() -> void:
 	root.position = Vector3(0.74, 0.0, -0.31)
 	add_child(root)
 	var plastic := MeshKit.mat("bucket", Color(0.62, 0.78, 0.86), 0.35)
-	var r := 0.12
-	var h := 0.11
+	var r := BUCKET_R
+	var h := BUCKET_H
 	MeshKit.cylinder(root, r * 0.88, 0.008, Vector3(0, 0.004, 0), plastic, "Bottom", -1.0, 24)
 	# 側面：内側が見えるよう、少し広がった筒を薄い帯で作る（底は上の円板）
 	for k in 24:
@@ -769,6 +774,39 @@ func _build_bath_bucket() -> void:
 	root.add_child(rim_mi)
 	var area := MeshKit.interact_area(root, "BucketArea", "bath_bucket")
 	MeshKit.shape_box(area, Vector3(r * 2.0, h, r * 2.0), Vector3(0, h * 0.5, 0))
+
+
+## 風呂桶を拾った（見た目と判定を消す）。
+func take_bucket() -> void:
+	bucket_taken = true
+	var n := get_node_or_null("BathBucket") as Node3D
+	if n:
+		n.visible = false
+		var a := n.get_node_or_null("BucketArea") as Area3D
+		if a:
+			a.collision_layer = 0
+
+
+## 風呂桶を逆さにして、浴槽の底（入ったときの足元）に置く。上に乗ると、目の高さが BUCKET_H だけ上がり、天井の換気口に手が届く。
+func place_bucket_in_tub() -> void:
+	if bucket_in_tub:
+		return
+	bucket_in_tub = true
+	var n := Node3D.new()
+	n.name = "BucketInTub"
+	n.position = BUCKET_TUB_LOCAL
+	bathtub.add_child(n)
+	var plastic := MeshKit.mat("bucket", Color(0.62, 0.78, 0.86), 0.35)
+	MeshKit.cylinder(n, BUCKET_R * 0.94, BUCKET_H, Vector3(0, BUCKET_H * 0.5, 0), plastic, "Body", BUCKET_R * 0.88, 24)   # 逆さ：ふちが下、底が上
+	MeshKit.cylinder(n, BUCKET_R * 0.9, 0.008, Vector3(0, BUCKET_H + 0.002, 0), MeshKit.mat("bucket_top", Color(0.52, 0.68, 0.78), 0.4), "Top", -1.0, 24)
+	var rim := TorusMesh.new()
+	rim.inner_radius = BUCKET_R - 0.004
+	rim.outer_radius = BUCKET_R + 0.008
+	var rim_mi := MeshInstance3D.new()
+	rim_mi.mesh = rim
+	rim_mi.material_override = plastic
+	rim_mi.position = Vector3(0, 0.008, 0)
+	n.add_child(rim_mi)
 
 
 func _build_floor_drain() -> void:
