@@ -11,6 +11,7 @@ signal body_visible_changed(on: bool)
 signal sensitivity_changed(value: float)
 signal typing_changed(on: bool)
 signal hints_changed(on: bool)
+signal hint_requested
 signal restart_pressed
 
 const JP_FONTS := [
@@ -60,6 +61,9 @@ var _settings_scroll: ScrollContainer
 var _disc_panel: PanelContainer
 var _disc_tween: Tween
 var _hints_check: CheckButton
+var _hint_ask: Button
+var _hint_note: Label
+var _clear_rank: Label
 var _restart_button: Button
 var _restart_armed := false
 var typing_on := true               # 文字を 1 文字ずつ出す（設定で切れる）
@@ -203,6 +207,12 @@ func _ready() -> void:
 	_pause_menu.visible = false
 
 	_clear_menu = _make_menu("ClearMenu", "脱出成功")
+	_clear_rank = _make_label(84, HORIZONTAL_ALIGNMENT_CENTER)
+	_clear_rank.name = "ClearRank"
+	_clear_rank.add_theme_color_override("font_color", Color(1.0, 0.85, 0.3))
+	_clear_rank.add_theme_color_override("font_outline_color", Color(0.15, 0.1, 0.02, 0.9))
+	_clear_rank.add_theme_constant_override("outline_size", 10)
+	(_clear_menu.get_node("Center/Box") as VBoxContainer).add_child(_clear_rank)
 	_clear_stats = _make_label(22, HORIZONTAL_ALIGNMENT_CENTER)
 	_clear_stats.name = "ClearStats"
 	_clear_stats.modulate = Color(1.0, 0.95, 0.8)
@@ -463,7 +473,9 @@ func show_pause(is_paused: bool) -> void:
 		_resume_button.grab_focus()
 
 
-func show_clear(title: String = "脱出成功", stats := "") -> void:
+func show_clear(title: String = "脱出成功", stats := "", rank := "") -> void:
+	_clear_rank.text = ("ランク　" + rank) if not rank.is_empty() else ""
+	_clear_rank.visible = not rank.is_empty()
 	(_clear_menu.get_node("Center/Box").get_child(0) as Label).text = title
 	_clear_stats.text = stats
 	_clear_stats.visible = not stats.is_empty()
@@ -841,6 +853,15 @@ func _build_settings(menu: Control) -> void:
 		_hints_check.text = "神の声モード（ヒント）%s" % ("オン" if on else "オフ")
 		hints_changed.emit(on))
 	box.add_child(_hints_check)
+	_hint_ask = Button.new()
+	_hint_ask.name = "HintAskButton"
+	_hint_ask.text = "神の声にきく"
+	_hint_ask.add_theme_font_size_override("font_size", 20)
+	_hint_ask.pressed.connect(func() -> void: hint_requested.emit())
+	box.add_child(_hint_ask)
+	_hint_note = _make_label(16, HORIZONTAL_ALIGNMENT_LEFT)
+	_hint_note.modulate = Color(1, 1, 1, 0.7)
+	box.add_child(_hint_note)
 	_typing_check = CheckButton.new()
 	_typing_check.name = "TypingToggle"
 	_typing_check.text = "文字を 1 文字ずつ表示（文字送り）オン"
@@ -859,6 +880,13 @@ func _build_settings(menu: Control) -> void:
 		_body_check.text = "自分の体（雑な3D）%s" % ("オン" if on else "オフ")
 		body_visible_changed.emit(on))
 	box.add_child(_body_check)
+
+
+## 「神の声にきく」の表示：のこりの回数。神の声モードがオフか、回数がないと押せない。
+func set_hint_ask_ui(left: int, enabled: bool, limit := 5) -> void:
+	_hint_note.text = "※ きけるのは %d 回まで。ヒントを使うほど、クリアのランクが下がる（SSS はヒントなしのときだけ）。" % limit
+	_hint_ask.text = "神の声にきく（のこり %d 回）" % left
+	_hint_ask.disabled = not enabled or left <= 0
 
 
 func set_hints_ui(on: bool) -> void:

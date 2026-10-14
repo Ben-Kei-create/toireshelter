@@ -71,6 +71,7 @@ func _run() -> void:
 	check(pr.hints_shown.has("food") or pr.hints_shown.has("mj_box"), "状況に合ったヒントが選ばれる（床下を見つけた後は、床のヒントを出さない）")
 	check(not pr.hints_shown.has("floor"), "見つけた物のヒントは出さない")
 	pr.hints_shown.clear()
+	pr.auto_idle = true   # 自動の独り言は、ふだんはオフ（設定からきく方式）。ここでは仕組みだけ確かめる
 	pr.idle_t = pr.IDLE_TIME + 1.0
 	pr.since_hint = pr.HINT_GAP + 1.0
 	pr.hints_on = false

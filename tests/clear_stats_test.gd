@@ -39,7 +39,7 @@ func _run() -> void:
 	_check(text.find("手に入れた物　3 / ") >= 0 or text.find("手に入れた物　4 / ") >= 0, "手に入れた物の種類数")
 	_check(text.find("集めたコイン　2 枚") >= 0, "集めたコインの枚数")
 	_check(text.find("推理ノート　1 件") >= 0, "ノートの件数")
-	_check(text.find("神の声のヒント　0 回") >= 0, "ヒントの回数")
+	_check(text.find("神の声のヒント　0 / 5 回") >= 0, "ヒントの回数")
 	_check(main.hud._clear_stats.visible, "記録が見える")
 
 	# 保存と復元

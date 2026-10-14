@@ -459,6 +459,7 @@ func _ready() -> void:
 	hud.sensitivity_changed.connect(_on_sensitivity_changed)
 	hud.typing_changed.connect(_on_typing_changed)
 	hud.hints_changed.connect(_on_hints_changed)
+	hud.hint_requested.connect(_on_hint_requested)
 	hud.restart_pressed.connect(_restart_fresh)
 	_load_settings()
 	room.apartment.intercom.front_door = room.front_door
@@ -1565,7 +1566,7 @@ func _clear(route: String) -> void:
 	clear_route = route
 	player.controls_enabled = false
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-	hud.show_clear(CLEAR_TITLES[route], _clear_stats_text())
+	hud.show_clear(CLEAR_TITLES[route], _clear_stats_text(), ProgressScript.rank_for(play_time, progress.hints_used))
 
 
 ## 秒を「m:ss」または「h:mm:ss」にする。
@@ -1601,7 +1602,7 @@ func _clear_stats_text() -> String:
 		"手に入れた物　%d / %d 種類" % [items_found.size(), ITEMS.size()],
 		"集めたコイン　%d 枚" % coins_total,
 		"推理ノート　%d 件" % progress.notes.size(),
-		"神の声のヒント　%d 回" % progress.hints_shown.size(),
+		"神の声のヒント　%d / %d 回" % [progress.hints_used, progress.HINT_LIMIT],
 	])
 	return "\n".join(lines)
 
@@ -1628,7 +1629,16 @@ func _stats_text() -> String:
 	return "プレイ時間 %d:%02d　　調べた物 %d / %d　　発見 %d / %d" % [t / 60, t % 60, examined.size(), maxi(total_examinable, examined.size()), progress.discovered.size(), progress.total()]
 
 
+## 設定の「神の声にきく」：設定を閉じて、ヒントを 1 つ出す（回数に限りがある）。
+func _on_hint_requested() -> void:
+	if _title != null or cleared:
+		return
+	_resume()
+	progress.ask_hint()
+
+
 func _pause() -> void:
+	hud.set_hint_ask_ui(progress.hints_left(), progress.hints_on, progress.HINT_LIMIT)
 	hud.close_notebook()
 	progress.save()
 	hud.set_stats(_stats_text())
@@ -1693,6 +1703,7 @@ func _on_head_bob_changed(on: bool) -> void:
 
 func _on_hints_changed(on: bool) -> void:
 	progress.hints_on = on
+	hud.set_hint_ask_ui(progress.hints_left(), on, progress.HINT_LIMIT)
 	var cfg := ConfigFile.new()
 	cfg.load(SETTINGS_PATH)
 	cfg.set_value("player", "hints", on)

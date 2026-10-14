@@ -10,6 +10,7 @@ extends Node
 
 const SAVE_PATH := "user://save.json"
 const VERSION := 1
+const HINT_LIMIT := 5                 # 神の声にきける回数（設定から。使うほどクリアのランクが下がる）
 const IDLE_TIME := 55.0
 const HINT_GAP := 90.0
 
@@ -29,7 +30,13 @@ const CHAPTERS := [
 	"第4幕　隣の和室", "第5幕　トイレへ戻る", "第6幕　つかみ取りと、その先",
 ]
 
+## クリアのランク表：[名前, この時間（分）以内]。これを超えたら F。ヒントを使うと下がる（rank_for）。
+## ※ 時間は暫定。全部の幕がそろったあと、実際の通しプレイの時間で調整する。
+const RANK_TABLE := [["SSS", 90], ["S", 120], ["A+", 150], ["A", 180], ["B+", 210], ["B", 240], ["B-", 300], ["C", 360]]
+
 var main: Node
+var auto_idle := false           # 何もしないまま時間が過ぎると、勝手に独り言を出すか（ヒントは設定からきく方式のため、ふだんはオフ）
+var hints_used := 0              # 出したヒントの数（きいた分・自動の分。「焦らなくていい」は数えない）
 var enabled := true
 var hints_on := true
 var discovered := {}
@@ -164,11 +171,43 @@ func _next_hint() -> Dictionary:
 	return {}
 
 
+func hints_left() -> int:
+	return maxi(0, HINT_LIMIT - hints_used)
+
+
+## 設定の「神の声にきく」。回数に限りがある。返り値：ok（ヒントを出した）／off（神の声モードがオフ）／none（もう回数がない）。
+func ask_hint() -> String:
+	if not hints_on:
+		return "off"
+	if hints_left() <= 0:
+		main.hud.show_message("……もう、教えられることは、ない。", -1.0, "voice")
+		return "none"
+	force_hint()
+	return "ok"
+
+
+## クリアのランク：時間で決めて、ヒントを 2 回使うごとに 1 段下がる。SSS はヒントなしのときだけ。
+static func rank_for(seconds: float, hints: int) -> String:
+	var names: Array = []
+	var idx := RANK_TABLE.size()   # F
+	for i in RANK_TABLE.size():
+		names.append(RANK_TABLE[i][0])
+		if seconds <= float(RANK_TABLE[i][1]) * 60.0 and idx == RANK_TABLE.size():
+			idx = i
+	names.append("F")
+	idx += hints / 2
+	if hints > 0 and idx == 0:
+		idx = 1
+	return names[mini(idx, names.size() - 1)]
+
+
 func force_hint() -> bool:
 	var h := _next_hint()
 	if h.is_empty():
 		return false
 	hints_shown[h.id] = true
+	if h.id != "calm":
+		hints_used += 1
 	since_hint = 0.0
 	idle_t = 0.0
 	main.hud.show_message(h.text, -1.0, "voice")
@@ -188,7 +227,7 @@ func _process(delta: float) -> void:
 		idle_t += delta
 	_last_pos = pos
 	since_hint += delta
-	if hints_on and not busy and idle_t >= IDLE_TIME and since_hint >= HINT_GAP:
+	if auto_idle and hints_on and not busy and idle_t >= IDLE_TIME and since_hint >= HINT_GAP:
 		force_hint()
 
 
@@ -230,6 +269,7 @@ func snapshot() -> Dictionary:
 		"examined": main.examined.keys(),
 		"discovered": discovered.keys(),
 		"hints_shown": hints_shown.keys(),
+		"hints_used": hints_used,
 		"notes": notes.duplicate(true),
 		"items_found": main.items_found.keys(),
 		"coins_total": main.coins_total,
@@ -274,6 +314,7 @@ func apply(d: Dictionary) -> void:
 	for n in d.get("notes", []):
 		if typeof(n) == TYPE_DICTIONARY and n.has("id"):
 			notes.append({"id": String(n.id), "kind": String(n.get("kind", "手がかり")), "title": String(n.get("title", "")), "text": String(n.get("text", ""))})
+	hints_used = int(d.get("hints_used", 0))
 	chapter = clampi(int(d.get("chapter", 0)), 0, CHAPTERS.size() - 1)
 	for k in d.get("items_found", []):
 		main.items_found[String(k)] = true
