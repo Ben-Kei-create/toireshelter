@@ -14,6 +14,7 @@ func _run() -> void:
 	for i in 6:
 		await process_frame
 	var main = current_scene
+	main.credits_enabled = false   # エンドロールは ending_test で確かめる。ここでは、クリア画面をすぐ出す
 	_check(main.format_time(75.0) == "1:15", "時間の表示：75 秒 → 1:15（%s）" % main.format_time(75.0))
 	_check(main.format_time(3725.0) == "1:02:05", "時間の表示：3725 秒 → 1:02:05（%s）" % main.format_time(3725.0))
 	_check(main.format_time(5.0) == "0:05", "時間の表示：5 秒 → 0:05")

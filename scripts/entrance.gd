@@ -1,18 +1,19 @@
 extends Node3D
-## 1 階のマンションの入口（ユーザーの写真に合わせた）。原点は、通りから入る所の床の中心。-z へ進む。
-##   z 0〜-4 …… 外のアプローチ。左は黒いレンガの塀（忍び返しのついた鉄の門扉が開いて寄せてある）、右は蔦（つた）の茂み。床は暖かい色のタイル
-##   z -4    …… レンガのアーチ（壁灯）。奥に、唐草模様の鉄の内門が開いている
-##   z -4〜-9 … 玄関ホール。左の壁に黒い郵便受けがびっしり、上は吹き抜け（明かり取り）。突き当たりにエレベーター（扉の窓が光る）
-## 見た目だけ（まだ歩いて来られない）。アーチは CSG で抜く。
+## 1 階のマンションの入口（ユーザーの写真に合わせた）。原点は、通りから入る所の床の中心。ローカル -z へ進む。
+## 実際の置き場所は、路地（1 階）から建物の中へ +z の向きに入るので、180 度回して置く（room.gd）。
+##   z 0〜-1.6 …… 外のアプローチ（路地に面する）。左は黒いレンガの塀（忍び返しのついた鉄の門扉が開いて寄せてある）、右は蔦（つた）の茂み。床は暖かい色のタイル
+##   z -1.6    …… レンガのアーチ（壁灯）。奥に、唐草模様の鉄の内門が開いている。建物の外壁の位置
+##   z -1.6〜-9.3 … 玄関ホール（廊下のエレベーターの真下まで、7.7m）。左の壁に黒い郵便受けがびっしり、上は吹き抜け（明かり取り）。突き当たりにエレベーター（扉の窓が光る）
+## アーチは CSG で抜く。ホールの突き当たりのエレベーターの前が、乗って降りたときの到着点。
 
 const MeshKit := preload("res://scripts/mesh_kit.gd")
 const ElevatorCar := preload("res://scripts/elevator_car.gd")
 
 const HALF_W := 0.9          # 通路の幅の半分
-const ARCH_Z := -4.0
+const ARCH_Z := -1.6
 const SPRING_Y := 1.9        # アーチの曲がりはじめの高さ
 const ARCH_R := 0.7
-const LOBBY_END_Z := -9.0
+const LOBBY_END_Z := -9.3
 const LOBBY_H := 3.1
 
 static var _tile_tex: ImageTexture
@@ -100,56 +101,38 @@ func _build_ground() -> void:
 	var body := _body("GroundBody")
 	var tile := MeshKit.tiled_mat("ent_tile", tile_tex(), 0.3, Color(1, 1, 1), 0.6)
 	var len := -LOBBY_END_Z + 1.0
-	_solid(body, Vector3(HALF_W * 2.0 + 1.4, 0.2, len), Vector3(0.35, -0.1, -len * 0.5 + 1.0), tile, "Floor")
+	_solid(body, Vector3(HALF_W * 2.0 + 1.4, 0.2, len), Vector3(0.35, -0.08, -len * 0.5 + 1.0), tile, "Floor")
 	# ホールの天井（吹き抜けのところは抜ける）
 	var ceil_m := MeshKit.mat("ent_ceiling", Color(0.78, 0.76, 0.72), 0.9)
-	MeshKit.box(self, Vector3(HALF_W * 2.0 + 0.2, 0.2, 1.4), Vector3(0, LOBBY_H + 0.1, -4.9), ceil_m, "CeilingA")
-	MeshKit.box(self, Vector3(HALF_W * 2.0 + 0.2, 0.2, 0.7), Vector3(0, LOBBY_H + 0.1, -8.65), ceil_m, "CeilingB")
+	MeshKit.box(self, Vector3(HALF_W * 2.0 + 0.2, 0.2, 4.2), Vector3(0, LOBBY_H + 0.1, -3.7), ceil_m, "CeilingA")
+	MeshKit.box(self, Vector3(HALF_W * 2.0 + 0.2, 0.2, 2.1), Vector3(0, LOBBY_H + 0.1, -8.25), ceil_m, "CeilingB")
 	# 吹き抜けの縁と、その上の明かり取り（明るい窓）
 	var sky := MeshKit.mat("ent_skylight", Color(0.95, 0.9, 0.8), 0.5)
 	sky.emission_enabled = true
 	sky.emission = Color(1.0, 0.92, 0.78)
 	sky.emission_energy_multiplier = 2.0
-	MeshKit.box(self, Vector3(HALF_W * 2.0, 0.05, 1.4), Vector3(0, LOBBY_H + 1.4, -7.2), sky, "Skylight")
+	MeshKit.box(self, Vector3(HALF_W * 2.0, 0.05, 1.4), Vector3(0, LOBBY_H + 1.4, -6.5), sky, "Skylight")
 	for s in [-1.0, 1.0]:
-		MeshKit.box(self, Vector3(0.2, 1.4, 1.4), Vector3(s * (HALF_W + 0.1), LOBBY_H + 0.7, -7.2), ceil_m, "ShaftWall")
+		MeshKit.box(self, Vector3(0.2, 1.4, 1.4), Vector3(s * (HALF_W + 0.1), LOBBY_H + 0.7, -6.5), ceil_m, "ShaftWall")
 
 
 func _build_walls() -> void:
 	var body := _body("WallBody")
 	var brick := _brick_mat()
 	# 左の塀（外のアプローチ）：レンガ、上に忍び返し
-	_solid(body, Vector3(0.2, 2.3, 4.0), Vector3(-HALF_W - 0.1, 1.15, -2.0), brick, "FenceWall")
+	_solid(body, Vector3(0.2, 2.3, -ARCH_Z), Vector3(-HALF_W - 0.1, 1.15, ARCH_Z * 0.5), brick, "FenceWall")
 	var spike := _iron_mat()
 	var zz := -0.15
-	while zz > -3.9:
+	while zz > ARCH_Z + 0.2:
 		var s := MeshKit.cylinder(self, 0.012, 0.18, Vector3(-HALF_W - 0.1, 2.38, zz), spike, "Spike", 0.001, 6)
 		zz -= 0.14
 	# 右は蔦の土手（体を止める壁だけ。見た目は _build_ivy）
-	MeshKit.shape_box(body, Vector3(0.2, 2.3, 4.0), Vector3(HALF_W + 0.1, 1.15, -2.0))
-	_build_night()
+	MeshKit.shape_box(body, Vector3(0.2, 2.3, -ARCH_Z), Vector3(HALF_W + 0.1, 1.15, ARCH_Z * 0.5))
 	# ホールの左右の壁：左は郵便受けの壁（レンガ）、右は明るいタイル
-	_solid(body, Vector3(0.2, LOBBY_H, 5.0), Vector3(-HALF_W - 0.1, LOBBY_H * 0.5, -6.5), _brick_mat(), "LobbyLeft")
+	_solid(body, Vector3(0.2, LOBBY_H, LOBBY_END_Z - ARCH_Z) if false else Vector3(0.2, LOBBY_H, ARCH_Z - LOBBY_END_Z), Vector3(-HALF_W - 0.1, LOBBY_H * 0.5, (ARCH_Z + LOBBY_END_Z) * 0.5), _brick_mat(), "LobbyLeft")
 	var cream := MeshKit.tiled_mat("ent_wall_tile", tile_tex(), 0.3, Color(1.2, 1.25, 1.3), 0.6)
-	_solid(body, Vector3(0.2, LOBBY_H, 5.0), Vector3(HALF_W + 0.1, LOBBY_H * 0.5, -6.5), cream, "LobbyRight")
+	_solid(body, Vector3(0.2, LOBBY_H, ARCH_Z - LOBBY_END_Z), Vector3(HALF_W + 0.1, LOBBY_H * 0.5, (ARCH_Z + LOBBY_END_Z) * 0.5), cream, "LobbyRight")
 	_solid(body, Vector3(HALF_W * 2.0 + 0.4, LOBBY_H, 0.2), Vector3(0, LOBBY_H * 0.5, LOBBY_END_Z - 0.1), MeshKit.mat("ent_end_wall", Color(0.82, 0.8, 0.76), 0.85), "EndWall")
-
-
-## 夜の空：入口のまわりを、暗い紺色のドームで包む（ほかの場所の空が見えないように）。
-func _build_night() -> void:
-	var m := StandardMaterial3D.new()
-	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	m.albedo_color = Color(0.015, 0.02, 0.05)
-	m.cull_mode = BaseMaterial3D.CULL_FRONT
-	var sphere := SphereMesh.new()
-	sphere.radius = 40.0
-	sphere.height = 80.0
-	var mi := MeshInstance3D.new()
-	mi.name = "NightSky"
-	mi.mesh = sphere
-	mi.material_override = m
-	mi.position = Vector3(0, 0, -4)
-	add_child(mi)
 
 
 func _build_arch() -> void:
@@ -194,7 +177,7 @@ func _build_gates() -> void:
 	# 外の門扉：開いて、左の塀に寄せてある（高さ 2.1、幅 1.2、縦の棒と二本の横木、上に飾り）
 	var g := Node3D.new()
 	g.name = "OuterGate"
-	g.position = Vector3(-HALF_W + 0.04, 0, -1.2)
+	g.position = Vector3(-HALF_W + 0.04, 0, -0.1)
 	g.rotation.y = deg_to_rad(88.0)
 	add_child(g)
 	_gate_leaf(g, 1.2, 2.1, true)
@@ -243,11 +226,11 @@ func _build_ivy() -> void:
 	var light := MeshKit.mat("ivy_light", Color(0.42, 0.55, 0.2), 0.8)
 	# 蔦が這う壁（暗いレンガ）
 	var wall_body := _body("IvyWallBody")
-	_solid(wall_body, Vector3(0.2, 2.6, 4.0), Vector3(HALF_W + 0.9, 1.3, -2.0), _brick_mat(), "IvyWall")
-	for i in 260:
+	_solid(wall_body, Vector3(0.2, 2.6, -ARCH_Z), Vector3(HALF_W + 0.9, 1.3, ARCH_Z * 0.5), _brick_mat(), "IvyWall")
+	for i in 110:
 		var m: Material = [dark, dark, dark, mid, mid, light][_rng.randi_range(0, 5)]
 		var r := _rng.randf_range(0.05, 0.12)
-		var p := Vector3(HALF_W + _rng.randf_range(0.05, 0.75), _rng.randf_range(0.1, 2.4), _rng.randf_range(-3.85, -0.15))
+		var p := Vector3(HALF_W + _rng.randf_range(0.05, 0.75), _rng.randf_range(0.1, 2.4), _rng.randf_range(ARCH_Z + 0.05, -0.15))
 		var s := MeshKit.sphere(holder, r, p, m)
 		s.scale = Vector3(1.0, 0.55, 1.0)
 		s.rotation = Vector3(_rng.randf() * PI, _rng.randf() * PI, _rng.randf() * PI)
@@ -265,7 +248,7 @@ func _build_mailboxes() -> void:
 	var knob := MeshKit.mat("mail_knob", Color(0.55, 0.55, 0.58), 0.35, 0.85)
 	var x := -HALF_W
 	for block in 2:
-		var z0 := -5.0 - block * 2.0
+		var z0 := -2.4 - block * 2.0
 		for col in 8:
 			for row in 7:
 				var z := z0 - col * 0.22
@@ -277,7 +260,7 @@ func _build_mailboxes() -> void:
 				if roll < 0.22:
 					MeshKit.box(holder, Vector3(0.004, 0.035, 0.09), Vector3(x + 0.062, y + 0.035, z - 0.01), label_w if roll < 0.14 else label_y, "Label")
 	# 郵便受けの上の壁に、細い金属の帯
-	MeshKit.box(holder, Vector3(0.04, 0.05, 4.0), Vector3(x + 0.02, 1.95, -6.9), MeshKit.mat("mail_band", Color(0.6, 0.6, 0.62), 0.4, 0.8), "Band")
+	MeshKit.box(holder, Vector3(0.04, 0.05, 4.0), Vector3(x + 0.02, 1.95, -4.3), MeshKit.mat("mail_band", Color(0.6, 0.6, 0.62), 0.4, 0.8), "Band")
 
 
 func _build_lobby_end() -> void:
@@ -305,7 +288,7 @@ func _build_lights() -> void:
 	l.omni_range = 6.0
 	add_child(l)
 	# 玄関ホールの明かり（白い）と、吹き抜けからの光
-	for z in [-5.5, -7.2]:
+	for z in [-3.5, -6.5, -8.5]:
 		var h := OmniLight3D.new()
 		h.name = "LobbyLight"
 		h.position = Vector3(0, LOBBY_H - 0.3, z)
@@ -316,7 +299,7 @@ func _build_lights() -> void:
 	# 外のアプローチ：足元をぼんやり照らす
 	var o := OmniLight3D.new()
 	o.name = "ApproachLight"
-	o.position = Vector3(0, 2.5, -1.5)
+	o.position = Vector3(0, 2.5, -0.8)
 	o.light_color = Color(1.0, 0.9, 0.7)
 	o.light_energy = 0.8
 	o.omni_range = 5.0

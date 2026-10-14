@@ -69,6 +69,7 @@ func _run() -> void:
 	# クリア画面
 	pr.hints_used = 2
 	main.play_time = 100 * 60.0
+	main.credits_enabled = false
 	main._clear("legit")
 	await process_frame
 	_check(hud._clear_rank.visible and hud._clear_rank.text == "ランク　A+", "クリア画面にランクが出る（%s）" % hud._clear_rank.text)

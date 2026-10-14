@@ -62,6 +62,9 @@ var _fade: ColorRect
 var _settings_scroll: ScrollContainer
 var _disc_panel: PanelContainer
 var _disc_tween: Tween
+const CreditsScript := preload("res://scripts/credits.gd")
+var _credits: Control
+var _hide_overlay: Control
 var _hints_check: CheckButton
 var _hint_ask: Button
 var _hint_note: Label
@@ -500,6 +503,68 @@ func show_pause(is_paused: bool) -> void:
 	_pause_menu.visible = is_paused
 	if is_paused:
 		_resume_button.grab_focus()
+
+
+## 押入れに閉じこもっている間の暗闇：ほとんど真っ暗で、襖の合わせ目から細い光だけがもれる。
+func set_hiding(on: bool) -> void:
+	if on and _hide_overlay == null:
+		_hide_overlay = Control.new()
+		_hide_overlay.name = "HideOverlay"
+		_hide_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+		_hide_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var dark := ColorRect.new()
+		dark.name = "Dark"
+		dark.color = Color(0.0, 0.0, 0.0, 0.965)
+		dark.set_anchors_preset(Control.PRESET_FULL_RECT)
+		dark.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_hide_overlay.add_child(dark)
+		var slit := ColorRect.new()
+		slit.name = "Slit"
+		slit.color = Color(1.0, 0.9, 0.7, 0.55)
+		slit.anchor_left = 0.5
+		slit.anchor_right = 0.5
+		slit.anchor_top = 0.18
+		slit.anchor_bottom = 0.82
+		slit.offset_left = -1.5
+		slit.offset_right = 1.5
+		slit.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_hide_overlay.add_child(slit)
+		_root.add_child(_hide_overlay)
+		_root.move_child(_hide_overlay, 0)   # メッセージや案内は、暗闇の上に出す
+	if _hide_overlay:
+		_hide_overlay.visible = on
+
+
+func is_hiding() -> bool:
+	return _hide_overlay != null and _hide_overlay.visible
+
+
+## エンドロール。流れ終わる（飛ばす）と on_done を呼ぶ。そのあとにクリア画面を出す。
+func show_credits(lines: Array, on_done: Callable) -> void:
+	set_prompt("")
+	_message_panel.visible = false
+	_message_time_left = 0.0
+	_hint_label.visible = false
+	_zoom.visible = false
+	_inventory_bar.visible = false
+	_credits = CreditsScript.new()
+	_root.add_child(_credits)
+	_credits.finished.connect(func() -> void:
+		var c := _credits
+		_credits = null
+		c.queue_free()
+		_inventory_bar.visible = true
+		on_done.call(), CONNECT_ONE_SHOT)
+	_credits.play(lines)
+
+
+func is_credits_playing() -> bool:
+	return _credits != null
+
+
+func skip_credits() -> void:
+	if _credits:
+		_credits.skip()
 
 
 func show_clear(title: String = "脱出成功", stats := "", rank := "") -> void:

@@ -544,9 +544,45 @@ func _build_building(world: Node3D) -> void:
 		_box(b, Vector3(12.0, 0.95, 0.06), Vector3(0, floor_y + 1.45, -5.17), Color(0.88, 0.88, 0.85))
 		for dx in 4:
 			_box(b, Vector3(0.9, 1.9, 0.08), Vector3(-4.5 + dx * 3.0, floor_y + 1.05, -4.04), Color(0.4, 0.3, 0.24))
-	# 玄関
-	_box(b, Vector3(2.6, 2.4, 0.4), Vector3(0, 1.2, 4.2), Color(0.35, 0.4, 0.45))
-	_box(b, Vector3(3.4, 0.2, 1.6), Vector3(0, 2.6, 4.8), Color(0.5, 0.35, 0.28))
+	_build_entrance_front(b)
+
+
+## 1 階の入口（ゲームの中の 1 階と同じ造り）：黒ずんだレンガの土台に、レンガのアーチの口と鉄の門、壁灯、蔦。
+## 石のタイルの前庭。503 号室のベランダの真下には、白い自動販売機。
+func _build_entrance_front(b: Node3D) -> void:
+	var brick := Color(0.2, 0.1, 0.085)
+	var brick_light := Color(0.42, 0.2, 0.15)
+	var dark := Color(0.03, 0.03, 0.04)
+	var iron := Color(0.15, 0.17, 0.21)
+	# 1 階の壁を、黒ずんだレンガにする
+	_box(b, Vector3(BUILDING.x + 0.1, FLOOR_H, 0.16), Vector3(0, FLOOR_H * 0.5, 4.08), brick)
+	# アーチの口（暗い）と、縁のレンガ
+	_box(b, Vector3(1.6, 1.6, 0.1), Vector3(0, 0.8, 4.18), dark)
+	var top := _cyl(b, 0.8, 0.1, Vector3(0, 1.6, 4.18), dark)
+	top.rotation.x = deg_to_rad(90.0)
+	for k in 13:
+		var a := PI * (k + 0.5) / 13.0
+		var r := 0.95
+		var v := _box(b, Vector3(0.22, 0.2, 0.2), Vector3(cos(a) * r, 1.6 + sin(a) * r, 4.2), brick_light)
+		v.rotation.z = a - PI * 0.5
+	# 開いた鉄の門扉（左右）
+	for sx in [-1.0, 1.0]:
+		_box(b, Vector3(0.05, 1.7, 0.7), Vector3(sx * 0.95, 0.85, 4.55), iron).rotation.y = deg_to_rad(18.0 * sx)
+	# 壁灯（暖色の二つの球）
+	_ball(b, 0.12, Vector3(-1.45, 2.3, 4.3), Color(1.0, 0.85, 0.55), 2.2)
+	_ball(b, 0.12, Vector3(-1.2, 2.3, 4.3), Color(1.0, 0.85, 0.55), 2.2)
+	# 蔦（右側）
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 21
+	for i in 40:
+		var c := Color(0.12 + rng.randf() * 0.2, 0.28 + rng.randf() * 0.25, 0.1)
+		_ball(b, rng.randf_range(0.12, 0.3), Vector3(rng.randf_range(1.5, 2.4), rng.randf_range(0.2, 2.6), rng.randf_range(4.2, 4.6)), c)
+	# 前庭のタイル
+	_box(b, Vector3(3.2, 0.06, 2.4), Vector3(0, 0.03, 5.3), Color(0.86, 0.69, 0.5))
+	# 503 号室のベランダ（x 3）の真下の、白い自動販売機
+	_box(b, Vector3(0.9, 1.8, 0.7), Vector3(3.0, 0.9, 4.6), Color(0.92, 0.93, 0.95))
+	_box(b, Vector3(0.7, 0.7, 0.04), Vector3(3.0, 1.3, 4.96), Color(0.95, 0.96, 1.0), 1.0)
+	_box(b, Vector3(0.5, 0.14, 0.04), Vector3(2.95, 0.3, 4.96), Color(0.1, 0.1, 0.12))
 
 
 func _build_elevator(world: Node3D) -> void:

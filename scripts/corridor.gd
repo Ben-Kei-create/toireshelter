@@ -177,6 +177,9 @@ func _build_elevator() -> void:
 	# 暗い二枚扉。窓が二つ光る（左は細く低く、右は広く高い。写真のとおり）。箱の中の明かりが、網入りガラスの窓から漏れる
 	var door_m := MeshKit.mat("elevator_door_dark", Color(0.13, 0.14, 0.16), 0.5, 0.3)
 	ElevatorCar.build_doors(el, Vector3(cx, 0.0, z - 0.03), door_m, true, true)
+	# 「乗る」判定（扉の前）。百円玉を持って部屋を出たときの、1 階へ降りる道
+	var area := MeshKit.interact_area(el, "ElevatorArea", "elevator")
+	MeshKit.shape_box(area, Vector3(1.0, 2.2, 0.4), Vector3(cx, 1.1, z - 0.2))
 	# 階数表示（上）：緑の数字
 	var disp := MeshKit.mat("elevator_display", Color(0.05, 0.05, 0.06), 0.4)
 	MeshKit.box(el, Vector3(0.22, 0.14, 0.02), Vector3(cx, 2.38, z - 0.01), disp, "Display")

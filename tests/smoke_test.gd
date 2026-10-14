@@ -14,6 +14,7 @@ func _run() -> void:
 	change_scene_to_file("res://scenes/main.tscn")
 	await _frames(10)
 	var main := current_scene
+	main.credits_enabled = false   # エンドロールは ending_test で確かめる。ここでは、クリア画面をすぐ出す
 	var player = main.player
 	var room = main.room
 	player.set_eye_height(1.5)   # 遊ぶ人の設定（目の高さ）に左右されないよう、テストでは 1.5 m に固定する（設定ファイルは書き換えない）

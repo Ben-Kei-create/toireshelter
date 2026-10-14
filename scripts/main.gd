@@ -29,6 +29,7 @@ const TowelRef := preload("res://scripts/towel.gd")
 const BooksScript := preload("res://scripts/books.gd")
 const TitleScript := preload("res://scripts/title_screen.gd")
 const CorridorScript := preload("res://scripts/corridor.gd")
+const CreditsData := preload("res://scripts/credits_data.gd")
 
 const MESSAGES := {
 	"start": "……気がつくと、ユニットバスに閉じ込められていた。ここから出て、部屋の外へ出なければ。",
@@ -252,6 +253,8 @@ const MESSAGES := {
 	"sleep_out": "起き上がった。体が少し軽い。",
 	"bed": "小さな寝床。敷きっぱなしのふとんと、枕、青いブランケット。E で寝られる。",
 	"no_way_out": "出る場所がふさがっている。",
+	"closet_in": "押入れの中は、真っ暗だ。襖の合わせ目から、細い光がもれている。……落ち着く。",
+	"closet_quiet": "……静かだ。ここなら、誰にも見つからない。",
 }
 
 ## 状態で変わる操作の案内。設備スクリプトの get_prompt() がキーを返す
@@ -355,6 +358,7 @@ const ITEMS := {
 	"bath_powder": {"name": "ユブロマン", "desc": "ゆずの香りの粉末入浴剤。1回分。"},
 	"soap": {"name": "固形せっけん", "desc": "ピンクの固形せっけん。水に浸けておくと、溶けていく。"},
 	"ten_yen": {"name": "十円玉", "desc": "古い十円玉。丸いものは、ふたになる。"},
+	"yen100": {"name": "百円玉", "desc": "ぴかぴかの百円玉。自動販売機で使えそうだ。"},
 	"sinker": {"name": "鉛のおもり", "desc": "ずっしり重い鉛の塊。軽いものの上に載せれば、重しになる。"},
 	"lint": {"name": "毛だまり", "desc": "服についていた毛玉と綿ぼこり。ふわふわで軽い。"},
 	"paper": {"name": "鏡文字のメモ", "desc": "英語が書いてあるが、文字がひっくり返っている。鏡にかざせば読めそうだ。"},
@@ -378,6 +382,8 @@ const ACTION_PROMPTS := {
 	"duct_back": "E：浴室へ戻る",
 	"balcony_down": "E：はしごでベランダへ降りる",
 	"kotatsu_sit": "E：こたつに座る",
+	"closet_enter": "E：押し入れに入る",
+	"closet_exit": "E：押し入れから出る",
 	"kotatsu_stand": "E：立つ",
 	"kotatsu_out": "E：こたつから出る",
 	"sleep": "E：ふとんで寝る",
@@ -396,7 +402,26 @@ const TUB_TARGETS := ["bathtub", "bath_plug", "bath_faucet", "tub_note"]   # 入
 
 ## 調べたときに鳴らす効果音（fixture のない対象）
 const INTERACT_SFX := {"guitar": "strum", "fridge": "thunk", "kitchen_stove": "click", "phone_mobile": "click", "kitchen_sink": "click", "cards": "page", "card_box": "click", "dice": "click", "cup": "click", "tissue": "rustle", "magazines": "page", "teddy": "rustle", "standee": "click", "toilet_slippers": "rustle", "shoes": "click", "clothes": "rustle", "bag": "rustle", "dumbbell": "clunk", "bottle": "click", "tv_remote": "beep", "rug": "rustle"}
-const CLEAR_TITLES := {"legit": "正規ルートで脱出", "shortcut": "裏技ルートで脱出"}
+const CLEAR_TITLES := {"legit": "正規ルートで脱出", "shortcut": "裏技ルートで脱出", "true": "真のクリア"}
+## 百円で、ベランダの下の自動販売機の「炭酸リンゴジュース」を買う結末（シナリオ v3 の「二つの結末」）。
+## 部屋を出たとき百円玉を持っていると、そこではクリアにならず、廊下のエレベーターで 1 階へ降りられる。
+const ENDING := {
+	"yen_hint": "百円玉を握りしめている。……このまま帰るのは、もったいない気がする。廊下の奥にエレベーターがある。",
+	"elevator_ride": "エレベーターを呼ぶと、箱はすぐに来た。5 階から、1 階へ。",
+	"elevator_arrive": "1 階だ。扉が開いた。",
+	"lobby": "郵便受けが並んだ玄関ホール。アーチの向こうに、路地が見える。",
+	"vending_look": "ベランダの真下にある、白い自動販売機。見上げれば、ベランダの手すりが見える。",
+	"vending_far": "いちばん上の段のボタンに、手が届かない……。炭酸リンゴは、最上段だ。もう少し背が高ければ。",
+	"vending_no_money": "お金が足りない。",
+	"vending_coin": "百円玉を入れた。いちばん上の段、炭酸リンゴジュース。ボタンを押す。",
+	"vending_drop": "ガコン。取り出し口に、冷たい缶が落ちてきた。",
+	"vending_drink": "プシュッ。……しゅわしゅわと、喉を鳴らす。",
+	"vending_last": "……あの鍵のことは、水に流そう。",
+	"vending_voice": "……よく、頑張ったね。",
+}
+const CLOSET_EYE := 0.8                # 押入れの中に座ったときの目の高さ
+const VENDING_REACH := 1.49            # 自動販売機の最上段のボタンに届く目の高さ（150 cm）。最後の関門が身長
+const RIDE_STOPS := [4, 3, 2, 1]
 # 換気経路：入口で浴槽へ戻れる範囲（換気口の真上からの水平距離）、出口からベランダへ降りる経由点と着地候補
 const DUCT_BACK_RANGE := 0.75
 const DUCT_YAW := -PI * 0.5   # 入ったら +x（自室の上の方）を向く
@@ -435,6 +460,11 @@ var region := ""                   # 今いる区画：bath / hall / room / duct
 var _last_region := ""
 var door_open := false
 var cleared := false
+var closet_hiding := false         # 押入れに閉じこもっている
+var credits_enabled := true        # クリアの前にエンドロールを流す（テストでは切る）
+var ride_speed := 1.0              # エレベーターの待ち時間の速さ（テストでは速める）
+var riding := false                # エレベーターに乗っている間
+var vending_done := false          # 自動販売機で買った（真のクリアへ）
 var paused := false
 var play_time := 0.0               # 一時停止中を除くプレイ時間（秒）。空模様に使う
 var kotatsu_seat := 0              # 座っている（入っている）こたつの座布団（KotatsuScript.SEATS の番号）
@@ -628,6 +658,8 @@ func _on_title_start(continue_save: bool) -> void:
 func _begin_play() -> void:
 	_title_seen = true
 	_apply_preview()
+	if OS.get_environment("TOIRE_YEN100") == "1":
+		give_yen100()
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	if progress.load_game():
 		hud.show_message("……前に来た、あの部屋だ。続きから。", 4.0, "voice")
@@ -701,8 +733,8 @@ func _apply_preview() -> void:
 			player.global_position = room.PREVIEW_CAR_POS + Vector3(0.0, 0.05, -0.2)
 			player.rotation.y = 0.0
 		"entrance":
-			player.global_position = room.PREVIEW_ENTRANCE_POS + Vector3(0.0, 0.05, 1.2)
-			player.rotation.y = 0.0
+			player.global_position = room.ENTRANCE_POS + Vector3(0.0, 0.05, -2.4)
+			player.rotation.y = PI
 
 
 ## ウィンドウが選ばれなくなったら自動で一時停止（ゲーム中に別のウィンドウへ移ったとき、勝手に進まないように）
@@ -1127,6 +1159,8 @@ func _action_for(target: Object) -> String:
 			return "get_up"
 		PlayerScript.Pose.KOTATSU_SEAT:
 			return "kotatsu_stand"
+		PlayerScript.Pose.CLOSET:
+			return "closet_exit"
 		PlayerScript.Pose.KOTATSU_IN:
 			return "kotatsu_out"
 		PlayerScript.Pose.DUCT:
@@ -1147,6 +1181,8 @@ func _action_for(target: Object) -> String:
 		return "lean_out"
 	if id == "kotatsu" and player.pose == PlayerScript.Pose.WALK:
 		return "kotatsu_sit"
+	if id == "fusuma" and player.pose == PlayerScript.Pose.WALK:
+		return "closet_enter"
 	if id == "bed" and player.pose == PlayerScript.Pose.WALK:
 		return "sleep"
 	if id in ["toilet", "toilet_seat", "toilet_lid"] and room.toilet.can_sit():
@@ -1182,6 +1218,10 @@ func do_action() -> void:
 		"kotatsu_stand":
 			if not player.leave_fixed(KotatsuScript.SEATS[kotatsu_seat].exits):
 				hud.show_message(MESSAGES["no_way_out"])
+		"closet_enter":
+			_enter_closet()
+		"closet_exit":
+			_exit_closet()
 		"kotatsu_out":
 			var seat2: Dictionary = KotatsuScript.SEATS[kotatsu_seat]
 			room.apartment.kotatsu.set_solid(true)
@@ -1288,6 +1328,10 @@ func _prompt_for(target: Object) -> String:
 			return PROMPTS["dice_roll"]
 		"tv_remote":
 			return PROMPTS["tv_remote"]
+		"elevator":
+			return "左クリック：エレベーターに乗る"
+		"vending":
+			return "左クリック：自動販売機を使う"
 		_:
 			return PROMPT_EXAMINE
 
@@ -1377,6 +1421,10 @@ func _on_interact_requested(target: Object) -> void:
 			hud.show_message(MESSAGES[id])
 		"phone_black":
 			_phone_dial()
+		"elevator":
+			_ride_elevator()
+		"vending":
+			_use_vending()
 		"cork_gun":
 			if inventory.has("cork_gun"):
 				return
@@ -1864,7 +1912,14 @@ func _physics_process(_delta: float) -> void:
 		return
 	# 玄関ドアから廊下へ出た瞬間に、通ってきた経路で判定する（自室・ホールに入っただけではクリアしない）
 	if region == "corridor" and _last_region == "hall":
-		_clear("legit" if route_duct else "shortcut")
+		if inventory.has("yen100"):
+			hud.show_message(ENDING["yen_hint"], 6.0)   # 百円玉を持って出ると、まだクリアにならない（エレベーターで 1 階へ）
+		else:
+			_clear("legit" if route_duct else "shortcut")
+	elif region == "lobby" and _last_region != "lobby" and not vending_done:
+		hud.show_message(ENDING["lobby"], 5.0)
+	elif region == "alley" and _last_region == "lobby" and not vending_done:
+		hud.show_message(ENDING["vending_look"], 6.0)
 	_last_region = region
 
 
@@ -1894,7 +1949,7 @@ func _crawl_out(d: Vector3) -> bool:
 
 
 const SPACES := {"bath": [0.32, 20000.0], "hall": [0.14, 20000.0], "room": [0.07, 20000.0], "corridor": [0.3, 20000.0],
-		"duct": [0.28, 5000.0], "balcony": [0.02, 20000.0]}
+		"duct": [0.28, 5000.0], "balcony": [0.02, 20000.0], "car": [0.3, 12000.0], "lobby": [0.28, 20000.0], "alley": [0.03, 20000.0]}
 var _space_key := ""
 
 
@@ -1902,10 +1957,12 @@ func _update_space() -> void:
 	var key := region
 	if player.pose == PlayerScript.Pose.KOTATSU_IN:
 		key = "kotatsu"
+	elif player.pose == PlayerScript.Pose.CLOSET:
+		key = "closet"
 	if key == _space_key or key.is_empty():
 		return
 	_space_key = key
-	var sp: Array = SPACES.get(key, [0.07, 20000.0]) if key != "kotatsu" else [0.03, 900.0]
+	var sp: Array = SPACES.get(key, [0.07, 20000.0]) if key != "kotatsu" and key != "closet" else [0.03, 900.0]
 	AudioSettingsScript.set_space(sp[0], sp[1])
 
 
@@ -1914,9 +1971,11 @@ func _surface_at(p: Vector3) -> String:
 	match _region_of(p) if not _region_of(p).is_empty() else region:
 		"bath":
 			return "tile"
-		"corridor":
+		"corridor", "alley":
 			return "concrete"
-		"duct", "balcony":
+		"lobby":
+			return "tile"
+		"duct", "balcony", "car":
 			return "metal"
 		"room":
 			var rug: Vector3 = SmallPropsScript.RUG_CENTER
@@ -1931,6 +1990,13 @@ func _surface_at(p: Vector3) -> String:
 
 ## 足元の位置の区画。敷居など境目の上では空（直前の区画を保つ）。
 func _region_of(p: Vector3) -> String:
+	if p.y < -70.0:
+		return "car"
+	if p.y < -10.0:
+		# 1 階：廊下の真下の玄関ホール／路地（入口から自動販売機まで）
+		if p.x > -2.75 and p.x < -0.95 and p.z > -1.3:
+			return "lobby"
+		return "alley"
 	if CorridorScript.in_corridor(p):
 		return "corridor"
 	if player.pose == PlayerScript.Pose.DUCT or ExteriorScript.in_duct(p):
@@ -1952,7 +2018,126 @@ func _clear(route: String) -> void:
 	clear_route = route
 	player.controls_enabled = false
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-	hud.show_clear(CLEAR_TITLES[route], _clear_stats_text(), ProgressScript.rank_for(play_time, progress.hints_used))
+	var title: String = CLEAR_TITLES[route]
+	var stats := _clear_stats_text()
+	var rank := ProgressScript.rank_for(play_time, progress.hints_used)
+	if credits_enabled:
+		# エンドロールを流しながら、最後にクリア画面
+		hud.show_credits(CreditsData.lines(route), func() -> void: hud.show_clear(title, stats, rank))
+	else:
+		hud.show_clear(title, stats, rank)
+
+
+## エレベーターに乗る（廊下の南の端）：暗転 → 箱の中で 5 から 1 へ → 扉が開く → 暗転 → 1 階の玄関ホール。
+func _ride_elevator() -> void:
+	if riding or cleared:
+		return
+	riding = true
+	player.controls_enabled = false
+	SfxScript.play("click")
+	hud.show_message(ENDING["elevator_ride"], 3.0)
+	var car = room.get_node("ElevatorCar")
+	await hud.fade_to(1.0, 0.8 / ride_speed).finished
+	car.close_doors_now()
+	car.set_floor(5)
+	player.global_position = room.PREVIEW_CAR_POS + Vector3(0.0, 0.05, -0.3)
+	player.rotation.y = PI
+	player._pitch = 0.0
+	player.camera.rotation.x = 0.0
+	await hud.fade_to(0.0, 0.8 / ride_speed).finished
+	await get_tree().create_timer(0.9 / ride_speed).timeout
+	for f in RIDE_STOPS:
+		SfxScript.play("rumble")
+		await get_tree().create_timer(1.1 / ride_speed).timeout
+		car.set_floor(f)
+	SfxScript.play("pop")
+	await get_tree().create_timer(0.6 / ride_speed).timeout
+	var tw: Tween = car.open_doors(1.2 / ride_speed)
+	hud.show_message(ENDING["elevator_arrive"], 3.0)
+	await tw.finished
+	await get_tree().create_timer(1.0 / ride_speed).timeout
+	await hud.fade_to(1.0, 0.7 / ride_speed).finished
+	player.global_position = Vector3(room.ENTRANCE_POS.x, room.ENTRANCE_POS.y + 0.05, 5.2)   # ホールの突き当たりのエレベーターの前
+	player.rotation.y = 0.0   # -z（アーチの向き）を向く
+	player._pitch = 0.0
+	player.camera.rotation.x = 0.0
+	await hud.fade_to(0.0, 0.9 / ride_speed).finished
+	player.controls_enabled = true
+	riding = false
+
+
+## 自動販売機（ベランダの真下）：身長が足りないと最上段のボタンに届かない。百円玉で炭酸リンゴジュースを買って飲むと、真のクリア。
+func _use_vending() -> void:
+	if vending_done or cleared:
+		return
+	if player.eye_height < VENDING_REACH:
+		hud.show_message(ENDING["vending_far"], 5.0)
+		return
+	if not inventory.has("yen100"):
+		hud.show_message(ENDING["vending_no_money"])
+		return
+	vending_done = true
+	remove_item("yen100")
+	player.controls_enabled = false
+	progress.discover("vending")
+	SfxScript.play("click")
+	hud.show_message(ENDING["vending_coin"], 4.0)
+	await get_tree().create_timer(3.2 / ride_speed).timeout
+	SfxScript.play("pop")
+	hud.show_message(ENDING["vending_drop"], 3.0)
+	await get_tree().create_timer(2.6 / ride_speed).timeout
+	hud.show_message(ENDING["vending_drink"], 3.5)
+	await get_tree().create_timer(3.0 / ride_speed).timeout
+	hud.show_message(ENDING["vending_last"], 4.5)
+	await get_tree().create_timer(3.8 / ride_speed).timeout
+	hud.show_message(ENDING["vending_voice"], 4.5, "voice")
+	await get_tree().create_timer(4.0 / ride_speed).timeout
+	_clear("true")
+
+
+## 百円玉を持ち物に加える（開発用：環境変数 TOIRE_YEN100=1 で最初から持つ。入手方法は、これから作る段階 6）。
+func give_yen100() -> void:
+	_item_models["yen100"] = TowelRef.coin_model()
+	add_item("yen100")
+
+
+## 押入れの左の仕切りに入って、襖を閉じ、真っ暗な中に閉じこもる。
+func _enter_closet() -> void:
+	var cl = room.apartment.closet
+	if cl.busy or closet_hiding:
+		return
+	closet_hiding = true
+	SfxScript.play("rustle")
+	if cl.crane_visible:   # 襖が左の仕切りをふさいでいるので、先に右へ寄せる
+		await cl.slide_to(false).finished
+	var feet: Vector3 = cl.global_position + Vector3(-cl.SLIDE_X, cl.FLOOR_T, 0.12)
+	player.move_to(PlayerScript.Pose.CLOSET, feet, PI, CLOSET_EYE)
+	await get_tree().create_timer(0.7).timeout
+	await cl.slide_to(true).finished   # 中から襖を閉める
+	hud.set_hiding(true)
+	AudioSettingsScript.set_space(0.03, 900.0)
+	progress.discover("closet_hide")
+	hud.show_message(MESSAGES["closet_in"], 6.0)
+	await get_tree().create_timer(9.0).timeout
+	if closet_hiding and player.pose == PlayerScript.Pose.CLOSET:
+		hud.show_message(MESSAGES["closet_quiet"], 6.0)
+
+
+func _exit_closet() -> void:
+	var cl = room.apartment.closet
+	if cl.busy or not closet_hiding:
+		return
+	hud.set_hiding(false)
+	SfxScript.play("rustle")
+	await cl.slide_to(false).finished
+	var exits := [cl.global_position + Vector3(-cl.SLIDE_X, 0.0, 0.9), cl.global_position + Vector3(-0.9, 0.0, 0.85), cl.global_position + Vector3(0.1, 0.0, 0.95), cl.global_position + Vector3(0.6, 0.0, 1.0)]   # 押入れの前の透明な板（体だけを止める）から、体の半径ぶん離れた所
+	if player.leave_fixed(exits):
+		closet_hiding = false
+		_space_key = ""
+	else:
+		hud.set_hiding(true)
+		await cl.slide_to(true).finished
+		hud.show_message(MESSAGES["no_way_out"])
 
 
 ## 秒を「m:ss」または「h:mm:ss」にする。

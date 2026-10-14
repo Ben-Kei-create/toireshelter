@@ -45,11 +45,18 @@ const OPPOSITE_Z := -4.4
 const KO_X := 22.0
 const KO_DECK_Y := -1.2
 const KO_SPEED := 2.6
-const GROUND_Y := -4.0 * FLOOR_PITCH   # 街の地面（廊下と同じ）
+const GROUND_Y := -4.0 * FLOOR_PITCH   # 街の地面（廊下と同じ）。503 は 5 階なので、4 階ぶん（13.6m）下が 1 階
+const STREET_DROP := GROUND_Y + 2.0 * FLOOR_PITCH   # 路地の高さを、もとの 2 階ぶん下から 1 階まで下げた量（-6.8）
+const ENTRANCE_X := -1.85                       # 1 階の入口（アーチ）の中心 x。廊下・エレベーターの真下
+const ENTRANCE_HALF := 0.75                     # アーチの口の半幅
+const ENTRANCE_H := 2.9                         # 入口の穴の高さ（アーチの頂点より上）
+const VENDING_POS := Vector3(2.6, GROUND_Y, FACADE_Z - FACADE_T - 0.36)   # ベランダ（x 1.3〜3.7）の真下の、白い自動販売機
+const POLE_POS := Vector3(0.45, 0.0, -2.55)
 
 var _rng := RandomNumberGenerator.new()
 var facade_dy := 0.0                   # 外壁の出口の穴が、もとの高さからどれだけ上にあるか
 var ladder_down := false               # ボロボロのはしごを、ダクトの出口から下ろした
+var vending_machine: Node3D            # ベランダの真下の白い自動販売機（真のクリアの場所）
 var _ladder: Node3D
 var _ko_train: Node3D
 var _ko_z := -150.0
@@ -324,7 +331,8 @@ func _build_facade(dy := 0.0) -> void:
 	var x1 := 7.0
 	var pieces := [
 		# [x0, x1, y0, y1]：窓（x 1.8〜3.2, y 0〜2.0）と換気経路の出口（x 1.6〜2.2, y 2.5〜3.1）を空ける
-		[x0, x1, -8.0, 0.0],
+		[x0, x1, GROUND_Y + ENTRANCE_H, 0.0],
+		[x0, ENTRANCE_X - ENTRANCE_HALF, GROUND_Y, GROUND_Y + ENTRANCE_H], [ENTRANCE_X + ENTRANCE_HALF, x1, GROUND_Y, GROUND_Y + ENTRANCE_H],
 		[x0, WINDOW_X.x, 0.0, WINDOW_TOP], [WINDOW_X.y, x1, 0.0, WINDOW_TOP],
 		[x0, x1, WINDOW_TOP, DUCT_FLOOR + dy],
 		[x0, DUCT_B.position.x, DUCT_FLOOR + dy, DUCT_TOP + dy], [DUCT_B.end.x, x1, DUCT_FLOOR + dy, DUCT_TOP + dy],
@@ -336,8 +344,8 @@ func _build_facade(dy := 0.0) -> void:
 	var hood := MeshKit.mat("duct", Color(0.5, 0.52, 0.54), 0.5, 0.3)
 	MeshKit.box(f, Vector3(0.7, 0.03, 0.12), Vector3(1.9, DUCT_TOP + dy + 0.02, FACADE_Z - 0.06), hood, "ExitHood")
 	# 縦の雨どいと、上下の階のベランダ（背景）
-	MeshKit.cylinder(f, 0.04, 20.0, Vector3(1.15, 2.0, FACADE_Z - 0.06), MeshKit.mat("pipe_grey", Color(0.45, 0.45, 0.44), 0.6), "Downpipe", -1.0, 10)
-	for k in [-2, -1, 1, 2]:
+	MeshKit.cylinder(f, 0.04, 28.0, Vector3(1.15, 0.0, FACADE_Z - 0.06), MeshKit.mat("pipe_grey", Color(0.45, 0.45, 0.44), 0.6), "Downpipe", -1.0, 10)
+	for k in [-3, -2, -1, 1, 2]:
 		var y: float = k * FLOOR_PITCH
 		_balcony_shell(f, y, x0, x1, false)
 	MeshKit.auto_round = true
@@ -437,9 +445,11 @@ func _build_opposite() -> void:
 	var wall := MeshKit.tiled_mat("opposite_wall_tex", TEX_FACADE, 1.5, Color(0.72, 0.7, 0.66), 0.95)
 	var x0 := -4.0
 	var x1 := 8.0
-	MeshKit.box(o, Vector3(x1 - x0, 20.0, 0.3), Vector3((x0 + x1) * 0.5, 2.0, OPPOSITE_Z - 0.15), wall, "Wall")
-	# 路地の地面（2階分下）
-	MeshKit.box(o, Vector3(x1 - x0, 0.1, FACADE_Z - OPPOSITE_Z + 0.6), Vector3((x0 + x1) * 0.5, -2.0 * FLOOR_PITCH - 0.05, (OPPOSITE_Z + FACADE_Z) * 0.5 - 0.3), MeshKit.tiled_mat("alley_concrete", TEX_CONCRETE, 1.2, Color(0.75, 0.75, 0.75), 1.0), "Alley")
+	MeshKit.box(o, Vector3(x1 - x0, 26.0, 0.3), Vector3((x0 + x1) * 0.5, -1.0, OPPOSITE_Z - 0.15), wall, "Wall")
+	# 路地の地面（4階分下＝1階。歩ける）。1 階の入口から自動販売機まで歩く通路
+	var alley_m := MeshKit.tiled_mat("alley_concrete", TEX_CONCRETE, 1.2, Color(0.75, 0.75, 0.75), 1.0)
+	MeshKit.box(o, Vector3(x1 - x0, 0.1, FACADE_Z - OPPOSITE_Z + 0.6), Vector3((x0 + x1) * 0.5, GROUND_Y - 0.05, (OPPOSITE_Z + FACADE_Z) * 0.5 - 0.3), alley_m, "Alley")
+	_build_street_body(x0, x1)
 	var glass := MeshKit.mat("opp_glass", Color(0.16, 0.18, 0.2), 0.2, 0.2)
 	var lit := MeshKit.mat("opp_lit", Color(1.0, 0.85, 0.6), 0.6)
 	lit.emission_enabled = true
@@ -448,7 +458,7 @@ func _build_opposite() -> void:
 	var frame := MeshKit.mat("opp_frame", Color(0.6, 0.6, 0.58), 0.6)
 	var unit_mat := MeshKit.mat("aircon", Color(0.86, 0.85, 0.8), 0.6)
 	var face := OPPOSITE_Z
-	for floor_i in range(0, 3):   # 1階・2階は店（_build_street()）
+	for floor_i in range(-2, 3):   # 1階・2階は店（_build_street()）。その上の 3 階・4 階と、503 の高さから上の窓
 		var y := floor_i * FLOOR_PITCH
 		var x := x0 + 0.6
 		while x < x1 - 1.0:
@@ -465,7 +475,7 @@ func _build_opposite() -> void:
 	# 縦の配管
 	var pipe := MeshKit.mat("pipe_grey", Color(0.45, 0.45, 0.44), 0.6)
 	for px in [0.4, 2.1, 5.3]:
-		MeshKit.cylinder(o, 0.035, 20.0, Vector3(px, 2.0, face + 0.06), pipe, "", -1.0, 8)
+		MeshKit.cylinder(o, 0.035, 26.0, Vector3(px, -1.0, face + 0.06), pipe, "", -1.0, 8)
 	# 生活灯（小さな外灯）
 	var lamp := MeshKit.mat("lamp", Color(1.0, 0.9, 0.7), 0.4)
 	lamp.emission_enabled = true
@@ -497,8 +507,8 @@ func _build_street() -> void:
 	var awning_wood := MeshKit.tiled_mat("awning_wood", TEX_DARK_WOOD, 0.6, Color.WHITE, 0.7)
 	# 店の並び：[x の左端, 幅, 横看板の番号]（1階と2階でずらす）
 	var shops := [
-		[-1, [-3.6, 1.7, 1], [-1.75, 1.5, 2], [-0.1, 1.9, 3], [1.95, 1.6, 4], [3.7, 1.8, 5], [5.65, 1.9, 6]],
-		[-2, [-3.2, 1.9, 7], [-1.1, 1.7, 8], [0.8, 2.0, 9], [3.0, 1.6, 10], [4.8, 1.9, 11], [6.8, 1.0, 12]],
+		[-3, [-3.6, 1.7, 1], [-1.75, 1.5, 2], [-0.1, 1.9, 3], [1.95, 1.6, 4], [3.7, 1.8, 5], [5.65, 1.9, 6]],
+		[-4, [-3.2, 1.9, 7], [-1.1, 1.7, 8], [0.8, 2.0, 9], [3.0, 1.6, 10], [4.8, 1.9, 11], [6.8, 1.0, 12]],
 	]
 	for row in shops:
 		var floor_i: int = row[0]
@@ -531,7 +541,7 @@ func _build_street() -> void:
 		var wall_z: float = face if v[1] == "opp" else FACADE_Z - FACADE_T
 		var dir := 1.0 if v[1] == "opp" else -1.0   # 壁から路地へ張り出す向き（z）
 		var cz := wall_z + dir * (0.12 + w * 0.5)
-		var cy: float = v[2] + h * 0.5
+		var cy: float = v[2] + STREET_DROP + h * 0.5
 		# 両面に同じ看板（それぞれ正しい向きで読める）
 		_sign(st, tex, Vector2(w, h), Vector3(v[0] + 0.012, cy, cz), Vector3(0, PI * 0.5, 0))
 		_sign(st, tex, Vector2(w, h), Vector3(v[0] - 0.012, cy, cz), Vector3(0, -PI * 0.5, 0))
@@ -542,16 +552,19 @@ func _build_street() -> void:
 	_end_building(st, -4.6, 1.0, deg_to_rad(10.0), Color(0.78, 0.82, 0.76), [7, 11])
 	_end_building(st, 8.6, -1.0, deg_to_rad(-14.0), Color(0.86, 0.8, 0.7), [2, 12], -3.5)   # 東の端の建物は低く：その上に、KO線が見える
 	# 自動販売機：向かいの建物の1階の店先と、自分の建物の1階の壁際
-	_vending(st, Vector3(2.9, -2.0 * FLOOR_PITCH, OPPOSITE_Z + 0.36), 0.0, Color(0.78, 0.12, 0.12), [32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45])
-	_vending(st, Vector3(5.0, -2.0 * FLOOR_PITCH, FACADE_Z - FACADE_T - 0.36), PI, Color(0.92, 0.93, 0.95), [46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59])
+	_vending(st, Vector3(2.9, GROUND_Y, OPPOSITE_Z + 0.36), 0.0, Color(0.78, 0.12, 0.12), [32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45])
+	vending_machine = _vending(st, VENDING_POS, PI, Color(0.92, 0.93, 0.95), [46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59])
+	# 調べる判定（正面の前に張り出す）。真のクリアの場所
+	var vm_area := MeshKit.interact_area(vending_machine, "VendingArea", "vending")
+	MeshKit.shape_box(vm_area, Vector3(0.9, 1.8, 0.3), Vector3(0, 0.9, 0.35 + 0.1))
 	_street_stickers(st)
 	# 自分の建物の換気口（各階の同じ位置）
-	for k in [-2, -1, 1, 2]:
+	for k in [-3, -2, -1, 1, 2]:
 		_quad(st, TEX_VENT, Vector2(0.3, 0.23), Vector3(1.9, k * FLOOR_PITCH + 2.8, FACADE_Z - FACADE_T - 0.004), Vector3(0, PI, 0), "")
 	# 電柱：路地の自分の建物寄り。コンクリートの柱と変圧器、電線は向かいの建物と自分の建物へ
 	var pole := MeshKit.tiled_mat("pole_concrete", TEX_CONCRETE, 0.6, Color(0.85, 0.85, 0.85), 0.9)
-	var pole_pos := Vector3(0.45, 0.0, -2.55)
-	var bottom := -2.0 * FLOOR_PITCH
+	var pole_pos := POLE_POS
+	var bottom := GROUND_Y
 	var top := 5.6
 	MeshKit.cylinder(st, 0.15, top - bottom, Vector3(pole_pos.x, (top + bottom) * 0.5, pole_pos.z), pole, "UtilityPole", 0.12, 14)
 	MeshKit.cylinder(st, 0.22, 0.75, Vector3(pole_pos.x + 0.3, 3.6, pole_pos.z), MeshKit.mat("transformer", Color(0.55, 0.58, 0.55), 0.5, 0.3), "Transformer")
@@ -564,7 +577,7 @@ func _build_street() -> void:
 
 ## 自動販売機（幅0.9・高さ1.8・奥行き0.7）。ローカル +z が正面。明るい商品見本の窓・ボタン・取り出し口・硬貨投入口。
 ## 側面と正面の下にステッカー（stickers の番号）を貼る。背景だけ（当たり判定なし）。
-func _vending(parent: Node3D, pos: Vector3, yaw: float, body_col: Color, stickers: Array) -> void:
+func _vending(parent: Node3D, pos: Vector3, yaw: float, body_col: Color, stickers: Array) -> Node3D:
 	var vm := Node3D.new()
 	vm.name = "VendingMachine"
 	vm.position = pos
@@ -614,17 +627,47 @@ func _vending(parent: Node3D, pos: Vector3, yaw: float, body_col: Color, sticker
 	]
 	for i in mini(stickers.size(), places.size()):
 		MeshKit.sticker(vm, stickers[i], 0.13, places[i][0], places[i][1], places[i][2])
+	return vm
+
+
+## 路地（1 階）を歩ける体：地面・向かいの壁・自分の建物の 1 階の壁（入口の穴は空ける）・路地の両端・電柱・自動販売機。
+## 1 階の入口を出て、ベランダの下の自動販売機まで歩く通路。見える物は、ほかの関数が作る。
+func _build_street_body(x0: float, x1: float) -> void:
+	var body := StaticBody3D.new()
+	body.name = "StreetBody"
+	body.collision_layer = MeshKit.LAYER_WORLD
+	body.collision_mask = 0
+	add_child(body)
+	var zc := (OPPOSITE_Z + FACADE_Z) * 0.5
+	var zl := FACADE_Z - OPPOSITE_Z
+	MeshKit.shape_box(body, Vector3(x1 - x0, 0.2, zl + 3.0), Vector3((x0 + x1) * 0.5, GROUND_Y - 0.1, zc - 1.5))
+	MeshKit.shape_box(body, Vector3(x1 - x0, 8.0, 0.3), Vector3((x0 + x1) * 0.5, GROUND_Y + 4.0, OPPOSITE_Z - 0.15))
+	for ex in [x0 - 0.15, x1 + 0.15]:
+		MeshKit.shape_box(body, Vector3(0.3, 8.0, zl + 3.0), Vector3(ex, GROUND_Y + 4.0, zc - 1.5))
+	var wl := (ENTRANCE_X - ENTRANCE_HALF) - x0
+	var wr := x1 - (ENTRANCE_X + ENTRANCE_HALF)
+	MeshKit.shape_box(body, Vector3(wl, 8.0, 0.3), Vector3(x0 + wl * 0.5, GROUND_Y + 4.0, FACADE_Z - 0.15))
+	MeshKit.shape_box(body, Vector3(wr, 8.0, 0.3), Vector3(x1 - wr * 0.5, GROUND_Y + 4.0, FACADE_Z - 0.15))
+	var pole_shape := CylinderShape3D.new()
+	pole_shape.radius = 0.17
+	pole_shape.height = 4.0
+	var pole_cs := CollisionShape3D.new()
+	pole_cs.shape = pole_shape
+	pole_cs.position = Vector3(POLE_POS.x, GROUND_Y + 2.0, POLE_POS.z)
+	body.add_child(pole_cs)
+	MeshKit.shape_box(body, Vector3(0.9, 1.8, 0.7), VENDING_POS + Vector3(0, 0.9, 0))
+	MeshKit.shape_box(body, Vector3(0.9, 1.8, 0.7), Vector3(2.9, GROUND_Y + 0.9, OPPOSITE_Z + 0.36))
 
 
 ## 向かいの建物の2階と3階の間の壁、電柱、自分の建物の外壁（換気経路の出口の横）にステッカー。
 func _street_stickers(parent: Node3D) -> void:
 	var face := OPPOSITE_Z
-	var y_band := -0.35   # 2階の看板の上、3階の窓の下
+	var y_band := -0.35 + STREET_DROP   # 2階の看板の上、3階の窓の下
 	var opp := [[-3.3, 15], [-2.1, 16], [-0.9, 17], [0.5, 18], [1.6, 19], [3.3, 20], [4.6, 21], [6.0, 22], [7.2, 23]]
 	for i in opp.size():
 		MeshKit.sticker(parent, opp[i][1], 0.32, Vector3(opp[i][0], y_band + (0.15 if i % 2 else -0.1), face), Vector3.BACK, [-5.0, 4.0, 8.0, -3.0, 6.0][i % 5])
 	# 電柱：自分のベランダから見える高さ（重ね貼り）
-	var pole := Vector3(0.45, 0.0, -2.55)
+	var pole := POLE_POS
 	var pole_n := [24, 25, 26, 27, 30, 31]
 	for i in pole_n.size():
 		MeshKit.sticker(parent, pole_n[i], 0.2, Vector3(pole.x, 0.35 + i * 0.27, pole.z + 0.15), Vector3.BACK, [-6.0, 5.0, -2.0, 9.0, -4.0, 3.0][i])
@@ -643,13 +686,13 @@ func _end_building(parent: Node3D, x: float, facing: float, yaw: float, tint: Co
 	parent.add_child(bld)
 	# ローカル +x が路地側。壁の面はローカル x=0、幅（z）5m
 	var wall := MeshKit.tiled_mat("end_wall_%s" % tint.to_html(false), TEX_STUCCO, 0.9, tint, 0.95)
-	var bottom := -2.0 * FLOOR_PITCH
+	var bottom := GROUND_Y
 	var top := roof
 	MeshKit.box(bld, Vector3(0.4, top - bottom, 5.0), Vector3(-0.2, (top + bottom) * 0.5, 0), wall, "Wall")
 	var glass := MeshKit.mat("opp_glass", Color(0.16, 0.18, 0.2), 0.2, 0.2)
 	var lit := MeshKit.mat("opp_lit", Color(1.0, 0.85, 0.6), 0.6)
 	var frame := MeshKit.mat("opp_frame", Color(0.6, 0.6, 0.58), 0.6)
-	for k in range(-2, 3):
+	for k in range(-4, 3):
 		var y := k * FLOOR_PITCH
 		for zz in [-1.4, 0.2, 1.5]:
 			var w := _rng.randf_range(0.6, 0.9)

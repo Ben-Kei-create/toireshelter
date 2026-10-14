@@ -39,29 +39,57 @@ static func wired_glass_mat(glow := false) -> StandardMaterial3D:
 
 ## 二枚扉。cx：扉の中心の x、y0：床の高さ、face：-1 なら法線が -z（箱の中から前を見る・廊下から南を見る）。
 ## body：扉の板の材質、glow：窓を光らせるか。左の窓は細く低く、右の窓は広く高い（写真のとおり）。
-static func build_doors(parent: Node3D, center: Vector3, body: Material, glow := false, closed := true) -> Node3D:
+static func build_doors(parent: Node3D, center: Vector3, body: Material, glow := false, _closed := true) -> Node3D:
 	var n := Node3D.new()
 	n.name = "Doors"
 	n.position = center
 	parent.add_child(n)
 	var steel := MeshKit.mat("elev_steel", Color(0.72, 0.73, 0.75), 0.35, 0.85)
 	var leaf_w := DOOR_W * 0.5 - 0.004
-	var gap := 0.0 if closed else 0.3
-	# 左右の扉。開けるときは左右へ gap ずつ
-	var leaves := [[-DOOR_W * 0.25 - gap, 0.17, 0.85, 1.2], [DOOR_W * 0.25 + gap, 0.12, 0.55, 1.05]]   # 手前を向いて左（+x 側）が細く低い窓、右が広く高い窓
+	# 左右の扉（それぞれ 1 つの節点：開けるときは横へ動かす）。手前を向いて左（+x 側）が細く低い窓、右が広く高い窓
+	var leaves := [["LeafR", -DOOR_W * 0.25, 0.17, 0.85, 1.2], ["LeafL", DOOR_W * 0.25, 0.12, 0.55, 1.05]]
 	for lf in leaves:
-		var lx: float = lf[0]
-		MeshKit.box(n, Vector3(leaf_w, 2.0, 0.04), Vector3(lx, 1.0, 0.0), body, "Leaf")
-		var win_w: float = lf[1]
-		var win_h: float = lf[2]
-		var win_y: float = lf[3]
-		MeshKit.box(n, Vector3(win_w + 0.03, win_h + 0.03, 0.012), Vector3(lx, win_y, -0.012), steel, "WindowFrame")
-		MeshKit.box(n, Vector3(win_w, win_h, 0.012), Vector3(lx, win_y, -0.016), wired_glass_mat(glow), "Window")
+		var leaf := Node3D.new()
+		leaf.name = lf[0]
+		leaf.position = Vector3(float(lf[1]), 0.0, 0.0)
+		n.add_child(leaf)
+		MeshKit.box(leaf, Vector3(leaf_w, 2.0, 0.04), Vector3(0, 1.0, 0.0), body, "Leaf")
+		var win_w: float = lf[2]
+		var win_h: float = lf[3]
+		var win_y: float = lf[4]
+		MeshKit.box(leaf, Vector3(win_w + 0.03, win_h + 0.03, 0.012), Vector3(0, win_y, -0.012), steel, "WindowFrame")
+		MeshKit.box(leaf, Vector3(win_w, win_h, 0.012), Vector3(0, win_y, -0.016), wired_glass_mat(glow), "Window")
 	# 扉の枠（ステンレス）
 	MeshKit.box(n, Vector3(0.04, 2.04, 0.06), Vector3(-DOOR_W * 0.5 - 0.02, 1.02, -0.005), steel, "FrameL")
 	MeshKit.box(n, Vector3(0.04, 2.04, 0.06), Vector3(DOOR_W * 0.5 + 0.02, 1.02, -0.005), steel, "FrameR")
 	MeshKit.box(n, Vector3(DOOR_W + 0.08, 0.04, 0.06), Vector3(0, 2.02, -0.005), steel, "FrameTop")
 	return n
+
+
+var _doors: Node3D
+var _arrow: Label3D
+var _floor_label: Label3D
+
+
+## いま表示する階（▼ の横の数字）。
+func set_floor(n: int) -> void:
+	if _floor_label:
+		_floor_label.text = str(n)
+
+
+## 扉を開ける（左右へ 0.2m ずつ）。
+func open_doors(seconds := 1.2) -> Tween:
+	var tw := create_tween().set_parallel(true)
+	var l := _doors.get_node("LeafL") as Node3D
+	var r := _doors.get_node("LeafR") as Node3D
+	tw.tween_property(l, "position:x", DOOR_W * 0.25 + 0.2, seconds)
+	tw.tween_property(r, "position:x", -DOOR_W * 0.25 - 0.2, seconds)
+	return tw
+
+
+func close_doors_now() -> void:
+	(_doors.get_node("LeafL") as Node3D).position.x = DOOR_W * 0.25
+	(_doors.get_node("LeafR") as Node3D).position.x = -DOOR_W * 0.25
 
 
 func _ready() -> void:
@@ -101,8 +129,7 @@ func _build_shell() -> void:
 	_solid(shell, body, Vector3(W * 0.5 - dr, H, 0.1), Vector3((dr + W * 0.5) * 0.5, H * 0.5, fz), wall, "FrontRight")
 	_solid(shell, body, Vector3(dr - dl, H - 2.06, 0.1), Vector3((dl + dr) * 0.5, 2.06 + (H - 2.06) * 0.5, fz), wall, "FrontTop")
 	# 閉まった扉（箱の内側の面に合わせる）
-	var doors := build_doors(shell, Vector3(DOOR_X, 0.0, D * 0.5 - 0.02), _wall_mat(), false, true)
-	doors.name = "Doors"
+	_doors = build_doors(shell, Vector3(DOOR_X, 0.0, D * 0.5 - 0.02), _wall_mat(), false, true)
 	# 扉の外（廊下の暗がり）：窓の向こうに見える
 	MeshKit.box(shell, Vector3(DOOR_W + 0.4, 2.1, 0.02), Vector3(DOOR_X, 1.05, D * 0.5 + 0.12), MeshKit.mat("elev_beyond", Color(0.16, 0.14, 0.12), 0.9), "Beyond")
 	# 手すり（後ろの壁）
@@ -138,8 +165,8 @@ func _build_panel() -> void:
 	MeshKit.box(self, Vector3(0.2, 1.3, 0.012), Vector3(PANEL_X, 1.3, z), steel, "PanelPlate")
 	# 階の表示（白い小窓に、▼ と 5）
 	MeshKit.box(self, Vector3(0.12, 0.16, 0.01), Vector3(PANEL_X, 1.84, z - 0.008), MeshKit.mat("elev_display", Color(0.9, 0.9, 0.88), 0.4), "Display")
-	_label("▼", 64, 0.0006, Color(0.15, 0.15, 0.17), Vector3(PANEL_X, 1.885, z - 0.0145), "Arrow")
-	_label("5", 96, 0.0007, Color(0.2, 0.2, 0.22), Vector3(PANEL_X, 1.82, z - 0.0145), "Floor")
+	_arrow = _label("▼", 64, 0.0006, Color(0.15, 0.15, 0.17), Vector3(PANEL_X, 1.885, z - 0.0145), "Arrow")
+	_floor_label = _label("5", 96, 0.0007, Color(0.2, 0.2, 0.22), Vector3(PANEL_X, 1.82, z - 0.0145), "Floor")
 	# スピーカーの穴（二列の短いスリット）
 	for xx in [-0.03, 0.03]:
 		for k in 3:

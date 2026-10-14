@@ -78,6 +78,7 @@ var faucet: FaucetScript
 var shower: FaucetScript   # 壁のフックに掛けたシャワー。給水は蛇口と同じ1本分（同時でも二重に数えない）
 var _water: MeshInstance3D
 var _plug: Node3D
+var _drain_cross: Array = []   # 排水口の十字の格子。ふたをしている間は、十円玉の上に突き出さないよう隠す
 var _lid_sinker: Node3D
 var _ball: Node3D
 var _ball_mat: StandardMaterial3D
@@ -504,6 +505,8 @@ func set_plug(inserted: bool) -> void:
 	else:
 		_plug.position = PLUG_OUT_POS   # 外したふたは排水口の横に置いておく
 	_plug.rotation = Vector3.ZERO
+	for c in _drain_cross:
+		(c as Node3D).visible = not inserted
 
 
 func _update_water() -> void:
@@ -589,8 +592,8 @@ func _build_drain(visual: Node3D) -> void:
 	var dark := MeshKit.mat("drain_hole", Color(0.05, 0.05, 0.06), 1.0)
 	MeshKit.cylinder(visual, 0.028, 0.003, DRAIN_POS + Vector3(0, 0.0015, 0), metal, "DrainRing")
 	MeshKit.cylinder(visual, DRAIN_HOLE_RADIUS, 0.001, DRAIN_POS + Vector3(0, 0.0035, 0), dark, "DrainHole")
-	MeshKit.box(visual, Vector3(0.04, 0.002, 0.004), DRAIN_POS + Vector3(0, 0.005, 0), metal)
-	MeshKit.box(visual, Vector3(0.004, 0.002, 0.04), DRAIN_POS + Vector3(0, 0.005, 0), metal)
+	_drain_cross.append(MeshKit.box(visual, Vector3(0.04, 0.002, 0.004), DRAIN_POS + Vector3(0, 0.005, 0), metal))
+	_drain_cross.append(MeshKit.box(visual, Vector3(0.004, 0.002, 0.04), DRAIN_POS + Vector3(0, 0.005, 0), metal))
 	# あふれ口のプレート（チェーンの留め具）
 	var plate := MeshKit.cylinder(visual, 0.03, 0.006, CHAIN_ANCHOR + Vector3(0, 0, -0.001), metal, "Overflow")
 	plate.rotation.x = deg_to_rad(90.0)

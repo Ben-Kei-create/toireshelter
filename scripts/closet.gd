@@ -137,18 +137,24 @@ func get_prompt(_id: String) -> String:
 func interact(_id: String) -> String:
 	if busy:
 		return ""
+	slide_to(not crane_visible)
+	return ""
+
+
+## 襖を寄せる。crane_on_view が true なら左へ寄せる（クレーンゲームが見える・左の仕切りは襖に隠れる）、false なら右へ寄せる（ふとんの仕切りが見える）。
+func slide_to(crane_on_view: bool, seconds := 0.8) -> Tween:
 	busy = true
-	crane_visible = not crane_visible
+	crane_visible = crane_on_view
 	Sfx.play("slide")
 	var tw := create_tween()
 	tw.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 	var target_x := -SLIDE_X if crane_visible else SLIDE_X
 	for i in _panels.size():
-		tw.parallel().tween_property(_panels[i], "position:x", target_x + (0.02 * i), 0.8)
+		tw.parallel().tween_property(_panels[i], "position:x", target_x + (0.02 * i), seconds)
 	tw.tween_callback(func() -> void:
 		busy = false
 		_place_area())
-	return ""
+	return tw
 
 
 func take_mahjong() -> void:

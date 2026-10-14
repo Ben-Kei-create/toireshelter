@@ -97,7 +97,7 @@ var bath_light_cycles := 0     # 消してからつけ直した回数
 var bath_purple := false
 var _bulb_mat: StandardMaterial3D
 const PREVIEW_CAR_POS := Vector3(0.0, -80.0, 0.0)
-const PREVIEW_ENTRANCE_POS := Vector3(30.0, -80.0, 0.0)
+const ENTRANCE_POS := Vector3(-1.85, -13.6, -2.9)   # 外壁（z -1.3）にアーチ、突き当たり（z 6.4）が廊下のエレベーターの真下
 var corridor: CorridorScript
 var vent_cover: Node3D
 var bath_remote: BathRemoteScript
@@ -118,7 +118,7 @@ const RISE_H := 2.2            # 上がる高さ（m）＝浴室の高さ。扉�
 const RISE_TIME := 8.0
 const BLACKOUT_AMBIENT := 0.01   # 停電のあとの環境光の倍率（真っ暗）
 const UNIT_EXCLUDE := ["WorldEnvironment", "SkyClock", "HallLight", "Apartment", "BathLightSwitch", "Exterior",
-		"FrontDoor", "Corridor", "AmbientSound", "Fishing", "Pedestal", "DoorDebris", "FuseHatch", "DoorwayBlocker"]
+		"FrontDoor", "Corridor", "AmbientSound", "Fishing", "Pedestal", "DoorDebris", "FuseHatch", "DoorwayBlocker", "ElevatorCar", "Entrance"]
 var risen := false
 var rising := false
 var rise_offset := 0.0         # いまの上昇量（m）。浴室と換気ダクトの座標にこれを足す
@@ -161,14 +161,16 @@ func _ready() -> void:
 	corridor = CorridorScript.new()
 	corridor.name = "Corridor"
 	add_child(corridor)
-	# エレベーターの箱の中と、1 階の入口。まだ歩いて来られない（TOIRE_PREVIEW=elevator / entrance で見に行ける）。ほかの場所から遠く離して置く
+	# エレベーターの箱の中（ほかの場所から遠く離して置く。乗っている間だけ、ここへ移る）と、1 階の入口・玄関ホール
+	# （廊下・エレベーターの真下。路地から建物へ +z の向きに入るので、180 度回して置く）。浴室がせり上がっても動かさない（UNIT_EXCLUDE）
 	var car := ElevatorCarScript.new()
 	car.name = "ElevatorCar"
 	car.position = PREVIEW_CAR_POS
 	add_child(car)
 	var entrance := EntranceScript.new()
 	entrance.name = "Entrance"
-	entrance.position = PREVIEW_ENTRANCE_POS
+	entrance.position = ENTRANCE_POS
+	entrance.rotation.y = PI
 	add_child(entrance)
 	_build_bath_bulb()
 	_build_bathtub()

@@ -65,17 +65,17 @@ func _run() -> void:
 					if first.is_empty():
 						first = "pitch %d yaw %d" % [pitch, yaw]
 		check(misses == 0, "%s から斜め下 5〜85° の全方向で何かに当たる（抜ける向き %d%s）" % [name, misses, "：" + first if misses > 0 else ""])
-	# 路地の地面：ベランダの前から向かいの建物の足元まで、真上から見て地面（上面 y -6.8）がある（深い道まで抜けない）
+	# 路地の地面：ベランダの前から向かいの建物の足元まで、真上から見て地面（上面 y -13.6＝1 階。5 階の 4 階ぶん下）がある（深い道まで抜けない）
 	var gaps := []
 	for x in range(-3, 8):
 		for zi in range(0, 14):
 			var z := -2.3 - zi * 0.15 - 0.02 * zi
 			var q2 := PhysicsRayQueryParameters3D.create(Vector3(x + 0.5, 1.0, z), Vector3(x + 0.5, -30.0, z), 1 << 10)
 			var h: Dictionary = space.intersect_ray(q2)
-			# 下の階のベランダの床（-3.4）や手すりは途中にあってよいが、最終的に路地の面（-6.8 付近）で受けること
-			var q3 := PhysicsRayQueryParameters3D.create(Vector3(x + 0.5, -5.0, z), Vector3(x + 0.5, -30.0, z), 1 << 10)
+			# 下の階のベランダの床（-3.4〜-10.2）や手すりは途中にあってよいが、最終的に路地の面（-13.6 付近）で受けること
+			var q3 := PhysicsRayQueryParameters3D.create(Vector3(x + 0.5, -12.0, z), Vector3(x + 0.5, -40.0, z), 1 << 10)   # 庇（y -8）より下から撃つ
 			var h3: Dictionary = space.intersect_ray(q3)
-			if h3.is_empty() or absf(h3.position.y - (-6.85)) > 0.3:
+			if h3.is_empty() or absf(h3.position.y - (-13.6)) > 0.3:
 				gaps.append(Vector3(x + 0.5, h3.position.y if not h3.is_empty() else -99.0, z))
 	check(gaps.is_empty(), "路地の地面（ベランダ前〜向かいの建物の足元、x -3〜8）に穴がない（穴 %d）%s" % [gaps.size(), str(gaps.slice(0, 3))])
 	print("VOID TEST: %s (%d failure(s))" % ["PASS" if failures == 0 else "FAIL", failures])

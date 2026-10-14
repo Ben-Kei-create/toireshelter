@@ -19,6 +19,7 @@ func _run() -> void:
 	change_scene_to_file("res://scenes/main.tscn")
 	await _frames(10)
 	var main := current_scene
+	main.credits_enabled = false   # エンドロールは ending_test で確かめる。ここでは、クリア画面をすぐ出す
 	var player = main.player
 	var room = main.room
 	var tub = room.bathtub
