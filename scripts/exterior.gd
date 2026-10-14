@@ -48,6 +48,7 @@ const KO_SPEED := 2.6
 const GROUND_Y := -4.0 * FLOOR_PITCH   # 街の地面（廊下と同じ）
 
 var _rng := RandomNumberGenerator.new()
+var facade_dy := 0.0                   # 外壁の出口の穴が、もとの高さからどれだけ上にあるか
 var ladder_down := false               # ボロボロのはしごを、ダクトの出口から下ろした
 var _ladder: Node3D
 var _ko_train: Node3D
@@ -300,7 +301,19 @@ static func in_duct(p: Vector3) -> bool:
 
 # ---------------------------------------------------------------- 建物の外壁
 
-func _build_facade() -> void:
+## 浴室とダクトが dy だけ上がったあと、外壁の出口の穴を、上がった高さへ移して作り直す（もとの穴はふさがる）。
+func set_exit_rise(dy: float) -> void:
+	if is_equal_approx(dy, facade_dy):
+		return
+	var old := get_node_or_null("Facade")
+	if old:
+		remove_child(old)
+		old.queue_free()
+	_build_facade(dy)
+
+
+func _build_facade(dy := 0.0) -> void:
+	facade_dy = dy
 	MeshKit.auto_round = false   # 外殻は角を丸めない（合わせ目に溝が出ないように）
 	var f := Node3D.new()
 	f.name = "Facade"
@@ -313,15 +326,15 @@ func _build_facade() -> void:
 		# [x0, x1, y0, y1]：窓（x 1.8〜3.2, y 0〜2.0）と換気経路の出口（x 1.6〜2.2, y 2.5〜3.1）を空ける
 		[x0, x1, -8.0, 0.0],
 		[x0, WINDOW_X.x, 0.0, WINDOW_TOP], [WINDOW_X.y, x1, 0.0, WINDOW_TOP],
-		[x0, x1, WINDOW_TOP, DUCT_FLOOR],
-		[x0, DUCT_B.position.x, DUCT_FLOOR, DUCT_TOP], [DUCT_B.end.x, x1, DUCT_FLOOR, DUCT_TOP],
-		[x0, x1, DUCT_TOP, 12.0],
+		[x0, x1, WINDOW_TOP, DUCT_FLOOR + dy],
+		[x0, DUCT_B.position.x, DUCT_FLOOR + dy, DUCT_TOP + dy], [DUCT_B.end.x, x1, DUCT_FLOOR + dy, DUCT_TOP + dy],
+		[x0, x1, DUCT_TOP + dy, 12.0 + dy],
 	]
 	for p in pieces:
 		MeshKit.box(f, Vector3(p[1] - p[0], p[3] - p[2], FACADE_T), Vector3((p[0] + p[1]) * 0.5, (p[2] + p[3]) * 0.5, z), wall)
 	# 換気経路の出口のフード（金属の庇）
 	var hood := MeshKit.mat("duct", Color(0.5, 0.52, 0.54), 0.5, 0.3)
-	MeshKit.box(f, Vector3(0.7, 0.03, 0.12), Vector3(1.9, DUCT_TOP + 0.02, FACADE_Z - 0.06), hood, "ExitHood")
+	MeshKit.box(f, Vector3(0.7, 0.03, 0.12), Vector3(1.9, DUCT_TOP + dy + 0.02, FACADE_Z - 0.06), hood, "ExitHood")
 	# 縦の雨どいと、上下の階のベランダ（背景）
 	MeshKit.cylinder(f, 0.04, 20.0, Vector3(1.15, 2.0, FACADE_Z - 0.06), MeshKit.mat("pipe_grey", Color(0.45, 0.45, 0.44), 0.6), "Downpipe", -1.0, 10)
 	for k in [-2, -1, 1, 2]:

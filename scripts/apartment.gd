@@ -65,6 +65,8 @@ const WINDOW_TIME := 0.5
 var window_open := false
 var window_busy := false
 var window_panel: Node3D   # 外側のレールの引き違い窓（開けると右へ）
+var hall_ceiling: MeshInstance3D          # ホールの天井（浴室が上がったあと、突き破られて消える）
+var hall_ceiling_shape: CollisionShape3D
 var curtain: Node3D        # 窓の内側の遮光カーテン。閉じているとベランダから部屋は見えない。窓とは別に、部屋の中からクリックで開け閉めする
 var cellar: Node3D         # 床下の貯蔵庫の蓋（cellar.gd）
 var small_props: Node3D    # じゅうたん・トランプ・サイコロなどの小物（small_props.gd）
@@ -124,6 +126,14 @@ func _solid(size: Vector3, center: Vector3, m: Material, node_name := "") -> Mes
 	return MeshKit.box(self, size, center, m, node_name)
 
 
+## 浴室が天井の高さまで上がったあと、ホールの天井が抜ける（上の浴室の扉から、暗いホールの床を見下ろせるように）。
+func open_hall_ceiling() -> void:
+	if hall_ceiling:
+		hall_ceiling.visible = false
+	if hall_ceiling_shape:
+		hall_ceiling_shape.disabled = true
+
+
 # ---------------------------------------------------------------- 玄関ホール
 
 func _build_hall() -> void:
@@ -149,7 +159,10 @@ func _build_hall() -> void:
 	var skirt := MeshKit.mat("hall_skirt", Color(0.3, 0.28, 0.26), 0.8)
 	MeshKit.box(self, Vector3(0.1, 0.05, FRONT_DOOR_Z.x - tz0), Vector3(-0.95, -0.025, (tz0 + FRONT_DOOR_Z.x) * 0.5), skirt, "TatakiSkirtA")
 	MeshKit.box(self, Vector3(0.1, 0.05, z1 - FRONT_DOOR_Z.y), Vector3(-0.95, -0.025, (FRONT_DOOR_Z.y + z1) * 0.5), skirt, "TatakiSkirtB")
-	_solid(Vector3(2.0, WALL_T, d), Vector3(0.0, HALL.end.y + WALL_T * 0.5, cz), ceil_m)
+	var hc_size := Vector3(2.0, WALL_T, d)
+	var hc_center := Vector3(0.0, HALL.end.y + WALL_T * 0.5, cz)
+	hall_ceiling = MeshKit.box(self, hc_size, hc_center, ceil_m, "HallCeiling")
+	hall_ceiling_shape = MeshKit.shape_box(_body, hc_size, hc_center)
 	# 左の壁（廊下との境）。玄関ドアの開口 z 1.5〜2.2、高さ 2.0 を空ける（ドアは front_door.gd）
 	_solid(Vector3(WALL_T, HALL.end.y, FRONT_DOOR_Z.x - z0), Vector3(-0.95, HALL.end.y * 0.5, (z0 + FRONT_DOOR_Z.x) * 0.5), wall)
 	_solid(Vector3(WALL_T, HALL.end.y, z1 - FRONT_DOOR_Z.y), Vector3(-0.95, HALL.end.y * 0.5, (FRONT_DOOR_Z.y + z1) * 0.5), wall)

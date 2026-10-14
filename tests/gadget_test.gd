@@ -167,7 +167,7 @@ func _run() -> void:
 	await process_frame
 	await process_frame
 	check(mc.reflection.material_override.albedo_color.a < 0.3, "鏡から大きく外れると映らない")
-	check(main.hud.get_node("Root/PauseMenu/Portrait") != null, "設定画面に主人公の肖像がある")
+	check(main.hud.get_node_or_null("Root/PauseMenu/Portrait") == null, "設定画面に男のイラストはない（廃止した）")
 	# --- 自分の目から見える体（ちょー雑な3D）
 	player.show_body = true   # 初期はオフ。ここでは見え方を確かめるためオンにする
 	var rig: Node3D = player.body_rig

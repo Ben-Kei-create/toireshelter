@@ -108,9 +108,9 @@ var bucket_taken := false
 var bucket_in_tub := false
 ## --- 浴室がせり上がる（第 2 幕）。浴室（と換気ダクト）の節点だけを持ち上げる。ホール・自室・ベランダの座標は変えない。
 signal unit_risen
-const RISE_H := 0.9            # 上がる高さ（m）。ホールの床が約 0.9m 下に見え、体は出られない
+const RISE_H := 2.2            # 上がる高さ（m）＝浴室の高さ。扉の床がホールの天井の高さになり、ホールの床は遠く下に見える。体は出られない
 const RISE_TIME := 8.0
-const BLACKOUT_AMBIENT := 0.06   # 停電のあとの環境光の倍率（真っ暗）
+const BLACKOUT_AMBIENT := 0.01   # 停電のあとの環境光の倍率（真っ暗）
 const UNIT_EXCLUDE := ["WorldEnvironment", "SkyClock", "HallLight", "Apartment", "BathLightSwitch", "Exterior",
 		"FrontDoor", "Corridor", "AmbientSound", "Fishing", "Pedestal", "DoorDebris", "FuseHatch", "DoorwayBlocker"]
 var risen := false
@@ -329,6 +329,9 @@ func _finish_rise() -> void:
 	add_child(blocker)
 	MeshKit.shape_box(blocker, Vector3(DOOR_W + 0.3, 2.4, 0.12), Vector3.ZERO)
 	_build_hatch()
+	apartment.open_hall_ceiling()      # ホールの天井が抜ける（扉の外を見下ろせる）
+	exterior.set_exit_rise(RISE_H)     # 換気ダクトの出口の穴を、上がった高さへ
+	bath_light.omni_range = 8.0        # 上がった浴室の電球は、遠く下のホールまで、扉から漏れて届く
 	unit_risen.emit()
 
 
