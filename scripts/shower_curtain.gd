@@ -91,19 +91,20 @@ func _update_digits() -> void:
 	_digits.modulate.a = a
 
 
-## 手に持ったシャワーを閉じたカーテンにかける（シャワーが出ているときだけ）。濡れた間は数字が浮かぶ。
-func spray() -> void:
+## 手に持ったシャワーの水がカーテンに当たっている間、呼ぶ。しばらく当て続けると、数字が浮かぶ（濡れた間だけ見える）。
+const HIT_NEEDED := 1.2
+var _hit := 0.0
+
+
+func wet_hit(delta: float) -> void:
+	if not closed:
+		return
 	wet = WET_TIME
-	if shower:
-		shower.set_on(false)   # かけ終えたら止める（カーテン越しには蛇口に手が届かないため）
-	_update_digits()
-	if not digits_seen:
+	_hit += delta
+	if _hit >= HIT_NEEDED and not digits_seen:
 		digits_seen = true
 		digits_revealed.emit()
-
-
-func can_spray() -> bool:
-	return closed and not busy and shower != null and shower.is_on
+	_update_digits()
 
 
 func toggle() -> void:
@@ -134,14 +135,9 @@ func _place_area(full: bool) -> void:
 func get_prompt(_id: String) -> String:
 	if busy:
 		return ""
-	if can_spray():
-		return "curtain_spray"
 	return "curtain_open" if closed else "curtain_close"
 
 
 func interact(_id: String) -> String:
-	if can_spray():
-		spray()
-		return "curtain_sprayed"
 	toggle()
 	return ""

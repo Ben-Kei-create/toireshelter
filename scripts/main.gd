@@ -73,7 +73,7 @@ const MESSAGES := {
 	"ko_line": "右手の遠くに、高架の線路。KO線だ。電車が、ゆっくり走っていく。",
 	"bucket_pick": "水色の大きな風呂桶を拾った。逆さにして浴槽に置けば、足場になりそうだ。",
 	"bucket_placed": "風呂桶を逆さにして、浴槽の底に置いた。上に乗れそうだ。",
-	"vent_far": "天井の換気口。手が届かない。何かに乗れば、届くかもしれない。",
+	"vent_far": "天井の換気口。手が届かない。もう少し背が高ければ……。",
 	"vent_stretch": "背伸びをしたら、ぎりぎり届いた。格子を押し上げ、体を引き上げた。",
 	"lever_pull": "ガコン。……壁が、床が、震えはじめた。",
 	"lever_stuck": "レバーは動かない。固まっている。",
@@ -114,12 +114,16 @@ const MESSAGES := {
 	"lid_with_sinker": "十円玉の上に、おもりを載せた。ふたが安定した。",
 	"sinker_alone": "おもりだけでは、穴はふさげない。",
 	"coin_taken_back": "十円玉を拾い上げた。",
-	"sink_soap": "洗面台の底に、固形せっけんが転がっている。水に浸かったら、溶けそうだ。",
+	"soap_pickup": "洗面台の下に、固形せっけんが落ちていた。拾った。",
+	"soap_placed": "せっけんを洗面台の水に沈めた。……ゆっくり溶けていく。",
+	"soap_dry": "洗面台に、水が溜まっていない。",
 	"soap_dissolved": "せっけんが溶けて、中から重たい鉛のおもりが現れた。",
 	"sinker_pickup": "鉛のおもりを手に入れた。ずっしり重い。",
 	"ball_sunk": "粉の中から、固い玉がひとつ沈んだ。水では、色がにじむだけだ。",
 	"ball_dissolved": "お湯で玉が溶けた。中から、ドライバーが出てきた。",
 	"tub_driver_pickup": "ドライバーを手に入れた。",
+	"shower_hold": "シャワーを手に取った。向けた方へ、水が飛ぶ。",
+	"shower_back": "シャワーを元に掛けた。",
 	"curtain_sprayed": "手に取ったシャワーを、カーテンにかけた。うっすらと数字が浮かんでいる……。",
 	"lint_hint": "服に、毛だまりがびっしりついている。……洗えば取れそうだ。",
 	"lint_washed": "服が、さっぱりした。排水口の近くに、毛だまりが流れ着いた。",
@@ -349,6 +353,7 @@ const ITEMS := {
 	"record_disc": {"name": "レコード盤", "desc": "壁に飾ってあった黒いレコード盤。赤いラベルに、かすれた文字で『MIDNIGHT BLUE ROOM』。レコードプレーヤーにのせられそうだ。"},
 	"ufo_coin": {"name": "UFOコイン", "desc": "クレーンゲーム用のコイン。表にエイリアンの絵。1回ぶん。"},
 	"bath_powder": {"name": "ユブロマン", "desc": "ゆずの香りの粉末入浴剤。1回分。"},
+	"soap": {"name": "固形せっけん", "desc": "ピンクの固形せっけん。水に浸けておくと、溶けていく。"},
 	"ten_yen": {"name": "十円玉", "desc": "古い十円玉。丸いものは、ふたになる。"},
 	"sinker": {"name": "鉛のおもり", "desc": "ずっしり重い鉛の塊。軽いものの上に載せれば、重しになる。"},
 	"lint": {"name": "毛だまり", "desc": "服についていた毛玉と綿ぼこり。ふわふわで軽い。"},
@@ -365,6 +370,7 @@ const ACTION_PROMPTS := {
 	"tub_exit": "E：浴槽から出る",
 	"vent_enter": "E：換気口へ入る",
 	"vent_far": "E：手を伸ばす",
+	"shower_return": "E：シャワーを戻す",
 	"vent_stretch": "E：背伸びして換気口へ",
 	"ladder_lower": "E：はしごを下ろす",
 	"lean_out": "E：手すりから身を乗り出す",
@@ -438,6 +444,7 @@ const TISSUE_SHEETS := 12
 var coin_count := 0                # 持っている UFOコインの枚数
 var coins_total := 0               # 集めたコインの枚数（使った分も数える。クリアの記録用）
 var items_found := {}              # 一度でも手に入れた持ち物の id（クリアの記録用）
+var _item_tutorial_shown := false
 var has_lint := true                # 服に毛だまりがついているか（洗うと取れる）
 var _lint_hinted := false
 var _lint_wash := 0.0
@@ -463,7 +470,7 @@ const NOTE_CLUES := {
 	"shelf_note": ["棚の裏の紙", "『下からなら見える。』", "手がかり"],
 	"tank_note": ["タンクの下の紙", "『しゃがむと、いろいろ見える。』", "手がかり"],
 	"towel_scratch": ["タオルの裏の傷", "丸いくぼみと、水の波のような五本線。傷の中に十円玉が挟まっていた。", "手がかり"],
-	"sink_soap": ["洗面台の固形せっけん", "水に浸かり続けたら溶けそうだ。", "手がかり"],
+	"sink_soap": ["洗面台の下のせっけん", "固形せっけん。水に浸けたら、溶けそうだ。", "手がかり"],
 }
 const EYE_STEP := 0.02   # [ と ] で変える、目の高さの 1 回ぶん（m）
 
@@ -1096,9 +1103,11 @@ func _action_for(target: Object) -> String:
 		PlayerScript.Pose.SEATED:
 			return "stand_up"
 		PlayerScript.Pose.IN_TUB:
+			if room.bathtub.shower_held:
+				return "shower_return"
 			# 浴槽の中から換気口を狙うと「換気口へ入る」
 			if target and String(target.get_meta("interact_id", "")) == "vent":
-				return "vent_enter" if room.bucket_in_tub else "vent_far"
+				return "vent_enter" if _tall_enough() else "vent_far"
 			return "tub_exit"
 		PlayerScript.Pose.TRANSITION:
 			return ""
@@ -1141,7 +1150,7 @@ func do_action() -> void:
 	match action:
 		"sit":
 			room.toilet.occupied = true
-			player.enter_fixed(PlayerScript.Pose.SEATED, SEAT_FEET, SEAT_YAW, SEAT_EYE)
+			player.enter_fixed(PlayerScript.Pose.SEATED, _up(SEAT_FEET), SEAT_YAW, SEAT_EYE)
 		"kotatsu_sit":
 			SfxScript.play("rustle")
 			kotatsu_seat = KotatsuScript.nearest_seat(player.global_position)
@@ -1167,7 +1176,10 @@ func do_action() -> void:
 			SfxScript.play("rustle")
 			player.move_to(PlayerScript.Pose.KOTATSU_SEAT, seat2.feet, seat2.yaw, KotatsuScript.EYE_SEATED)
 		"stand_up":
-			if player.leave_fixed(SEAT_EXITS):
+			var seat_exits: Array = []
+			for sx in SEAT_EXITS:
+				seat_exits.append(_up(sx))
+			if player.leave_fixed(seat_exits):
 				room.toilet.occupied = false
 				if not room.toilet_panel.mode.is_empty():
 					hud.show_message(MESSAGES["washlet_stood_up"])
@@ -1178,8 +1190,14 @@ func do_action() -> void:
 			var feet: Vector3 = _tub_feet()
 			if player.is_space_free(feet, TUB_BODY_HEIGHT):
 				player.enter_fixed(PlayerScript.Pose.IN_TUB, feet, TUB_YAW, _tub_eye())
+		"shower_return":
+			room.bathtub.release_shower()
+			hud.show_message(MESSAGES["shower_back"])
 		"tub_exit":
-			if not player.leave_fixed(TUB_EXITS):
+			var exits: Array = []
+			for ex in TUB_EXITS:
+				exits.append(_up(ex))
+			if not player.leave_fixed(exits):
 				hud.show_message(MESSAGES["no_way_out"])
 		"vent_enter":
 			room.open_vent()
@@ -1205,7 +1223,7 @@ func do_action() -> void:
 				hud.show_message(MESSAGES["no_way_out"])
 		"vent_far":
 			hud.show_message(MESSAGES["vent_far"])
-			progress.add_note("vent_far", "天井の換気口", "高くて手が届かない。何かに乗れば届きそうだ。（背が最大なら、背伸びで届く？）", "手がかり")
+			progress.add_note("vent_far", "天井の換気口", "高くて手が届かない。（設定で背を最大まで伸ばせば、背伸びで届く？）", "手がかり")
 		"vent_stretch":
 			hud.show_message(MESSAGES["vent_stretch"])
 			progress.discover("vent_stretch")
@@ -1226,6 +1244,10 @@ func _prompt_for(target: Object) -> String:
 		return ""
 	var id := String(target.get_meta("interact_id", ""))
 	var fixture: Object = target.get_meta("fixture") if target.has_meta("fixture") else null
+	if id == "bath_shower" and player.pose == PlayerScript.Pose.IN_TUB and not room.bathtub.shower_held:
+		return "左クリック：シャワーを手に取る"
+	if id == "bath_plug" and room.bathtub.lid == "coin":
+		return PROMPTS["coin10_take"]
 	if fixture:
 		# リモコン・操作パネルは「ボタン名：状態｜クリックしたときの動作」をそのまま返す
 		if fixture.has_method("get_prompt_text"):
@@ -1236,7 +1258,7 @@ func _prompt_for(target: Object) -> String:
 	match id:
 		"":
 			return ""
-		"driver", "tub_driver", "tub_lint", "sink_sinker", "mirror_paper", "spare_roll", "bath_powder", "fishing_rod", "cork_gun", "mahjong", "record_disc", "wood_stick", "bath_bucket":
+		"driver", "tub_driver", "tub_lint", "sink_sinker", "sink_soap", "mirror_paper", "spare_roll", "bath_powder", "fishing_rod", "cork_gun", "mahjong", "record_disc", "wood_stick":
 			return PROMPT_PICKUP
 		"towel_scratch":
 			return PROMPT_PICKUP if room.towel.has_coin else PROMPT_EXAMINE
@@ -1260,6 +1282,8 @@ func _prompt_for(target: Object) -> String:
 
 ## 毛だまり：浴槽の中でシャワーを浴びる／水に浸かると取れて、排水口の近くに流れ着く。
 func _update_lint(delta: float) -> void:
+	if room.bathtub.shower_held and player.pose != PlayerScript.Pose.IN_TUB and player.pose != PlayerScript.Pose.TRANSITION:
+		room.bathtub.release_shower()
 	if paused or cleared or not has_lint:
 		return
 	if player.pose != PlayerScript.Pose.IN_TUB:
@@ -1299,6 +1323,10 @@ func _on_interact_requested(target: Object) -> void:
 			cellar_c.food_stored()
 			progress.save()
 		return
+	if id == "bath_shower" and player.pose == PlayerScript.Pose.IN_TUB:
+		room.bathtub.hold_shower(player.camera)
+		hud.show_message(MESSAGES["shower_hold"])
+		return
 	if id == "sink_plug":
 		if room.sink.plug_in:
 			room.sink.set_plug(false)
@@ -1307,6 +1335,12 @@ func _on_interact_requested(target: Object) -> void:
 			hud.show_message(MESSAGES["coin_taken_back"])
 		else:
 			hud.show_message(MESSAGES["sink_no_plug"])
+		return
+	if id == "bath_plug" and room.bathtub.lid == "coin":
+		room.bathtub.take_coin_lid()
+		SfxScript.play("click")
+		_give_coin10()
+		hud.show_message(MESSAGES["coin_taken_back"])
 		return
 	if fixture:
 		# 便器・浴槽・蛇口など状態を持つ設備は、その設備が操作し、表示する説明のキーを返す
@@ -1323,7 +1357,7 @@ func _on_interact_requested(target: Object) -> void:
 	if not fixture and INTERACT_SFX.has(id):
 		SfxScript.play(INTERACT_SFX[id])
 	match id:
-		"sink", "vent", "poster", \
+		"sink", "vent", "poster", "bath_bucket", \
 		"toilet_cleaner", "plunger", "toilet_brush", "vent_sticker", "shampoo", "rinse", "razor", \
 		"face_wash", "toner", "cotton_swabs", "tub_note", "shelf_note", "tank_note", \
 		"kitchen_sink", "kitchen_stove", "fridge", "guitar", "taxidermy", "phone_mobile", \
@@ -1398,7 +1432,13 @@ func _on_interact_requested(target: Object) -> void:
 			else:
 				hud.show_message(MESSAGES["towel_scratch"])
 		"sink_soap":
-			hud.show_message(MESSAGES["sink_soap"])
+			if inventory.has("soap") or room.sink.soap_taken:
+				return
+			room.sink.take_soap()
+			_item_models["soap"] = SinkRef.soap_model()
+			add_item("soap")
+			hud.show_message(MESSAGES["soap_pickup"])
+			progress.discover("soap")
 		"sink_sinker":
 			if inventory.has("sinker"):
 				return
@@ -1465,7 +1505,7 @@ func _on_interact_requested(target: Object) -> void:
 			room.take_bath_powder()
 			add_item("bath_powder")
 			hud.show_message(MESSAGES["bath_powder_pickup"])
-		"bath_bucket":
+		"bath_bucket_disabled":
 			if inventory.has("bucket") or room.bucket_taken or room.bucket_in_tub:
 				return
 			_item_models["bucket"] = _bucket_model()
@@ -1531,8 +1571,12 @@ func _tub_eye() -> float:
 
 
 ## 背が最大（170 cm）のとき、換気口の近くで、床からの背伸びで届く（小ネタ）。
+func _tall_enough() -> bool:
+	return player.eye_height >= PlayerScript.EYE_HEIGHT_MAX - 0.001
+
+
 func _can_stretch_to_vent() -> bool:
-	if player.pose != PlayerScript.Pose.WALK or player.eye_height < PlayerScript.EYE_HEIGHT_MAX - 0.001:
+	if player.pose != PlayerScript.Pose.WALK or not _tall_enough():
 		return false
 	var p := player.global_position
 	return Vector2(p.x - VENT_BELOW.x, p.z - VENT_BELOW.z).length() < 1.5
@@ -1577,7 +1621,10 @@ func add_item(id: String) -> bool:
 	SfxScript.play("pop")
 	inventory.append(id)
 	items_found[id] = true
-	select_item(inventory.size() - 1)
+	select_item(selected)   # 拾っただけでは手に持たない（1〜3 かホイールで選ぶ）
+	if not _item_tutorial_shown:
+		_item_tutorial_shown = true
+		hud.show_message("持ち物は 1〜3 かマウスホイールで手に持つ。狙った先に F で使う。Q で拡大して調べられる。", 6.0)
 	progress.save()
 	return true
 
@@ -1594,7 +1641,9 @@ func remove_item(id: String) -> void:
 
 
 func select_item(i: int) -> void:
-	if i < 0 or i >= inventory.size():
+	if i < 0:
+		selected = -1   # 何も持っていない
+	elif i >= inventory.size():
 		selected = -1 if inventory.is_empty() else clampi(i, 0, inventory.size() - 1)
 	else:
 		selected = i
@@ -1667,22 +1716,10 @@ func _use_prompt(target: Object) -> String:
 		return "F：一人麻雀を打つ"
 	if id.is_empty() or target == null or player.pose == PlayerScript.Pose.TRANSITION:
 		return ""
-	var tid := String(target.get_meta("interact_id", ""))
-	if id == "bucket" and tid in TUB_TARGETS:
-		return "F：風呂桶を逆さにして浴槽に置く"
-	if id == "ten_yen" and (tid in SINK_TARGETS or tid in TUB_TARGETS):
-		return "F：十円玉を排水口に置く"
-	if id == "sinker" and tid in TUB_TARGETS:
-		return "F：十円玉の上におもりを載せる"
-	if id == "paper" and tid in MIRROR_TARGETS:
-		return "F：メモを鏡にかざす"
-	if id == "driver" and tid in ["mirror_door", "mirror_lock"] and room.mirror_cabinet.locked:
-		return "F：ドライバーで留め具を外す"
-	if (id == "driver" and tid == "door" and not door_open) \
-			or (id == "spare_roll" and tid in ["paper_holder", "paper_cover"] and not room.supplies.has_paper) \
-			or (id == "bath_powder" and not powder_used and tid in TUB_TARGETS):
-		return "F：%sを使う" % item_name(id)
-	return ""
+	# 何に効くかは教えない（持っているだけ・狙うだけで答えが出ないように）。手に持った物を、狙った先に使う、とだけ出す
+	if String(target.get_meta("interact_id", "")).is_empty():
+		return ""
+	return "F：%sを使う" % item_name(id)
 
 
 ## F：選んだ持ち物を照準の対象に使う。失敗しても物は減らない。
@@ -1700,13 +1737,14 @@ func use_selected() -> void:
 	if id == "mahjong":
 		_start_mahjong()
 		return
-	if id == "bucket" and tid in TUB_TARGETS:
-		room.place_bucket_in_tub()
-		remove_item("bucket")
-		hud.show_message(MESSAGES["bucket_placed"])
-		progress.add_note("bucket_step", "風呂桶の足場", "逆さにした風呂桶に乗れば、換気口に手が届くはずだ。", "手がかり")
-		if player.pose == PlayerScript.Pose.IN_TUB:   # 浴槽の中で置いたら、そのまま桶の上へ
-			player.move_to(PlayerScript.Pose.IN_TUB, _tub_feet(), TUB_YAW, _tub_eye())
+	if id == "soap" and tid in SINK_TARGETS:
+		if room.sink.place_soap() == "ok":
+			remove_item("soap")
+			SfxScript.play("plop")
+			hud.show_message(MESSAGES["soap_placed"])
+			progress.discover("soap_placed")
+		else:
+			hud.show_message(MESSAGES["soap_dry"])
 		return
 	if id == "ten_yen" and tid in SINK_TARGETS:
 		if room.sink.plug_in:
@@ -1739,7 +1777,9 @@ func use_selected() -> void:
 			hud.show_message(MESSAGES["cannot_use"])
 		return
 	if id == "paper" and tid in MIRROR_TARGETS:
-		hud.show_item_zoom(RoomScript.paper_model(false), "鏡に映ったメモ", "鏡に映った文字は、英語だった。『FLUSH』。")
+		var shown := RoomScript.paper_model(false)
+		hud.show_item_zoom(shown, "鏡に映ったメモ", "鏡に映った文字は、英語だった。『FLUSH』。")
+		shown.free()   # hud は複製を使う
 		hud.show_message(MESSAGES["paper_mirror"])
 		progress.add_note("paper_flush", "鏡に映った英語", "『FLUSH』。水槽の餌箱のパスワードかもしれない。", "パスワード")
 		progress.discover("mirror_paper")
