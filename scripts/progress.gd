@@ -23,6 +23,8 @@ const DISCOVERIES := {
 	"tv_play": "テレビゲーム", "aquarium": "水槽", "bath_powder": "入浴剤", "phone_black": "黒電話",
 	"driver": "ドライバー", "microwave": "電子レンジ", "calendar": "カレンダー",
 	"inspect_lever": "点検レバー", "vent_stretch": "背伸びで換気口へ", "ladder": "ボロボロのはしご", "lean_out": "手すりから乗り出す", "ko_line": "KO線", "unit_rise": "ゴゴゴ（浴室が上がった）", "wood_stick": "木の棒",
+	"ten_yen": "十円玉", "sink_lid": "洗面台のふた", "soap_dissolved": "せっけんが溶けた", "sinker": "鉛のおもり", "tub_lid": "浴槽のふた", "bath_ball": "入浴剤の玉",
+	"ball_dissolved": "玉が溶けた", "curtain_digits": "カーテンの数字", "lint_washed": "毛だまり", "lint": "毛だまりを拾う", "mirror_paper": "鏡文字のメモ",
 }
 
 ## 幕（章）の名前。いまの幕より先は、行くまで「？？？」と出す。
@@ -280,7 +282,47 @@ func snapshot() -> Dictionary:
 		"items_found": main.items_found.keys(),
 		"coins_total": main.coins_total,
 		"chapter": chapter,
+		"stage2": _stage2_snapshot(),
 	}
+
+
+func _stage2_snapshot() -> Dictionary:
+	var room = main.room
+	return {
+		"coin_in_wall": room.towel.has_coin,
+		"sink_lid": room.sink.plug_in, "soap_soak": room.sink.soap_soak, "soap_gone": room.sink.soap_gone, "sinker_taken": room.sink.sinker_taken,
+		"tub_lid": room.bathtub.lid, "tub_plug_in": room.bathtub.plug_in,
+		"ball": room.bathtub.ball, "ball_melt": room.bathtub.ball_melt, "driver_taken": room.bathtub.driver_taken,
+		"has_lint": main.has_lint, "lint_present": room.bathtub.lint_present, "lint_taken": room.bathtub.lint_taken,
+		"curtain_digits_seen": room.shower_curtain.digits_seen, "paper_taken": room.paper_taken,
+	}
+
+
+func _restore_stage2_models(inv: Array) -> void:
+	if inv.has("ten_yen"):
+		main._item_models["ten_yen"] = main.TowelRef.coin_model()
+	if inv.has("sinker"):
+		main._item_models["sinker"] = main.SinkRef.sinker_model()
+	if inv.has("paper"):
+		main._item_models["paper"] = main.RoomScript.paper_model(true)
+	if inv.has("lint"):
+		var lm := Node3D.new()
+		for off in [Vector3.ZERO, Vector3(0.012, -0.004, 0.008), Vector3(-0.01, -0.005, 0.01)]:
+			main.MeshKit.sphere(lm, 0.02, off, main.MeshKit.mat("lint_zoom", Color(0.55, 0.52, 0.5), 0.95))
+		main._item_models["lint"] = lm
+
+
+func _stage2_apply(d: Dictionary) -> void:
+	var room = main.room
+	if not bool(d.get("coin_in_wall", true)):
+		room.towel.take_coin()
+	room.sink.restore(bool(d.get("sink_lid", false)), float(d.get("soap_soak", 0.0)), bool(d.get("soap_gone", false)), bool(d.get("sinker_taken", false)))
+	room.bathtub.restore(String(d.get("tub_lid", "none")), bool(d.get("tub_plug_in", false)), String(d.get("ball", "")), float(d.get("ball_melt", 0.0)),
+			bool(d.get("driver_taken", false)), bool(d.get("lint_present", false)), bool(d.get("lint_taken", false)))
+	main.has_lint = bool(d.get("has_lint", true))
+	room.shower_curtain.digits_seen = bool(d.get("curtain_digits_seen", false))
+	if bool(d.get("paper_taken", false)) and not room.paper_taken:
+		room.take_paper()
 
 
 func save() -> void:
@@ -321,6 +363,7 @@ func apply(d: Dictionary) -> void:
 		if typeof(n) == TYPE_DICTIONARY and n.has("id"):
 			notes.append({"id": String(n.id), "kind": String(n.get("kind", "手がかり")), "title": String(n.get("title", "")), "text": String(n.get("text", ""))})
 	hints_used = int(d.get("hints_used", 0))
+	_stage2_apply(d.get("stage2", {}))
 	chapter = clampi(int(d.get("chapter", 0)), 0, CHAPTERS.size() - 1)
 	for k in d.get("items_found", []):
 		main.items_found[String(k)] = true
@@ -342,10 +385,8 @@ func apply(d: Dictionary) -> void:
 	var inv: Array = d.get("inventory", [])
 	if d.get("has_driver", false):
 		main.has_driver = true
-		if room.driver_node:
-			if inv.has("driver"):
-				main._item_models["driver"] = room.driver_node.get_node("Visual").duplicate()
-			room.remove_driver()
+		if inv.has("driver"):
+			main._item_models["driver"] = room.bathtub.get_node("TubDriver/Visual").duplicate()
 	if d.get("roll_taken", false) and not room.supplies.spare_roll_taken:
 		if inv.has("spare_roll"):
 			main._item_models["spare_roll"] = main._model_without_areas(room.supplies.get_node("SupplyShelf/SpareRoll"))
@@ -381,6 +422,7 @@ func apply(d: Dictionary) -> void:
 		if main.ITEMS.has(id) and not main.inventory.has(id):
 			main.inventory.append(String(id))
 		main.items_found[String(id)] = true
+	_restore_stage2_models(inv)
 	main.select_item(main.inventory.size() - 1 if not main.inventory.is_empty() else -1)
 	if d.get("door_open", false):
 		main.door_open = true

@@ -28,12 +28,25 @@ const PLUG_OUT_POS := Vector3(0.76, BOTTOM_Y, Z - 0.09)
 const PLUG_RADIUS := 0.017
 const PLUG_HEIGHT := 0.012
 
+const SOAP_POS := Vector3(0.64, BOTTOM_Y, Z + 0.18)   # くぼみの底に置かれた固形せっけん
+const SOAP_SOAK_LEVEL := 0.4                            # この水位以上に浸かると溶けはじめる
+const SOAP_TIME := 8.0                                  # 浸かり続けて溶けきるまで（秒）
+const COIN_RADIUS := 0.0118
+
+signal soap_dissolved
+
+## 栓は初めからない（排水口はむき出し）。十円玉を排水口に置くとふたになり、水が溜まる。
 var level := 0.0
-var plug_in := true
+var plug_in := false       # 排水口が塞がれているか（＝十円玉のふた）
+var soap_soak := 0.0       # せっけんが水に浸かった時間（秒）
+var soap_gone := false
+var sinker_taken := false
 
 var faucet: FaucetScript
 var _water: MeshInstance3D
 var _plug: Node3D
+var _soap: Node3D
+var _sinker: Node3D
 
 
 func _ready() -> void:
@@ -64,6 +77,11 @@ func _process(delta: float) -> void:
 ## 水位を delta 秒ぶん進める（テストからも呼ぶ）。
 func advance(delta: float) -> void:
 	var rate := 0.0
+	if not soap_gone and level >= SOAP_SOAK_LEVEL:
+		soap_soak = minf(SOAP_TIME, soap_soak + delta)
+		_update_soap()
+		if soap_soak >= SOAP_TIME:
+			_dissolve_soap()
 	if faucet.is_on:
 		rate += 1.0 / FILL_TIME
 	if not plug_in:
@@ -76,14 +94,42 @@ func water_y() -> float:
 	return lerpf(WATER_MIN_Y, WATER_MAX_Y, level)
 
 
+## 十円玉のふたを置く／取る。
 func set_plug(inserted: bool) -> void:
 	plug_in = inserted
-	if inserted:
-		_plug.position = DRAIN_POS
-		_plug.rotation = Vector3.ZERO
-	else:
-		_plug.position = PLUG_OUT_POS + Vector3(0.0, PLUG_RADIUS, 0.0)   # 横倒しで底に置く
-		_plug.rotation = Vector3(deg_to_rad(90.0), 0.0, 0.0)
+	_plug.visible = inserted
+	_plug.position = DRAIN_POS + Vector3(0.0, 0.0035, 0.0)
+
+
+func _update_soap() -> void:
+	if _soap == null:
+		return
+	var k := 1.0 - soap_soak / SOAP_TIME * 0.85
+	_soap.scale = Vector3(k, maxf(k, 0.3), k)
+	_soap.visible = not soap_gone
+
+
+func _dissolve_soap() -> void:
+	soap_gone = true
+	_soap.visible = false
+	_sinker.visible = not sinker_taken
+	soap_dissolved.emit()
+
+
+func take_sinker() -> void:
+	sinker_taken = true
+	_sinker.visible = false
+
+
+## セーブから戻す。
+func restore(coin_on: bool, soaked: float, gone: bool, taken: bool) -> void:
+	soap_soak = soaked
+	soap_gone = gone
+	sinker_taken = taken
+	_update_soap()
+	_sinker.visible = gone and not taken
+	_soap.visible = not gone
+	set_plug(coin_on)
 
 
 func _update_water() -> void:
@@ -158,16 +204,42 @@ func _build_plug() -> void:
 	_plug = Node3D.new()
 	_plug.name = "Plug"
 	add_child(_plug)
-	var rubber := MeshKit.mat("rubber", Color(0.12, 0.12, 0.13), 0.9)
-	MeshKit.cylinder(_plug, PLUG_RADIUS, PLUG_HEIGHT, Vector3(0, PLUG_HEIGHT * 0.5, 0), rubber, "Rubber", PLUG_RADIUS * 0.85)
-	MeshKit.box(_plug, Vector3(0.01, 0.008, 0.003), Vector3(0, PLUG_HEIGHT + 0.004, 0),
-			MeshKit.mat("metal", Color(0.75, 0.75, 0.78), 0.25, 0.8), "Knob")
+	# 十円玉のふた（排水口の輪より少し小さい円盤）
+	MeshKit.cylinder(_plug, COIN_RADIUS, 0.0016, Vector3.ZERO, MeshKit.mat("coin10", Color(0.62, 0.36, 0.2), 0.4, 0.7), "Coin")
+	_build_soap()
 	# 照準用の判定：栓をした位置と抜いた位置の両方を覆う（水面より下でも当たる）
 	var area := MeshKit.interact_area(self, "PlugArea", "sink_plug", self)
-	var lo := Vector3(minf(DRAIN_POS.x, PLUG_OUT_POS.x) - 0.035, BOTTOM_Y, minf(DRAIN_POS.z, PLUG_OUT_POS.z) - 0.035)
-	var hi := Vector3(maxf(DRAIN_POS.x, PLUG_OUT_POS.x) + 0.035, BOTTOM_Y + 0.04, maxf(DRAIN_POS.z, PLUG_OUT_POS.z) + 0.035)
-	MeshKit.shape_box(area, hi - lo, (hi + lo) * 0.5)
-	set_plug(true)
+	MeshKit.shape_box(area, Vector3(0.08, 0.04, 0.08), DRAIN_POS + Vector3(0, 0.02, 0))
+	set_plug(false)
+
+
+func _build_soap() -> void:
+	# 固形せっけん（くぼみの底に転がっている。水に浸かり続けると溶ける）と、その中から出る鉛のおもり
+	_soap = Node3D.new()
+	_soap.name = "Soap"
+	_soap.position = SOAP_POS + Vector3(0, 0.011, 0)
+	_soap.rotation.y = deg_to_rad(20.0)
+	add_child(_soap)
+	var sm := MeshKit.mat("soap", Color(0.93, 0.78, 0.8), 0.35)
+	MeshKit.box(_soap, Vector3(0.07, 0.022, 0.045), Vector3.ZERO, sm, "Bar")
+	var sarea := MeshKit.interact_area(self, "SoapArea", "sink_soap")
+	MeshKit.shape_box(sarea, Vector3(0.1, 0.05, 0.075), SOAP_POS + Vector3(0, 0.025, 0))
+	_sinker = Node3D.new()
+	_sinker.name = "Sinker"
+	_sinker.position = SOAP_POS + Vector3(0, 0.009, 0)
+	_sinker.visible = false
+	add_child(_sinker)
+	MeshKit.sphere(_sinker, 0.016, Vector3.ZERO, MeshKit.mat("lead", Color(0.35, 0.36, 0.4), 0.35, 0.8))
+	var karea := MeshKit.interact_area(_sinker, "SinkerArea", "sink_sinker")
+	MeshKit.shape_box(karea, Vector3(0.07, 0.05, 0.07), Vector3.ZERO)
+
+
+## 鉛のおもりの持ち物の拡大モデル。
+static func sinker_model() -> Node3D:
+	var n := Node3D.new()
+	var m := MeshKit.sphere(n, 0.03, Vector3.ZERO, MeshKit.mat("lead_zoom", Color(0.35, 0.36, 0.4), 0.35, 0.8))
+	m.scale = Vector3(1.0, 0.8, 1.0)
+	return n
 
 
 func _build_faucet() -> void:
@@ -193,11 +265,9 @@ func _build_faucet() -> void:
 
 func get_prompt(id: String) -> String:
 	if id == "sink_plug":
-		return "plug_pull" if plug_in else "plug_insert"
+		return "coin10_take" if plug_in else "examine"
 	return "examine"
 
 
 func interact(id: String) -> String:
-	if id == "sink_plug":
-		set_plug(not plug_in)
 	return ""

@@ -87,7 +87,7 @@ var light_switch: Node3D
 const BULB_POS := Vector3(0.15, 2.17, 0.35)
 const BATH_LIGHT_ENERGY := 0.55
 const BATH_LIGHT_COLOR := Color(1.0, 0.89, 0.76)
-const PURPLE_LIGHT_COLOR := Color(0.62, 0.3, 1.0)
+const PURPLE_LIGHT_COLOR := Color(0.25, 0.4, 1.0)   # 青い蛍光灯（名前は旧仕様のまま：紫→青）
 const PURPLE_AFTER := 4
 var bath_light: OmniLight3D
 var bath_light_on := true
@@ -100,6 +100,8 @@ var bath_remote: BathRemoteScript
 var toilet_panel: ToiletPanelScript
 var shower_curtain: ShowerCurtainScript
 var bath_powder_taken := false
+var paper_taken := false
+var paper_fixture: Node3D
 var vent_open := false
 const BUCKET_R := 0.17
 const BUCKET_H := 0.30         # 風呂桶の高さ。逆さにして乗ると、目の高さがこれだけ上がる
@@ -165,13 +167,14 @@ func _ready() -> void:
 	shower_curtain = ShowerCurtainScript.new()
 	shower_curtain.name = "ShowerCurtain"
 	add_child(shower_curtain)
+	shower_curtain.shower = bathtub.shower
 	_build_towel()
 	_build_bath_powder()
 	# トイレまわりの生活用品（ペーパーホルダー・棚の予備ロールと洗剤・ラバーカップとブラシ・点検シール）
 	supplies = SuppliesScript.new()
 	supplies.name = "Supplies"
 	add_child(supplies)
-	_build_driver()
+	_build_paper()   # ドライバーは床に落ちていない：入浴剤の玉の中（bathtub.gd）
 	_build_door()
 	# 経年感の汚れ・傷（見た目だけ。設備がすべてできてから貼る）
 	var wear := BathWearScript.new()
@@ -219,19 +222,20 @@ func set_bath_light(on: bool) -> String:
 	if on:
 		bath_light_cycles += 1
 		key = "bath_light_on"
-		if bath_light_cycles >= PURPLE_AFTER and not bath_purple:
-			bath_purple = true
-			key = "bath_light_purple"
+		# PURPLE_AFTER 回ごとに、青い光と白い光が入れ替わる
+		if bath_light_cycles % PURPLE_AFTER == 0:
+			bath_purple = not bath_purple
+			key = "bath_light_purple" if bath_purple else "bath_light_normal"
 		elif bath_purple:
 			key = "bath_light_on_purple"
 	_apply_bath_light()
-	if on and key == "bath_light_purple":
+	if on and (key == "bath_light_purple" or key == "bath_light_normal"):
 		# ちらつきながら紫に変わる
 		var tw := create_tween()
 		for i in 3:
 			tw.tween_callback(func() -> void: bath_light.light_energy = 0.0)
 			tw.tween_interval(0.07)
-			tw.tween_callback(func() -> void: bath_light.light_energy = 0.9)
+			tw.tween_callback(func() -> void: bath_light.light_energy = (0.9 if bath_purple else BATH_LIGHT_ENERGY))
 			tw.tween_interval(0.09)
 	return key
 
@@ -951,6 +955,57 @@ func _build_bath_powder() -> void:
 ## 入浴剤のラベル帯：一周巻き、u=0.5（文字のある中央）を +x（通路側）、継ぎ目を -x（壁側）に向ける。
 func _label_band(radius: float, height: float, segments: int) -> ArrayMesh:
 	return MeshKit.band(radius, radius, height, 0.0, TAU, segments)
+
+
+const PAPER_POS := Vector3(-0.897, 1.65, 0.45)   # 左の壁に貼ったメモ（鏡文字）
+const PAPER_TEXT := "Everything goes\ndown the drain.\n\nFLUSH"
+
+
+## 鏡文字のメモの見た目。mirrored が true なら裏返し（そのままでは読めない）。
+static func paper_model(mirrored: bool) -> Node3D:
+	var n := Node3D.new()
+	var q := QuadMesh.new()
+	q.size = Vector2(0.12, 0.17)
+	var pm := StandardMaterial3D.new()
+	pm.albedo_color = Color(0.95, 0.94, 0.88)
+	pm.roughness = 0.9
+	pm.cull_mode = BaseMaterial3D.CULL_DISABLED
+	var sheet := MeshInstance3D.new()
+	sheet.mesh = q
+	sheet.material_override = pm
+	n.add_child(sheet)
+	var label := Label3D.new()
+	label.text = PAPER_TEXT
+	label.font_size = 36
+	label.pixel_size = 0.0018
+	label.modulate = Color(0.1, 0.1, 0.14)
+	label.outline_size = 0
+	label.shaded = false
+	label.double_sided = true
+	label.position = Vector3(0, 0, 0.002)
+	label.scale.x = -1.0 if mirrored else 1.0
+	n.add_child(label)
+	return n
+
+
+func _build_paper() -> void:
+	var f := _fixture("MirrorPaper", "mirror_paper")
+	var vis: Node3D = f[0]
+	var body: StaticBody3D = f[1]
+	var paper := paper_model(true)
+	paper.rotation.y = PI * 0.5   # 表を部屋側（+x）へ
+	vis.position = PAPER_POS
+	vis.add_child(paper)
+	body.position = PAPER_POS
+	_shape_box(body, Vector3(0.02, 0.19, 0.14), Vector3.ZERO)
+	paper_fixture = f[0].get_parent()
+
+
+func take_paper() -> void:
+	paper_taken = true
+	if paper_fixture and is_instance_valid(paper_fixture):
+		paper_fixture.queue_free()
+	paper_fixture = null
 
 
 func _build_driver() -> void:

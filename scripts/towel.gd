@@ -24,6 +24,8 @@ const SLID_SCALE := 0.55       # ずらしたときの幅の縮み
 const SLIDE_TIME := 0.4
 
 var slid := false
+var has_coin := true      # 傷のくぼみに十円玉が挟まっている
+var coin_node: Node3D
 var busy := false
 var cloth: Node3D
 var _towel_area: Area3D
@@ -34,6 +36,7 @@ func _ready() -> void:
 	_build_bar()
 	_build_cloth()
 	_build_scratches()
+	_build_coin()
 
 
 func toggle() -> void:
@@ -112,6 +115,29 @@ func _build_scratches() -> void:
 	root.add_child(mi)
 	var area := MeshKit.interact_area(self, "ScratchArea", "towel_scratch")
 	MeshKit.shape_box(area, Vector3(0.004, 0.2, 0.12), Vector3(0.002, -0.27, -0.09))
+
+
+## 傷のくぼみに挟まった古い十円玉（壁に立てて挟まっている。タオルをずらすと見える）。
+func _build_coin() -> void:
+	coin_node = Node3D.new()
+	coin_node.name = "Coin"
+	coin_node.position = Vector3(0.004, -0.27, -0.09)
+	add_child(coin_node)
+	var disc := MeshKit.cylinder(coin_node, 0.0118, 0.0016, Vector3.ZERO, MeshKit.mat("coin10", Color(0.62, 0.36, 0.2), 0.4, 0.7), "Disc")
+	disc.rotation.z = deg_to_rad(90.0)   # 円盤の面を部屋側（+x）へ
+
+
+func take_coin() -> void:
+	has_coin = false
+	if coin_node and is_instance_valid(coin_node):
+		coin_node.visible = false
+
+
+## 十円玉の持ち物の拡大モデル（洗面台・浴槽に置く見た目にも使う）。
+static func coin_model() -> Node3D:
+	var n := Node3D.new()
+	MeshKit.cylinder(n, 0.0235, 0.004, Vector3.ZERO, MeshKit.mat("coin10_zoom", Color(0.66, 0.38, 0.22), 0.35, 0.75), "Disc", -1.0, 32)
+	return n
 
 
 # ---------------------------------------------------------------- main.gd から呼ばれる
