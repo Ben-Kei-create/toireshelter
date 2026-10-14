@@ -367,3 +367,11 @@
 ## コードで作った音（2026-10-13：ラジオ・隣の音・調理・時計）
 
 音声ファイルは使っていない。`sfx.gd`（tick・crack・sizzle・ignite・static・plop）、`radio.gd`（4チャンネルの 8 秒ループ）、`ambient_sound.gd`（足音・水道管・話し声・ドアの音）で、起動時や選んだときに波形を作る。`assets/audio/sfx/<名前>.ogg` を置けば効果音は差し替えられる。
+
+## 廊下と外の景色の写真（2026-10-14）
+
+出典：ユーザーが撮影した写真 3 枚（夜の街並み・バーベキュー会場の建物・廊下）。
+- `assets/textures/street/photo_skyline_night.png`：夜の街並みの写真を 1600×900 に縮小。遠景の大きな板に貼る（`corridor.gd`）。
+- `assets/textures/street/photo_bbq_building.png`：バーベキュー会場の建物の部分（屋上のテラスから 1 階の窓まで）を切り出し、幅 720px。奥の列の建物の東面に貼る。
+- `assets/textures/street/photo_corridor_floor.png`：廊下の写真の手前の床（木目）を切り出し、幅 512px。廊下の床に 1.1 m でタイル貼り。
+- 廊下の壁の色（炭色）・扉の色（黒に近い灰色）・白い腰壁・黒い手すり・天井の白い配管は、写真のとおりに色と形を合わせた（画像は使わない）。

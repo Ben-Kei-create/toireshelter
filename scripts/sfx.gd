@@ -10,7 +10,7 @@ extends Node
 
 const AudioSettings := preload("res://scripts/audio_settings.gd")
 const MIX := 22050
-const NAMES := ["click", "thunk", "creak", "cloth", "slide", "beep", "rustle", "page", "pop", "step", "chime", "buzz", "clunk", "flush", "strum", "ring", "tick", "crack", "sizzle", "ignite", "static", "plop", "intercom", "shot"]
+const NAMES := ["click", "thunk", "creak", "cloth", "slide", "beep", "rustle", "page", "pop", "step", "chime", "buzz", "clunk", "flush", "strum", "ring", "tick", "crack", "sizzle", "ignite", "static", "plop", "intercom", "shot", "voice"]
 const MASTER_DB := -10.0
 ## 名前 → 音声ファイル（assets/audio/sfx/ 内）。[ファイル名, 最大の長さ（秒。0 なら全部）]。載っていない名前は、コードで作った波形のまま。
 ## 足音（歩く 3 種）と時計の針は長いループ素材なので、一回きりの音には使わず、合成のまま。
@@ -342,6 +342,41 @@ func _make_plop() -> PackedFloat32Array:
 		var t := float(i) / MIX
 		ph += TAU * (900.0 - 500.0 * t / 0.15) / MIX
 		s[i] = 0.4 * sin(ph) * exp(-t * 30.0)
+	return s
+
+
+## 神の声：やわらかく、あたたかい声のような響き。「あ・お・う」と母音が移りながら、ゆっくり下がる。ゆるいビブラートと息、うしろに小さな残響。
+## ラジオの謎の声（短い乱数のざわめき）とは別に、毎回同じ、なめらかな 1 フレーズ。メッセージが神の声（「voice」）で出るとき 1 回だけ鳴る。
+func _make_voice() -> PackedFloat32Array:
+	var s := _buf(2.2)
+	# [開始（秒）, 長さ（秒）, 高さの倍率, 第 1 フォルマント（Hz）, 第 2 フォルマント（Hz）]：あ・お・う
+	var syl := [[0.06, 0.55, 1.0, 800.0, 1250.0], [0.62, 0.5, 0.93, 500.0, 900.0], [1.14, 0.7, 0.85, 330.0, 800.0]]
+	var ph := 0.0
+	var hush := _noise(s.size(), 0.25)
+	for sy in syl:
+		var i0 := int(float(sy[0]) * MIX)
+		var i1 := mini(int((float(sy[0]) + float(sy[1])) * MIX), s.size())
+		for i in range(i0, i1):
+			var u := float(i - i0) / maxf(1.0, float(i1 - i0))
+			var t := float(i) / MIX
+			var env := pow(sin(PI * u), 0.7)
+			var f0 := 205.0 * float(sy[2]) * (1.0 - 0.05 * u) * (1.0 + 0.012 * sin(TAU * 5.0 * t))
+			ph += TAU * f0 / MIX
+			var v := 0.0
+			for h in range(1, 15):
+				var fh := f0 * float(h)
+				var w := exp(-pow((fh - float(sy[3])) / 170.0, 2.0)) + 0.55 * exp(-pow((fh - float(sy[4])) / 250.0, 2.0)) + 0.04
+				v += w * sin(ph * float(h)) / float(h)
+			s[i] += 0.16 * env * v + 0.025 * env * hush[i]
+	# うしろの小さな残響（3 つの遅れ）
+	var dry := s.duplicate()
+	for tap in [[0.11, 0.3], [0.23, 0.2], [0.37, 0.12]]:
+		var d := int(float(tap[0]) * MIX)
+		for i in range(d, s.size()):
+			s[i] += float(tap[1]) * dry[i - d]
+	for i in s.size():
+		var t := float(i) / MIX
+		s[i] *= clampf((2.2 - t) / 0.4, 0.0, 1.0)
 	return s
 
 

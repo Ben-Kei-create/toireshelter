@@ -38,7 +38,7 @@ func _ready() -> void:
 	add_child(pivot)
 	var leaf_w := w - 0.03
 	var leaf_h := H - 0.02
-	var leaf_mat := MeshKit.mat("fd_leaf", Color(0.42, 0.5, 0.48), 0.55)
+	var leaf_mat := MeshKit.mat("fd_leaf", Color(0.18, 0.185, 0.19), 0.5)
 	var body := StaticBody3D.new()
 	body.name = "Leaf"
 	body.collision_layer = MeshKit.LAYER_WORLD

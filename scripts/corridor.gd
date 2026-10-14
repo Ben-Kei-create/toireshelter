@@ -15,6 +15,9 @@ const MeshKit := preload("res://scripts/mesh_kit.gd")
 const STREET := "res://assets/textures/street/"
 const TEX_CONCRETE := preload("res://assets/textures/street/ext_material_04.png")
 const TEX_STUCCO := preload("res://assets/textures/street/ext_material_05.png")
+const TEX_WOOD := preload("res://assets/textures/street/photo_corridor_floor.png")   # ユーザーの廊下の写真から切り出した木目の床
+const TEX_PHOTO_SKY := preload("res://assets/textures/street/photo_skyline_night.png")   # 夜の街並みの写真（遠景の板）
+const TEX_PHOTO_BBQ := preload("res://assets/textures/street/photo_bbq_building.png")   # バーベキュー会場の建物の写真
 const TEX_FACADE := preload("res://assets/textures/surfaces/surface_10.png")
 const TEX_METAL := preload("res://assets/textures/bath/bath_material_04.png")   # 横縞の金属（エレベーターの扉）
 const FLOOR_PITCH := 3.4
@@ -64,8 +67,8 @@ func _build_shell() -> void:
 	var l := Z1 - Z0
 	var cx := (X0 + X1) * 0.5
 	var cz := (Z0 + Z1) * 0.5
-	var floor_m := MeshKit.tiled_mat("corr_floor", TEX_CONCRETE, 1.0, Color(0.8, 0.8, 0.78), 0.9)
-	var wall_m := MeshKit.tiled_mat("corr_stucco", TEX_STUCCO, 1.5, Color(0.9, 0.88, 0.84), 0.95)
+	var floor_m := MeshKit.tiled_mat("corr_floor_wood", TEX_WOOD, 1.1, Color(0.95, 0.93, 0.9), 0.55)   # 写真のとおり、明るい木目の床
+	var wall_m := MeshKit.tiled_mat("corr_stucco_dark", TEX_STUCCO, 1.5, Color(0.2, 0.21, 0.24), 0.95)   # 写真のとおり、炭色のざらざらした壁
 	var ceil_m := MeshKit.mat("corr_ceiling", Color(0.82, 0.82, 0.8), 0.9)
 	_solid(shell, body, Vector3(w + 0.2, 0.2, l + 0.1), Vector3(cx - 0.05, -0.1, cz), floor_m, "Floor")
 	MeshKit.box(shell, Vector3(w + 0.2, 0.2, l + 0.2), Vector3(cx - 0.05, H + 0.1, cz), ceil_m, "Ceiling")
@@ -73,12 +76,21 @@ func _build_shell() -> void:
 	_solid(shell, body, Vector3(w + 0.2, H, 0.1), Vector3(cx - 0.05, H * 0.5, Z0 - 0.05), wall_m, "NorthWall")
 	_solid(shell, body, Vector3(w + 0.2, H, 0.1), Vector3(cx - 0.05, H * 0.5, Z1 + 0.05), wall_m, "SouthWall")
 	# 西の腰壁（コンクリート 1.1m）と笠木の手すり。その上は開いているが、体は出られない（見えない壁を天井まで）
-	var parapet := MeshKit.tiled_mat("corr_parapet", TEX_CONCRETE, 1.0, Color(0.72, 0.72, 0.7), 0.95)
+	var parapet := MeshKit.tiled_mat("corr_parapet_white", TEX_STUCCO, 1.5, Color(0.8, 0.82, 0.88), 0.95)   # 腰壁は明るい塗り壁（石の色味は抑える）
 	MeshKit.box(shell, Vector3(0.14, 1.1, l), Vector3(X0 + 0.07, 0.55, cz), parapet, "Parapet")
-	MeshKit.box(shell, Vector3(0.2, 0.05, l), Vector3(X0 + 0.07, 1.125, cz), MeshKit.mat("corr_cap", Color(0.45, 0.45, 0.46), 0.5, 0.5), "Cap")
+	MeshKit.box(shell, Vector3(0.2, 0.05, l), Vector3(X0 + 0.07, 1.125, cz), MeshKit.mat("corr_cap", Color(0.17, 0.18, 0.2), 0.5, 0.5), "Cap")
+	# 笠木の上の黒い手すり（写真のとおり）
+	var rail_m := MeshKit.mat("corr_handrail", Color(0.1, 0.1, 0.12), 0.5, 0.4)
+	MeshKit.box(shell, Vector3(0.04, 0.04, l), Vector3(X0 + 0.07, 1.45, cz), rail_m, "Handrail")
+	var pz := Z0 + 0.3
+	while pz < Z1:
+		MeshKit.box(shell, Vector3(0.03, 0.3, 0.03), Vector3(X0 + 0.07, 1.3, pz), rail_m, "RailPost")
+		pz += 0.9
+	# 天井の白い配管（写真のとおり）
+	MeshKit.pipe(shell, [Vector3(X1 - 0.5, H - 0.1, Z0 + 0.2), Vector3(X1 - 0.5, H - 0.1, Z1 - 0.2)], 0.04, MeshKit.mat("corr_conduit", Color(0.92, 0.92, 0.9), 0.5))
 	MeshKit.shape_box(body, Vector3(0.2, H, l), Vector3(X0 + 0.07, H * 0.5, cz))
 	# 壁の上端（2.2〜2.6）は街側にも壁があるように見えるのを避け、柱だけ（北と南の端、中央）
-	var col_m := MeshKit.tiled_mat("corr_col", TEX_STUCCO, 1.5, Color(0.85, 0.83, 0.8), 0.95)
+	var col_m := MeshKit.tiled_mat("corr_stucco_dark", TEX_STUCCO, 1.5, Color(0.2, 0.21, 0.24), 0.95)
 	for zz in [Z0 + 0.1, (Z0 + Z1) * 0.5, Z1 - 0.1]:
 		MeshKit.box(shell, Vector3(0.2, H - 1.1, 0.2), Vector3(X0 + 0.07, 1.1 + (H - 1.1) * 0.5, zz), col_m, "Pillar")
 	# 排水の溝（西の腰壁の足元）
@@ -96,7 +108,7 @@ func _build_east_wall() -> void:
 	body.collision_layer = MeshKit.LAYER_WORLD
 	body.collision_mask = 0
 	wall.add_child(body)
-	var m := MeshKit.tiled_mat("corr_stucco", TEX_STUCCO, 1.5, Color(0.9, 0.88, 0.84), 0.95)
+	var m := MeshKit.tiled_mat("corr_stucco_dark", TEX_STUCCO, 1.5, Color(0.2, 0.21, 0.24), 0.95)
 	var t := 0.02   # 浴室・ホールの外壁（面 x=-1.0）に重ねる厚み
 	var fx := X1 - t * 0.5
 	var dz := Vector2(1.5, 2.2)
@@ -117,7 +129,7 @@ func _build_doors() -> void:
 	var doors := Node3D.new()
 	doors.name = "NeighborDoors"
 	add_child(doors)
-	var leaf_m := MeshKit.mat("fd_leaf", Color(0.42, 0.5, 0.48), 0.55)
+	var leaf_m := MeshKit.mat("fd_leaf", Color(0.18, 0.185, 0.19), 0.5)   # 写真のとおり、黒に近い灰色の扉
 	var frame_m := MeshKit.mat("fd_frame", Color(0.32, 0.3, 0.28), 0.6)
 	var metal := MeshKit.mat("metal", Color(0.75, 0.75, 0.78), 0.25, 0.8)
 	for d in [[3.5, "504"], [5.2, "505"]]:
@@ -125,6 +137,7 @@ func _build_doors() -> void:
 		MeshKit.box(doors, Vector3(0.05, 2.04, 0.76), Vector3(X1 - 0.025, 1.02, z), frame_m, "Frame")
 		MeshKit.box(doors, Vector3(0.03, 1.98, 0.7), Vector3(X1 - 0.04, 0.99 + 0.01, z), leaf_m, "Door")
 		MeshKit.box(doors, Vector3(0.04, 0.02, 0.02), Vector3(X1 - 0.075, 1.0, z + 0.28), metal, "Lever")
+		MeshKit.box(doors, Vector3(0.008, 0.04, 0.24), Vector3(X1 - 0.045, 0.95, z), metal, "MailSlot")   # 銀の郵便受け
 		var eye := MeshKit.cylinder(doors, 0.012, 0.01, Vector3(X1 - 0.056, 1.5, z), metal, "Peephole")
 		eye.rotation.z = deg_to_rad(90.0)
 		MeshKit.box(doors, Vector3(0.006, 0.07, 0.17), Vector3(X1 - 0.058, 1.68, z), MeshKit.mat("fd_plate", Color(0.9, 0.88, 0.8), 0.6), "Plate")
@@ -231,7 +244,7 @@ func _build_town() -> void:
 	# 遠景：暗い影の建物と、まばらな明かり
 	for i in 14:
 		var z := -20.0 + i * 5.2
-		var top := _rng.randf_range(10.0, 26.0)
+		var top := _rng.randf_range(-8.0, 0.0)   # 遠景の写真の板の手前に、低い影だけ置く
 		var depth := 10.0
 		MeshKit.box(town, Vector3(depth, top - GROUND_Y, 4.6), Vector3(-30.0 - depth * 0.5 - _rng.randf_range(0.0, 6.0), (top + GROUND_Y) * 0.5, z), dark, "Far")
 		for k in 5:
@@ -267,6 +280,15 @@ func _build_town() -> void:
 			MeshKit.pipe(town, [a, (a + b) * 0.5 + Vector3(0, -0.5, 0), b], 0.006, wire)
 	_build_ads(town)
 	_build_bbq(town)
+	# ユーザーの写真：遠くの夜の街並み（板）と、バーベキュー会場の建物の正面（奥の列の建物の東面）
+	var sky := _sign(town, TEX_PHOTO_SKY, Vector2(110.0, 61.9), Vector3(-48.0, 14.0, 2.5), Vector3(0, PI * 0.5, 0))
+	sky.name = "PhotoSkyline"
+	(sky.material_override as StandardMaterial3D).emission_energy_multiplier = 0.85
+	(sky.material_override as StandardMaterial3D).albedo_color = Color(0.7, 0.7, 0.7)
+	var bbq_photo := _sign(town, TEX_PHOTO_BBQ, Vector2(8.0, 8.0 * TEX_PHOTO_BBQ.get_height() / TEX_PHOTO_BBQ.get_width()), Vector3(-17.95, 7.0 - 4.03, 10.0), Vector3(0, PI * 0.5, 0))
+	bbq_photo.name = "PhotoBbqBuilding"
+	(bbq_photo.material_override as StandardMaterial3D).emission_energy_multiplier = 0.12
+	(bbq_photo.material_override as StandardMaterial3D).albedo_color = Color(0.75, 0.75, 0.78)
 	# 街だけを照らす太陽（光の届く層をマスクで 2 番に限る。廊下や部屋の中は照らさない）。空の時間で色と強さが変わる
 	for c in town.get_children():
 		if c is VisualInstance3D:

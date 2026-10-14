@@ -14,6 +14,8 @@ signal hints_changed(on: bool)
 signal hint_requested
 signal restart_pressed
 
+const SfxScript := preload("res://scripts/sfx.gd")
+
 const JP_FONTS := [
 	"Hiragino Sans", "Hiragino Kaku Gothic ProN", "Hiragino Kaku Gothic Pro",
 	"Yu Gothic UI", "Yu Gothic", "Meiryo", "MS Gothic",
@@ -246,6 +248,7 @@ func show_message(text: String, seconds: float = -1.0, kind := "") -> void:
 	if kind == "voice":
 		shown = "『%s』" % text
 		seconds += 1.5
+		SfxScript.play("voice", 1.0, -2.0)   # 神の声の音（ラジオの謎の声とは別に作った、やわらかい声のような響き）
 	_message_label.text = shown
 	_message_label.add_theme_color_override("font_color", VOICE_COLOR if kind == "voice" else Color(1, 1, 1))
 	_message_label.visible_characters = 0 if typing_on else -1
@@ -464,11 +467,33 @@ func set_title_mode(on: bool) -> void:
 	_stats_label.visible = not on
 
 
+## 設定を開いている間は、セリフ・操作の案内・発見の知らせ・持ち物欄など、ほかの表示をすべて隠す（設定の文字と重ならないように）。閉じると戻す。
+var _overlay_state := {}
+
+
+func _set_overlays_hidden(on: bool) -> void:
+	var nodes: Array = [_prompt_panel, _message_panel, _carry_label, _disc_panel, _intro, _hint_label, _inventory_bar]
+	for n in nodes:
+		if n == null:
+			continue
+		if on:
+			_overlay_state[n] = n.visible
+			n.visible = false
+		elif _overlay_state.has(n):
+			# 閉じている間に消えるはずだったもの（読み終えた文・消えた知らせ）は、戻さない
+			var keep: bool = _overlay_state[n] and n.modulate.a > 0.01
+			if n == _message_panel:
+				keep = keep and _message_time_left > 0.0
+			n.visible = keep
+	if not on:
+		_overlay_state.clear()
+
+
 func show_pause(is_paused: bool) -> void:
 	_fit_settings()
+	if is_paused != _pause_menu.visible:
+		_set_overlays_hidden(is_paused)
 	_pause_menu.visible = is_paused
-	if is_paused:
-		_message_panel.visible = false   # 設定の下に文章が透けて重ならないように
 	if is_paused:
 		_resume_button.grab_focus()
 
