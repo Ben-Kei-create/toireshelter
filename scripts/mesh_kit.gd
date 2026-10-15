@@ -212,8 +212,84 @@ static func mat(key: String, color: Color, roughness := 0.85, metallic := 0.0) -
 	m.albedo_color = color
 	m.roughness = roughness
 	m.metallic = metallic
+	_add_surface_detail(m, key, color)
 	_mat_cache[key] = m
 	return m
+
+
+# ---------------------------------------------------------------- 面の細かな表情（ただの単色にしない）
+
+## 単色の物にも、木目・しわ・汚れの薄い模様を重ねる（トリプラナー。色は元の色のまま、明るさだけがゆらぐ）。
+## 光る物・透ける物・発光する物は、そのままにする。
+const _NO_DETAIL := ["glass", "water", "glow", "lamp", "lit", "emiss", "screen", "sky", "flame", "star", "light", "bulb", "led", "shadow", "dot", "crack", "mist", "smoke", "beam"]
+static var _detail_tex := {}
+
+
+static func _add_surface_detail(m: StandardMaterial3D, key: String, color: Color) -> void:
+	if color.a < 0.99:
+		return
+	for w in _NO_DETAIL:
+		if key.contains(w):
+			return
+	var kind := "grime"
+	var tile := 0.8
+	for w in ["wood", "desk", "shelf", "closet", "table", "chair", "rail", "door", "floor", "plank", "frame", "stand", "cabinet", "butsudan", "lacquer", "board"]:
+		if key.contains(w):
+			kind = "grain"
+			tile = 0.5
+			break
+	if kind == "grime":
+		for w in ["futon", "fab", "cloth", "cushion", "zabuton", "blanket", "towel", "curtain", "sheet", "rug", "mat_", "pillow", "tatami", "paper", "cover", "bag", "teddy"]:
+			if key.contains(w):
+				kind = "wrinkle"
+				tile = 0.4
+				break
+	if kind == "grime" and m.metallic > 0.3:
+		kind = "scratch"
+		tile = 0.3
+	m.albedo_texture = _detail_texture(kind)
+	m.uv1_triplanar = true
+	m.uv1_scale = Vector3.ONE / tile
+	m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
+	m.albedo_color = Color(minf(color.r * 1.07, 1.0), minf(color.g * 1.07, 1.0), minf(color.b * 1.07, 1.0), color.a)
+
+
+static func _detail_texture(kind: String) -> ImageTexture:
+	if _detail_tex.has(kind):
+		return _detail_tex[kind]
+	var n := 128
+	var img := Image.create(n, n, false, Image.FORMAT_RGB8)
+	var noise := FastNoiseLite.new()
+	noise.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
+	noise.seed = 11 + kind.length()
+	noise.frequency = 0.03
+	noise.fractal_octaves = 3
+	var base := noise.get_seamless_image(n, n)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 90 + kind.length()
+	for y in n:
+		for x in n:
+			var v := base.get_pixel(x, y).r   # 0〜1
+			var g := 0.9 + 0.1 * v
+			match kind:
+				"grain":
+					# 木目：縦に細長い筋（x が細かく、y がゆるく変わる）
+					var u := sin(float(x) * 0.55 + v * 7.0) * 0.5 + 0.5
+					g = 0.84 + 0.09 * v + 0.07 * u
+				"wrinkle":
+					# しわ：やわらかい斜めの谷
+					var r := absf(sin((float(x) + float(y) * 0.6) * 0.17 + v * 6.0))
+					g = 0.84 + 0.1 * r + 0.06 * v
+				"scratch":
+					g = 0.9 + 0.08 * v - (0.1 if rng.randf() < 0.012 else 0.0)
+				_:
+					# 汚れ：ぼんやりした濃淡と、点々としたよごれ
+					g = 0.82 + 0.15 * v - (0.12 if rng.randf() < 0.01 else 0.0)
+			img.set_pixel(x, y, Color(g, g, g * 0.985))
+	img.generate_mipmaps()
+	var t := ImageTexture.create_from_image(img)
+	_detail_tex[kind] = t
+	return t
 
 
 ## 画像を貼るマテリアル。照明の陰影は通常どおり受けるが、画像側に陰影は焼き込まない。

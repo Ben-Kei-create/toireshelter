@@ -89,6 +89,8 @@ func _run() -> void:
 	hud._on_quit_clicked()
 	check(quit_hits[0] == 1, "2 回目で終了する")
 	hud._quit_armed = false
+	for c in main.guide.CONTROLS:
+		main.guide.tip_shown[c.id] = true   # 操作の案内が、このテストの表示を上書きしないように
 	hud.show_intro("テスト", 0.3)
 	check(hud._intro.visible, "はじめてのヒントが出る")
 	await create_timer(2.0).timeout
