@@ -79,13 +79,15 @@ func learn_move_from_axes() -> String:
 
 ## 設定画面の操作説明：覚えた操作だけ書く。まだの操作は「????」。
 func help_text() -> String:
-	var lines := ["操作説明（やってみた操作から、増えていく）"]
+	var lines := ["操作（やってみた操作から、増えていく）"]
+	var unknown := 0
 	for c in CONTROLS:
 		if learned.has(c.id):
-			lines.append("%s：%s　／　%s" % [c.name, c.key, c.pad])
+			lines.append("%s：%s／%s" % [c.name, c.key, c.pad])
 		else:
-			lines.append("????：????")
-	lines.append("釣り・テレビゲーム・麻雀など、遊ぶ物の操作は、その場で案内が出る")
+			unknown += 1
+	if unknown > 0:
+		lines.append("???? × %d（まだ、やっていない操作）" % unknown)
 	return "\n".join(lines)
 
 

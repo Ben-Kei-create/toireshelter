@@ -83,7 +83,7 @@ func _build_paper_holder() -> void:
 	root.name = "PaperHolder"
 	root.position = HOLDER_POS
 	add_child(root)
-	var metal := MeshKit.mat("metal", Color(0.75, 0.75, 0.78), 0.25, 0.8)
+	var metal := MeshKit.mat("palace_gold_metal", Color(0.92, 0.74, 0.32), 0.2, 0.9)
 	var paper := MeshKit.tiled_mat("toilet_paper", PAPER_TEX, 0.1, Color.WHITE, 0.95)
 	var core_mat := MeshKit.mat("paper_core", Color(0.7, 0.6, 0.48), 0.9)
 	MeshKit.box(root, Vector3(0.012, 0.08, 0.15), Vector3(0.006, 0.0, 0.0), metal, "Plate")

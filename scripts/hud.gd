@@ -872,17 +872,22 @@ func _build_settings(menu: Control) -> void:
 	_settings_scroll.add_child(box)
 	get_viewport().size_changed.connect(_fit_settings)
 	_fit_settings()
-	var help := _make_label(20, HORIZONTAL_ALIGNMENT_LEFT)
+	# くわしい設定（ふだんはたたんでおく）：操作の一覧・釣果・視点のゆれ・文字送り・自分の体
+	var adv := VBoxContainer.new()
+	adv.name = "Advanced"
+	adv.visible = false
+	adv.add_theme_constant_override("separation", 8)
+	var help := _make_label(18, HORIZONTAL_ALIGNMENT_LEFT)
 	help.name = "HelpText"
 	_help_label = help
 	help.name = "Controls"
 	help.text = "操作説明\n移動：W A S D（矢印キーも可）　　視点：マウス\n調べる・使う：左クリック　　座る・入る・立つ：E\nしゃがむ：C　　持ち物を使う：F　　選ぶ：1〜8・ホイール　　拡大：Q　　置く：G　　メッセージの履歴：H\n推理ノート（手がかり・パスワード・幕の目次）：N　　目の高さを変える：[ と ]\n釣り：釣り竿を拾い、ベランダの手すりを狙ってクリック。浮きが跳ねたらもう一度\nテレビゲーム中：W／A／S／D で操作、E でやめる\n設定を開く・閉じる：Esc"
-	box.add_child(help)
+	adv.add_child(help)
 	_catch_label = _make_label(18, HORIZONTAL_ALIGNMENT_LEFT)
 	_catch_label.name = "CatchLabel"
 	_catch_label.text = "釣果：まだ何も釣っていない"
 	_catch_label.add_theme_color_override("font_color", Color(0.85, 0.95, 1.0))
-	box.add_child(_catch_label)
+	adv.add_child(_catch_label)
 	box.add_theme_constant_override("separation", 8)
 	var grid := GridContainer.new()
 	grid.name = "AudioGrid"
@@ -924,7 +929,7 @@ func _build_settings(menu: Control) -> void:
 	row.add_theme_constant_override("separation", 12)
 	box.add_child(row)
 	var label := _make_label(20, HORIZONTAL_ALIGNMENT_LEFT)
-	label.text = "身長（目の高さ）"
+	label.text = "身長"
 	row.add_child(label)
 	_height_slider = HSlider.new()
 	_height_slider.name = "HeightSlider"
@@ -949,7 +954,7 @@ func _build_settings(menu: Control) -> void:
 	_bob_check.toggled.connect(func(on: bool) -> void:
 		_bob_check.text = "視点のゆれ（歩くとき・呼吸）%s" % ("オン" if on else "オフ")
 		head_bob_changed.emit(on))
-	box.add_child(_bob_check)
+	adv.add_child(_bob_check)
 	var srow := HBoxContainer.new()
 	srow.name = "SensitivityRow"
 	box.add_child(srow)
@@ -973,11 +978,11 @@ func _build_settings(menu: Control) -> void:
 		sensitivity_changed.emit(v / 100.0))
 	_hints_check = CheckButton.new()
 	_hints_check.name = "HintsToggle"
-	_hints_check.text = "神の声モード（ヒント）オン"
+	_hints_check.text = "ヒント　オン"
 	_hints_check.button_pressed = true
 	_hints_check.add_theme_font_size_override("font_size", 20)
 	_hints_check.toggled.connect(func(on: bool) -> void:
-		_hints_check.text = "神の声モード（ヒント）%s" % ("オン" if on else "オフ")
+		_hints_check.text = "ヒント　%s" % ("オン" if on else "オフ")
 		hints_changed.emit(on))
 	box.add_child(_hints_check)
 	_hint_ask = Button.new()
@@ -988,7 +993,7 @@ func _build_settings(menu: Control) -> void:
 	box.add_child(_hint_ask)
 	_hint_note = _make_label(16, HORIZONTAL_ALIGNMENT_LEFT)
 	_hint_note.modulate = Color(1, 1, 1, 0.7)
-	box.add_child(_hint_note)
+	adv.add_child(_hint_note)
 	_typing_check = CheckButton.new()
 	_typing_check.name = "TypingToggle"
 	_typing_check.text = "文字を 1 文字ずつ表示（文字送り）オン"
@@ -998,7 +1003,7 @@ func _build_settings(menu: Control) -> void:
 		_typing_check.text = "文字を 1 文字ずつ表示（文字送り）%s" % ("オン" if on else "オフ")
 		typing_on = on
 		typing_changed.emit(on))
-	box.add_child(_typing_check)
+	adv.add_child(_typing_check)
 	_body_check = CheckButton.new()
 	_body_check.name = "BodyToggle"
 	_body_check.text = "自分の体（雑な3D）オフ"
@@ -1006,7 +1011,17 @@ func _build_settings(menu: Control) -> void:
 	_body_check.toggled.connect(func(on: bool) -> void:
 		_body_check.text = "自分の体（雑な3D）%s" % ("オン" if on else "オフ")
 		body_visible_changed.emit(on))
-	box.add_child(_body_check)
+	adv.add_child(_body_check)
+	_adv_button = Button.new()
+	_adv_button.name = "AdvancedButton"
+	_adv_button.text = "▼ くわしい設定"
+	_adv_button.add_theme_font_size_override("font_size", 18)
+	_adv_button.pressed.connect(func() -> void:
+		adv.visible = not adv.visible
+		_adv_button.text = "▲ くわしい設定" if adv.visible else "▼ くわしい設定"
+		_fit_settings())
+	box.add_child(_adv_button)
+	box.add_child(adv)
 
 
 ## 「神の声にきく」の表示：のこりの回数。神の声モードがオフか、回数がないと押せない。
@@ -1018,7 +1033,7 @@ func set_hint_ask_ui(left: int, enabled: bool, limit := 5) -> void:
 
 func set_hints_ui(on: bool) -> void:
 	_hints_check.set_pressed_no_signal(on)
-	_hints_check.text = "神の声モード（ヒント）%s" % ("オン" if on else "オフ")
+	_hints_check.text = "ヒント　%s" % ("オン" if on else "オフ")
 
 
 func set_typing_ui(on: bool) -> void:
@@ -1178,6 +1193,7 @@ func set_stats(text: String) -> void:
 
 ## はじめて遊ぶときだけ出す、最小限の操作のヒント（数秒で薄れて消える）。
 var _help_label: Label
+var _adv_button: Button
 
 
 ## 設定画面の操作説明を差し替える（main.gd が、覚えた操作だけを書いた文を渡す）。

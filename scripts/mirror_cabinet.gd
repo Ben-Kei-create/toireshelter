@@ -88,7 +88,7 @@ func _build_box() -> void:
 	var box := Node3D.new()
 	box.name = "Box"
 	add_child(box)
-	var white := MeshKit.mat("cabinet", Color(0.95, 0.95, 0.94), 0.5)
+	var white := MeshKit.mat("palace_gold_body", Color(0.74, 0.55, 0.2), 0.28, 0.8)
 	var h := Y_RANGE.y - Y_RANGE.x
 	var w := Z_RANGE.y - Z_RANGE.x
 	var cy := (Y_RANGE.x + Y_RANGE.y) * 0.5
@@ -118,7 +118,7 @@ func _build_trim() -> void:
 	var trim := Node3D.new()
 	trim.name = "Trim"
 	add_child(trim)
-	var white := MeshKit.mat("cabinet", Color(0.95, 0.95, 0.94), 0.5)
+	var white := MeshKit.mat("palace_gold_body", Color(0.74, 0.55, 0.2), 0.28, 0.8)
 	var x := WALL_X - TRIM_T * 0.5
 	var h := Y_RANGE.y - Y_RANGE.x + TRIM_W * 2.0
 	var cz := (Z_RANGE.x + Z_RANGE.y) * 0.5
@@ -234,14 +234,14 @@ func _build_door() -> void:
 	var h := y1 - y0
 	var w := z1 - z0
 	MeshKit.box(door_pivot, Vector3(DOOR_T, h, w), Vector3(DOOR_T * 0.5, h * 0.5, w * 0.5),
-			MeshKit.mat("cabinet", Color(0.95, 0.95, 0.94), 0.5), "Frame")   # 扉の本体と裏は白
+			MeshKit.mat("palace_gold_body", Color(0.74, 0.55, 0.2), 0.28, 0.8), "Frame")   # 扉の本体と裏は白
 	# 鏡面（仮の材質）。壁面から 1mm 手前、縁を 1.5cm 残す
 	MeshKit.box(door_pivot, Vector3(0.002, h - 0.03, w - 0.03), Vector3(-0.001, h * 0.5, w * 0.5),
 			MeshKit.mat("mirror", Color(0.72, 0.78, 0.82), 0.08, 0.6), "Mirror")
 	_build_reflection(h, w)
 	# 取っ手代わりの小さなつまみ（蝶番と反対側の縁）
 	MeshKit.box(door_pivot, Vector3(0.01, 0.05, 0.012), Vector3(-0.005, h * 0.5, w - 0.02),
-			MeshKit.mat("metal", Color(0.75, 0.75, 0.78), 0.25, 0.8), "Knob")
+			MeshKit.mat("palace_gold_metal", Color(0.92, 0.74, 0.32), 0.2, 0.9), "Knob")
 	# 鍵：扉の右端（取っ手の下）の小さな金具とつまみ（施錠中は横向き）
 	var lock := Node3D.new()
 	lock.name = "Lock"

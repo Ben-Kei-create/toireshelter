@@ -285,7 +285,7 @@ func start_reheat() -> String:
 
 func _build_shower() -> void:
 	# 奥の壁（ローカル z = -HALF.z）の縦のスライドバーに、シャワーヘッドを下向きに掛ける。ホースは蛇口の本体から
-	var metal := MeshKit.mat("metal", Color(0.75, 0.75, 0.78), 0.25, 0.8)
+	var metal := MeshKit.mat("palace_gold_metal", Color(0.92, 0.74, 0.32), 0.2, 0.9)
 	var wz := -HALF.z
 	var bar_x := 0.2
 	MeshKit.pipe(self, [Vector3(bar_x, 1.05, wz + 0.035), Vector3(bar_x, 1.85, wz + 0.035)], 0.011, metal)
@@ -530,8 +530,8 @@ func _update_water() -> void:
 # ---------------------------------------------------------------- 組み立て
 
 func _build_shell(visual: Node3D) -> void:
-	var porcelain := MeshKit.mat("porcelain", Color(0.92, 0.92, 0.92), 0.3)
-	var inner := MeshKit.mat("tub_inner", Color(0.7, 0.8, 0.86), 0.3)
+	var porcelain := MeshKit.mat("palace_gold_body", Color(0.74, 0.55, 0.2), 0.28, 0.8)
+	var inner := MeshKit.mat("tub_inner", Color(0.55, 0.4, 0.14), 0.25, 0.7)
 	var h := HALF.y
 	var wall_h := h - BOTTOM_Y
 	var wy := BOTTOM_Y + wall_h * 0.5
@@ -578,7 +578,7 @@ func _build_note() -> void:
 
 func _build_port() -> void:
 	# 循環口：奥の内壁の丸い金具。ふろ自動・追い焚きのときは前の水面に渦が出る
-	var metal := MeshKit.mat("metal", Color(0.75, 0.75, 0.78), 0.25, 0.8)
+	var metal := MeshKit.mat("palace_gold_metal", Color(0.92, 0.74, 0.32), 0.2, 0.9)
 	var port := MeshKit.cylinder(self, 0.035, 0.012, PORT_POS + Vector3(0, 0, 0.006), metal, "CirculationPort")
 	port.rotation.x = deg_to_rad(90.0)
 	MeshKit.cylinder(port, 0.018, 0.014, Vector3.ZERO, MeshKit.mat("drain_hole", Color(0.05, 0.05, 0.06), 1.0))
@@ -589,7 +589,7 @@ func _build_port() -> void:
 
 func _build_drain(visual: Node3D) -> void:
 	# 金属の輪・暗い穴・十字の格子。栓をすると栓で隠れる
-	var metal := MeshKit.mat("metal", Color(0.75, 0.75, 0.78), 0.25, 0.8)
+	var metal := MeshKit.mat("palace_gold_metal", Color(0.92, 0.74, 0.32), 0.2, 0.9)
 	var dark := MeshKit.mat("drain_hole", Color(0.05, 0.05, 0.06), 1.0)
 	MeshKit.cylinder(visual, 0.028, 0.003, DRAIN_POS + Vector3(0, 0.0015, 0), metal, "DrainRing")
 	MeshKit.cylinder(visual, DRAIN_HOLE_RADIUS, 0.001, DRAIN_POS + Vector3(0, 0.0035, 0), dark, "DrainHole")
@@ -645,7 +645,7 @@ func _build_props() -> void:
 	hm.emission_energy_multiplier = 0.25
 	var h := MeshKit.cylinder(vis, 0.016, 0.1, Vector3(-0.05, 0, 0), hm)
 	h.rotation.z = deg_to_rad(90.0)
-	var sh := MeshKit.cylinder(vis, 0.003, 0.11, Vector3(0.055, 0, 0), MeshKit.mat("metal", Color(0.75, 0.75, 0.78), 0.25, 0.8))
+	var sh := MeshKit.cylinder(vis, 0.003, 0.11, Vector3(0.055, 0, 0), MeshKit.mat("palace_gold_metal", Color(0.92, 0.74, 0.32), 0.2, 0.9))
 	sh.rotation.z = deg_to_rad(90.0)
 	_driver_area = MeshKit.interact_area(_driver_prop, "Pickup", "tub_driver")
 	MeshKit.shape_box(_driver_area, Vector3(0.28, 0.1, 0.14), Vector3(0, 0.02, 0))
@@ -668,7 +668,7 @@ func _build_faucet() -> void:
 	faucet = FaucetScript.new()
 	faucet.name = "Faucet"
 	faucet.position = Vector3(0.55, 0.70, -HALF.z)
-	var metal := MeshKit.mat("metal", Color(0.75, 0.75, 0.78), 0.25, 0.8)
+	var metal := MeshKit.mat("palace_gold_metal", Color(0.92, 0.74, 0.32), 0.2, 0.9)
 	MeshKit.box(faucet, Vector3(0.16, 0.05, 0.05), Vector3(0, 0, 0.025), metal, "Body")
 	MeshKit.box(faucet, Vector3(0.03, 0.025, 0.15), Vector3(0, -0.03, 0.09), metal, "Spout")
 	var lever := Node3D.new()

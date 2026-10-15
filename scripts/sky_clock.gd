@@ -36,6 +36,7 @@ const AMBIENT := [[Color(0.82, 0.8, 0.78), 0.42], [Color(0.85, 0.72, 0.62), 0.4]
 const WINDOW := [[Color(0.88, 0.94, 1.0), 1.0], [Color(1.0, 0.62, 0.38), 0.65], [Color(0.45, 0.5, 0.9), 0.25]]
 
 var time := 0.0
+var unit_dark := 1.0                     # トイレの電球を外したとき、トイレの中だけ環境光を落とす倍率
 var ambient_scale := 1.0                 # 環境光の倍率（停電のあと、部屋の中が真っ暗になるよう小さくする）
 var weights := Vector3(1.0, 0.0, 0.0)   # 昼・夕焼け・夕暮れの割合（合計 1）
 var daylight := 1.0                      # 窓から差す光の強さ（昼 1.0）
@@ -80,7 +81,7 @@ func set_time(t: float) -> void:
 		win += (WINDOW[i][0] as Color) * k
 		win_e += float(WINDOW[i][1]) * k
 	_env.ambient_light_color = amb
-	_env.ambient_light_energy = amb_e * ambient_scale
+	_env.ambient_light_energy = amb_e * ambient_scale * unit_dark
 	window_color = win
 	daylight = win_e
 	weights_changed.emit(weights.x, weights.y, weights.z)

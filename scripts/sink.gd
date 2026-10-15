@@ -177,7 +177,7 @@ func _update_water() -> void:
 # ---------------------------------------------------------------- 組み立て
 
 func _build_bowl(visual: Node3D) -> void:
-	var porcelain := MeshKit.mat("porcelain", Color(0.92, 0.92, 0.92), 0.3)
+	var porcelain := MeshKit.mat("palace_gold_body", Color(0.74, 0.55, 0.2), 0.28, 0.8)
 	var inner := MeshKit.mat("basin_inner", Color(0.82, 0.86, 0.88), 0.3)
 	var o0 := OUTER.position
 	var o1 := OUTER.end
@@ -204,7 +204,7 @@ func _build_bowl(visual: Node3D) -> void:
 	# くぼみの底面だけ薄い水色（底の箱の上面から 1mm 上。側面は縁に隠れる）
 	MeshKit.box(visual, Vector3(CAVITY_X.y - CAVITY_X.x, 0.002, cl), Vector3((CAVITY_X.x + CAVITY_X.y) * 0.5, BOTTOM_Y + 0.0, cz), inner, "InnerBottom")
 	# 排水口：金属の輪と暗い穴（栓をすると隠れる）
-	var metal := MeshKit.mat("metal", Color(0.75, 0.75, 0.78), 0.25, 0.8)
+	var metal := MeshKit.mat("palace_gold_metal", Color(0.92, 0.74, 0.32), 0.2, 0.9)
 	MeshKit.cylinder(visual, 0.021, 0.003, DRAIN_POS + Vector3(0, 0.0025, 0), metal, "DrainRing")
 	MeshKit.cylinder(visual, DRAIN_HOLE_RADIUS, 0.001, DRAIN_POS + Vector3(0, 0.0045, 0), MeshKit.mat("drain_hole", Color(0.05, 0.05, 0.06), 1.0), "DrainHole")
 	# 壁の受け金具
@@ -297,7 +297,7 @@ func _build_faucet() -> void:
 	faucet = FaucetScript.new()
 	faucet.name = "Faucet"
 	faucet.position = Vector3(WALL_X - 0.04, OUTER.end.y, Z)
-	var metal := MeshKit.mat("metal", Color(0.75, 0.75, 0.78), 0.25, 0.8)
+	var metal := MeshKit.mat("palace_gold_metal", Color(0.92, 0.74, 0.32), 0.2, 0.9)
 	MeshKit.box(faucet, Vector3(0.04, 0.12, 0.04), Vector3(0, 0.06, 0), metal)
 	MeshKit.box(faucet, Vector3(0.12, 0.03, 0.03), Vector3(-0.05, 0.11, 0), metal)
 	var lever := Node3D.new()

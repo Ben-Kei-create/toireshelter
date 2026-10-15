@@ -36,6 +36,7 @@ const SkyClockScript := preload("res://scripts/sky_clock.gd")
 const LightSwitchScript := preload("res://scripts/light_switch.gd")
 const BathDoorControlScript := preload("res://scripts/bath_door_control.gd")
 const BathWearScript := preload("res://scripts/bath_wear.gd")
+const PaintingMapScript := preload("res://scripts/painting_map.gd")
 const AmbientSoundScript := preload("res://scripts/ambient_sound.gd")
 
 const LAYER_WORLD := 1      # 壁・設備（プレイヤーがぶつかる）
@@ -152,6 +153,7 @@ func _ready() -> void:
 	_build_shell()
 	_build_wall_details()
 	_build_palace_trim()
+	_build_painting()
 	# 玄関ホール・自室（apartment.gd）と、換気経路・ベランダ・外景（exterior.gd）
 	apartment = ApartmentScript.new()
 	apartment.name = "Apartment"
@@ -273,6 +275,16 @@ static func _palace_floor_tex() -> ImageTexture:
 	return _pf
 
 
+var painting_map: Node3D
+
+
+## 奥の壁の、ひまわりの絵（上へスライドすると、後ろに 5 階の地図）。
+func _build_painting() -> void:
+	painting_map = PaintingMapScript.new()
+	painting_map.position = Vector3(-0.5, 1.42, -ROOM_D * 0.5 + 0.004)
+	add_child(painting_map)
+
+
 ## 壁の腰（黒い漆の羽目板）と金のモールディング、天井ぎわの金の縁。
 func _build_palace_trim() -> void:
 	var trim := Node3D.new()
@@ -310,54 +322,98 @@ func _build_palace_trim() -> void:
 # ---------------------------------------------------------------- トイレのシャンデリア（電球の代わり）
 
 
+var bulb_present := true         # シャンデリアの電球（外せる。外すと、トイレの中は真っ暗）
+var _bulb_node: MeshInstance3D
+var bulb_area: Area3D
+
+
 func _build_bath_bulb() -> void:
-	# 天井のシャンデリア（金の枝 6 本・クリスタル・灯り）。灯りの色の変わり方（白／青）は、電球のときと同じ
+	# 宮殿のような大きなシャンデリア（天井から吊る。直径 1.5m ほど）。灯りの色の変わり方（白／青）は、電球のときと同じ
 	var fixture := Node3D.new()
 	fixture.name = "BathBulb"
 	fixture.position = BULB_POS
 	add_child(fixture)
-	var gold := _mat("palace_frame_gold", GOLD, 0.3, 0.75)
-	MeshKit.cylinder(fixture, 0.07, 0.02, Vector3(0, 0.01, 0), gold, "CeilingRose", -1.0, 20)   # 天井の飾り板
-	MeshKit.cylinder(fixture, 0.008, 0.07, Vector3(0, -0.03, 0), gold, "Chain", -1.0, 8)
-	MeshKit.sphere(fixture, 0.035, Vector3(0, -0.085, 0), gold)
-	MeshKit.cylinder(fixture, 0.012, 0.1, Vector3(0, -0.13, 0), gold, "Stem", 0.03, 10)
+	var gold := _mat("palace_gold_metal", Color(0.92, 0.74, 0.32), 0.2, 0.9)
+	MeshKit.cylinder(fixture, 0.2, 0.025, Vector3(0, 0.0125, 0), gold, "CeilingRose", 0.12, 28)   # 天井の大きな飾り板
+	MeshKit.cylinder(fixture, 0.012, 0.09, Vector3(0, -0.04, 0), gold, "Chain", -1.0, 8)
+	MeshKit.sphere(fixture, 0.06, Vector3(0, -0.1, 0), gold)
 	_bulb_mat = StandardMaterial3D.new()
 	_bulb_mat.albedo_color = Color(1.0, 0.95, 0.8)
 	_bulb_mat.emission_enabled = true
 	_apply_bath_light()
-	var bulb := MeshKit.sphere(fixture, 0.04, Vector3(0, -0.2, 0), _bulb_mat)   # 中央の大きな灯り
-	bulb.name = "Bulb"
-	bulb.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	var crystal := StandardMaterial3D.new()
-	crystal.albedo_color = Color(0.85, 0.92, 1.0, 0.55)
+	crystal.albedo_color = Color(0.88, 0.94, 1.0, 0.55)
 	crystal.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	crystal.roughness = 0.05
 	crystal.metallic = 0.2
-	for i in 6:
-		var ang := TAU * float(i) / 6.0
-		var dir := Vector3(cos(ang), 0, sin(ang))
-		# 枝：中央から外へ、少し下がってから上へ反る
-		var arm := MeshKit.cylinder(fixture, 0.005, 0.2, dir * 0.1 + Vector3(0, -0.13, 0), gold, "Arm%d" % i, -1.0, 6)
-		arm.rotation = Vector3(0, -ang, deg_to_rad(90.0))
-		MeshKit.cylinder(fixture, 0.016, 0.02, dir * 0.2 + Vector3(0, -0.14, 0), gold, "Cup%d" % i, 0.008, 8)
-		var cb := MeshKit.sphere(fixture, 0.016, dir * 0.2 + Vector3(0, -0.115, 0), _bulb_mat)
-		cb.scale = Vector3(0.8, 1.4, 0.8)
-		cb.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		for k in 2:   # 枝の先から下がる、クリスタル
-			var cp := dir * (0.12 + 0.07 * k) + Vector3(0, -0.2 - 0.03 * k, 0)
-			MeshKit.cylinder(fixture, 0.0015, 0.05, cp + Vector3(0, 0.025, 0), gold, "Wire", -1.0, 4)
-			var gem := MeshKit.sphere(fixture, 0.012, cp - Vector3(0, 0.005, 0), crystal)
-			gem.scale = Vector3(0.7, 1.7, 0.7)
-			gem.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	# 上の段（広い）：枝 8 本が、大きく広がる
+	var big_r := 0.7
+	var small_r := 0.34
+	for tier in 2:
+		var r: float = big_r if tier == 0 else small_r
+		var yy: float = -0.15 if tier == 0 else -0.22
+		var n := 8 if tier == 0 else 6
+		for i in n:
+			var ang := TAU * float(i) / float(n) + (0.0 if tier == 0 else PI / 6.0)
+			var dir := Vector3(cos(ang), 0, sin(ang))
+			var arm := MeshKit.cylinder(fixture, 0.01, r, dir * r * 0.5 + Vector3(0, yy + 0.02, 0), gold, "Arm%d_%d" % [tier, i], -1.0, 6)
+			arm.rotation = Vector3(0, -ang, deg_to_rad(90.0))
+			MeshKit.cylinder(fixture, 0.028, 0.03, dir * r + Vector3(0, yy, 0), gold, "Cup%d_%d" % [tier, i], 0.014, 10)
+			var cb := MeshKit.sphere(fixture, 0.026, dir * r + Vector3(0, yy + 0.04, 0), _bulb_mat)   # 枝の先の灯り
+			cb.scale = Vector3(0.8, 1.4, 0.8)
+			cb.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			for k in 3:   # 枝から下がる、クリスタルの房
+				var cp := dir * (r * (0.55 + 0.2 * k)) + Vector3(0, yy - 0.05 - 0.02 * k, 0)
+				MeshKit.cylinder(fixture, 0.002, 0.07, cp + Vector3(0, 0.035, 0), gold, "Wire", -1.0, 4)
+				var gem := MeshKit.sphere(fixture, 0.018, cp - Vector3(0, 0.01, 0), crystal)
+				gem.scale = Vector3(0.7, 1.9, 0.7)
+				gem.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	# 外側の輪（金の細い輪）と、そこから垂れるクリスタルのカーテン
+	var seg := 28
+	for i in seg:
+		var a1 := TAU * float(i) / float(seg)
+		var a2 := TAU * float(i + 1) / float(seg)
+		var p1 := Vector3(cos(a1), 0, sin(a1)) * big_r + Vector3(0, -0.17, 0)
+		var p2 := Vector3(cos(a2), 0, sin(a2)) * big_r + Vector3(0, -0.17, 0)
+		var bar := MeshKit.box(fixture, Vector3(p1.distance_to(p2) + 0.01, 0.012, 0.012), (p1 + p2) * 0.5, gold, "RingBar")
+		bar.rotation.y = -atan2(p2.z - p1.z, p2.x - p1.x)
+		var gem2 := MeshKit.sphere(fixture, 0.016, p1 + Vector3(0, -0.07, 0), crystal)
+		gem2.scale = Vector3(0.7, 2.2, 0.7)
+		gem2.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	# 中央の大きな電球（外せる）
+	_bulb_node = MeshKit.sphere(fixture, 0.07, Vector3(0, -0.2, 0), _bulb_mat)
+	_bulb_node.name = "Bulb"
+	_bulb_node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	bulb_area = MeshKit.interact_area(fixture, "BulbArea", "chandelier", null)
+	MeshKit.shape_box(bulb_area, Vector3(0.4, 0.3, 0.4), Vector3(0, -0.2, 0))
+	bulb_area.set_meta("interact_range", 2.6)
+
+
+## 電球を外す／はめる。外すと、トイレの中は真っ暗（灯りも環境光も消える）。
+func set_bulb(present: bool) -> void:
+	bulb_present = present
+	_bulb_node.visible = present
+	_apply_bath_light()
+
+
+## トイレの中にいるとき、電球がなければ環境光を落とす（毎フレーム呼ぶ。変わったときだけ反映）。
+func update_bulb_darkness(in_unit: bool) -> void:
+	if sky_clock == null:
+		return
+	var want := 0.01 if (not bulb_present and in_unit) else 1.0
+	if not is_equal_approx(sky_clock.unit_dark, want):
+		sky_clock.unit_dark = want
+		sky_clock.set_time(sky_clock.time)
 
 
 func _apply_bath_light() -> void:
 	var col := PURPLE_LIGHT_COLOR if bath_purple else BATH_LIGHT_COLOR
 	bath_light.light_color = col
-	bath_light.light_energy = (1.2 if bath_purple else BATH_LIGHT_ENERGY) if bath_light_on else 0.0
+	var lit := bath_light_on and bulb_present
+	bath_light.light_energy = (1.2 if bath_purple else BATH_LIGHT_ENERGY) if lit else 0.0
 	_bulb_mat.emission = col
-	_bulb_mat.emission_energy_multiplier = 3.0 if bath_light_on else 0.0
-	_bulb_mat.albedo_color = Color(0.75, 0.55, 1.0) if (bath_purple and bath_light_on) else (Color(1.0, 0.95, 0.8) if bath_light_on else Color(0.8, 0.8, 0.78))
+	_bulb_mat.emission_energy_multiplier = 3.0 if lit else 0.0
+	_bulb_mat.albedo_color = Color(0.75, 0.55, 1.0) if (bath_purple and lit) else (Color(1.0, 0.95, 0.8) if lit else Color(0.8, 0.8, 0.78))
 
 
 ## 自室のスイッチから呼ばれる。電気を入り切りして、表示する文章のキーを返す。
@@ -377,13 +433,15 @@ func set_bath_light(on: bool) -> String:
 		elif bath_purple:
 			key = "bath_light_on_purple"
 	_apply_bath_light()
+	if on and not bulb_present:
+		return "bath_light_nobulb"
 	if on and (key == "bath_light_purple" or key == "bath_light_normal"):
 		# ちらつきながら紫に変わる
 		var tw := create_tween()
 		for i in 3:
 			tw.tween_callback(func() -> void: bath_light.light_energy = 0.0)
 			tw.tween_interval(0.07)
-			tw.tween_callback(func() -> void: bath_light.light_energy = (1.2 if bath_purple else BATH_LIGHT_ENERGY))
+			tw.tween_callback(func() -> void: bath_light.light_energy = (1.2 if bath_purple else BATH_LIGHT_ENERGY) if bulb_present else 0.0)
 			tw.tween_interval(0.09)
 	return key
 
@@ -1249,7 +1307,7 @@ func _build_floor_drain() -> void:
 	drain.name = "FloorDrain"
 	drain.position = Vector3(-0.15, 0.0, -0.33)
 	add_child(drain)
-	var metal := _mat("metal", Color(0.75, 0.75, 0.78), 0.25, 0.8)
+	var metal := _mat("palace_gold_metal", Color(0.92, 0.74, 0.32), 0.2, 0.9)
 	var s := 0.1
 	var fw := 0.008
 	_mesh_box(drain, Vector3(s - fw * 2.0, 0.001, s - fw * 2.0), Vector3(0, 0.0015, 0), _mat("drain_hole", Color(0.05, 0.05, 0.06), 1.0))
@@ -1444,7 +1502,7 @@ func _build_driver() -> void:
 	_mesh_cylinder_x(visual, handle_r, 0.1, Vector3(-0.05, axis_y, 0.0), handle_mat)
 	_mesh_cylinder_x(visual, handle_r + 0.001, 0.015, Vector3(-0.07, axis_y, 0.0), _mat("grip", Color(0.08, 0.08, 0.08), 0.8))
 	_mesh_cylinder_x(visual, handle_r + 0.001, 0.015, Vector3(-0.03, axis_y, 0.0), _mat("grip", Color(0.08, 0.08, 0.08), 0.8))
-	_mesh_cylinder_x(visual, 0.003, 0.11, Vector3(0.055, axis_y, 0.0), _mat("metal", Color(0.75, 0.75, 0.78), 0.25, 0.8))
+	_mesh_cylinder_x(visual, 0.003, 0.11, Vector3(0.055, axis_y, 0.0), _mat("palace_gold_metal", Color(0.92, 0.74, 0.32), 0.2, 0.9))
 
 	var area := Area3D.new()
 	area.name = "Pickup"

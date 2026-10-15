@@ -111,6 +111,7 @@ const MESSAGES := {
 	"tub_note": "小さな紙が貼ってある。『ここまで来たか。』",
 	"towel_scratch": "タオルの裏に傷がある。前からあっただろうか。",
 	"bath_light_off": "カチッ。トイレの電気を消した。",
+	"bath_light_nobulb": "カチッ。……シャンデリアに、電球がない。つかない。",
 	"bath_light_on": "カチッ。トイレの電気をつけた。",
 	"bath_light_purple": "カチッ……電球がちらついて、トイレが青白い光に包まれた。",
 	"bath_light_on_purple": "カチッ。トイレが青白い蛍光灯のようにともった。",
@@ -399,6 +400,7 @@ const ITEMS := {
 	"blowgun": {"name": "吹き矢", "desc": "芯の筒に、口金と吹き口をつけ、毛だまりで矢羽根を作った。矢は 100 本まで。ベランダから、向かいの的を狙えそうだ。"},
 	"medal": {"name": "メダル", "desc": "九蓮宝燈で、なぜか出てきたメダル。つかみ取りに入れられそうだ。"},
 	"small_pickaxe": {"name": "小さなツルハシ", "desc": "ちいさな、ちいさなツルハシ。壁を叩くと、ほんの少しだけ、削れる。……少しだけ。"},
+	"chandelier_bulb": {"name": "シャンデリアの電球", "desc": "シャンデリアの真ん中の、大きな電球。外すと、トイレの中は真っ暗になる。もとの所へはめると、また明るくなる。"},
 	"headphones": {"name": "ヘッドホン", "desc": "こたつの中に落ちていた、古いヘッドホン。手に持つと、耳につける。持ち物から外すと、聞こえなくなる。"},
 	"blank_card_0": {"name": "白紙のトランプ", "desc": "何も書かれていない、白いカード。普通の明かりの下では、ただの白紙だ。"},
 	"blank_card_1": {"name": "白紙のトランプ", "desc": "何も書かれていない、白いカード。普通の明かりの下では、ただの白紙だ。"},
@@ -645,6 +647,14 @@ const STAGE5 := {
 	"duct_sound": "耳栓をしたら、ダクトのうなりが消えた。……トン、トン、トトン。壁の向こうから、規則正しい音がする。こたつの奥のほうこうだ。",
 	"butsudan_dark": "仏壇だ。暗くて、よく見えない。位牌が二つあるようだ。……線香のにおいがする。",
 	"butsudan_lit": "仏壇に手を合わせた。チーン。ろうそくの火がゆれている。位牌のひとつは、名前が、薄れて読めない。",
+	"painting_look": "額縁に入った、ひまわりの絵。ゴッホのような、勢いのある筆づかい。……下に、小さな赤いボタンがある。",
+	"painting_slide": "カチッ。絵が、するすると上へ動いた。……絵の後ろの壁に、地図が貼ってある。",
+	"painting_back": "ボタンを押して、絵をもとの位置へ戻した。",
+	"floor_map_look": "このマンション 5 階の地図。部屋は 501〜505 が横に並ぶ。『いまここ』は 503。右隣の 504 には『おばあちゃん』、左隣の 502 は『お隣』と書いてある。廊下の両端は、階段とエレベーター。",
+	"chandelier_take": "シャンデリアの電球を外した。……トイレの中が、真っ暗になった。",
+	"chandelier_put": "電球をはめた。トイレの中が、また明るくなった。",
+	"chandelier_empty": "電球のない、巨大なシャンデリア。……真っ暗だ。電球をはめれば、つくだろう。",
+	"chandelier_look": "宮殿のような、巨大なシャンデリア。真ん中の大きな電球が、ねじ込まれている。外せそうだ。",
 	"hp_pick": "こたつの中に、ヘッドホンが落ちていた。誰かの物だろうか。",
 	"hp_on": "ヘッドホンを耳につけた。……ざあ、とノイズが鳴って、誰かの話し声が聞こえてくる。",
 	"hp_voice": "二人の声。くぐもっていて、何を話しているのか、聞き取れない。……片方は、自分の声に似ている気がする。",
@@ -1001,6 +1011,7 @@ func _process(_delta: float) -> void:
 	if not paused and room.exterior.blowgun_sign:
 		room.exterior.set_blowgun_sign_visible(player.eye_height >= ExteriorScript.SIGN_MIN_EYE and ExteriorScript.in_balcony(player.global_position))
 	_update_wall_hold(_delta)
+	room.update_bulb_darkness(region == "bath" or region == "")
 	if not paused and _title == null:
 		_update_tips(_delta)
 	if _ufo_txn and not room.apartment.ufo_catcher.busy and not _prize_pending:
@@ -1784,8 +1795,12 @@ func _prompt_for(target: Object) -> String:
 			return PROMPTS["tv_remote"]
 		"door_knob", "fuse", "hand_mirror", "pickaxe", "crystal", "ladder_prop", "washitsu_coin", "heirloom_photo", "lighter", "rice_pack", "shot_coin", "bad_book", "card_pick_0", "card_pick_1", "card_pick_2", "card_pick_3", "aq_coin", "dish_core", "dart_coin", "headphones", "placed_item":
 			return PROMPT_PICKUP
-		"balcony_wall_w", "balcony_wall_e", "granny_chest", "butsudan":
+		"balcony_wall_w", "balcony_wall_e", "granny_chest", "butsudan", "sunflower_painting", "floor_map":
 			return PROMPT_EXAMINE
+		"painting_button":
+			return "左クリック：ボタンを押す"
+		"chandelier":
+			return "左クリック：電球を外す" if room.bulb_present else PROMPT_EXAMINE
 		"feed_box":
 			return PROMPT_EXAMINE
 		"closet_safe":
@@ -2064,6 +2079,27 @@ func _on_interact_requested(target: Object) -> void:
 			hud.show_message(STAGE5["dart_coin_get"], 5.0)
 		"balcony_wall_w", "balcony_wall_e":
 			hud.show_message(STAGE5["wall_%s_look" % id.right(1)], 5.0)
+		"sunflower_painting":
+			hud.show_message(STAGE5["painting_look"], 5.0)
+		"painting_button":
+			room.painting_map.toggle()
+			hud.show_message(STAGE5["painting_slide"] if room.painting_map.slid else STAGE5["painting_back"], 5.0)
+			SfxScript.play("click")
+			progress.discover("painting_button")
+		"floor_map":
+			hud.show_message(STAGE5["floor_map_look"], 8.0)
+			progress.discover("floor_map")
+			progress.add_note("floor_map", "5階の地図", "コーポヨシミ 5 階：501〜505 が横に並ぶ。ここは 503。右隣（504）におばあちゃん、左隣（502）はお隣。廊下の両端は階段とエレベーター。", "手がかり")
+		"chandelier":
+			if room.bulb_present:
+				room.set_bulb(false)
+				_item_models["chandelier_bulb"] = Stage5Items.chandelier_bulb_model()
+				add_item("chandelier_bulb")
+				SfxScript.play("click")
+				progress.discover("chandelier")
+				hud.show_message(STAGE5["chandelier_take"], 5.0)
+			else:
+				hud.show_message(STAGE5["chandelier_empty"], 5.0)
 		"granny_chest":
 			_open_chest()
 		"butsudan":
@@ -2507,6 +2543,15 @@ func use_selected() -> void:
 		SfxScript.play("clunk")
 		hud.show_message(STAGE4["ladder_placed"], 5.0)
 		progress.discover("ladder_placed")
+		return
+	if id == "chandelier_bulb":
+		if tid == "chandelier" and not room.bulb_present:
+			room.set_bulb(true)
+			remove_item("chandelier_bulb")
+			SfxScript.play("click")
+			hud.show_message(STAGE5["chandelier_put"], 4.0)
+		else:
+			hud.show_message(STAGE5["chandelier_look"] if tid == "chandelier" else MESSAGES["cannot_use"])
 		return
 	if id.begins_with("blank_card_"):
 		_place_card(id, tid)
@@ -3033,6 +3078,8 @@ func _give_stage4_model(id: String) -> void:
 			_item_models[id] = Stage5Items.blowgun_model()
 		"small_pickaxe":
 			_item_models[id] = Stage5Items.small_pickaxe_model()
+		"chandelier_bulb":
+			_item_models[id] = Stage5Items.chandelier_bulb_model()
 		"headphones":
 			_item_models[id] = Stage5Items.headphones_model()
 		"tp_core", "tp_core2":

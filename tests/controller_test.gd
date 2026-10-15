@@ -56,7 +56,7 @@ func _run() -> void:
 	var g = main.guide
 	g.learned.clear()
 	g.tip_shown.clear()
-	_check(g.help_text().count("????") >= 12, "はじめは、操作説明がほとんど「????」")
+	_check(g.help_text().contains("???? × 13"), "はじめは、操作説明は「???? × 13」だけ")
 	main._input(_btn(JOY_BUTTON_Y))
 	_check(g.learned.has("action") and g.using_pad, "Y を押すと「座る・入る・立つ」を覚え、コントローラ使用になる")
 	_check(g.help_text().contains("座る・入る・立つ：E") and g.help_text().contains("Yボタン"), "覚えた操作の説明が出る（キーボードとコントローラの両方）")

@@ -118,6 +118,17 @@ static func blank_card_model(dots: int, lit: bool) -> Node3D:
 	return n
 
 
+static func chandelier_bulb_model() -> Node3D:
+	var n := Node3D.new()
+	var glass := MeshKit.mat("bulb_glass_item", Color(1.0, 0.96, 0.82), 0.2)
+	glass.emission_enabled = true
+	glass.emission = Color(1.0, 0.85, 0.5)
+	glass.emission_energy_multiplier = 0.6
+	MeshKit.sphere(n, 0.045, Vector3(0, 0.03, 0), glass)
+	MeshKit.cylinder(n, 0.02, 0.03, Vector3(0, -0.025, 0), MeshKit.mat("bulb_base_item", Color(0.7, 0.7, 0.72), 0.3, 0.8), "Base", -1.0, 12)
+	return n
+
+
 static func small_pickaxe_model() -> Node3D:
 	var n := Node3D.new()
 	var inner = preload("res://scripts/stage4_items.gd").pickaxe_model()
