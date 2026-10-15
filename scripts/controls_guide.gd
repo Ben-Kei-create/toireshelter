@@ -83,12 +83,26 @@ func help_text() -> String:
 	var unknown := 0
 	for c in CONTROLS:
 		if learned.has(c.id):
-			lines.append("%s：%s／%s" % [c.name, c.key, c.pad])
+			lines.append("%s：%s／%s" % [c.name, _key_text(c), c.pad])
 		else:
 			unknown += 1
 	if unknown > 0:
 		lines.append("???? × %d（まだ、やっていない操作）" % unknown)
 	return "\n".join(lines)
+
+
+## 操作のキーの名前。キーを割り当て直していたら、いまのキー（一つの動作だけの操作のみ）。
+func _key_text(c: Dictionary) -> String:
+	var acts: Array = c.actions
+	if acts.size() == 1 and c.id != "interact" and c.id != "pause" and InputMap.has_action(acts[0]):
+		var names := []
+		for ev in InputMap.action_get_events(acts[0]):
+			if ev is InputEventKey:
+				var k := ev as InputEventKey
+				names.append(OS.get_keycode_string(k.physical_keycode if k.physical_keycode != 0 else k.keycode))
+		if not names.is_empty():
+			return " / ".join(names)
+	return String(c.key)
 
 
 ## 案内を出すべきか（まだ覚えておらず、まだ案内していない）。

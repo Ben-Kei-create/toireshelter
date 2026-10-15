@@ -12,6 +12,9 @@ signal sensitivity_changed(value: float)
 signal typing_changed(on: bool)
 signal hints_changed(on: bool)
 signal hint_requested
+signal text_scale_changed(value: float)
+signal key_rebound(action: String, keycode: int)
+signal keys_reset
 signal restart_pressed
 
 const SfxScript := preload("res://scripts/sfx.gd")
@@ -1020,6 +1023,55 @@ func _build_settings(menu: Control) -> void:
 		_body_check.text = "自分の体（雑な3D）%s" % ("オン" if on else "オフ")
 		body_visible_changed.emit(on))
 	adv.add_child(_body_check)
+	# 文字の大きさ
+	var trow := HBoxContainer.new()
+	trow.name = "TextScaleRow"
+	var tl := _make_label(18, HORIZONTAL_ALIGNMENT_LEFT)
+	tl.text = "文字の大きさ"
+	trow.add_child(tl)
+	_text_slider = HSlider.new()
+	_text_slider.name = "Slider_text_scale"
+	_text_slider.min_value = 80.0
+	_text_slider.max_value = 160.0
+	_text_slider.step = 10.0
+	_text_slider.value = 100.0
+	_text_slider.custom_minimum_size = Vector2(240, 28)
+	_text_slider.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	trow.add_child(_text_slider)
+	_text_value = _make_label(18, HORIZONTAL_ALIGNMENT_LEFT)
+	_text_value.text = "100 %"
+	trow.add_child(_text_value)
+	_text_slider.value_changed.connect(func(v: float) -> void:
+		_text_value.text = "%d %%" % int(v)
+		text_scale_changed.emit(v / 100.0))
+	adv.add_child(trow)
+	# キーの割り当て
+	var kl := _make_label(18, HORIZONTAL_ALIGNMENT_LEFT)
+	kl.text = "キーの割り当て（ボタンを押して、割り当てたいキーを押す。Esc でやめる）"
+	adv.add_child(kl)
+	var kg := GridContainer.new()
+	kg.name = "KeyGrid"
+	kg.columns = 4
+	kg.add_theme_constant_override("h_separation", 10)
+	adv.add_child(kg)
+	for def in REBIND_ACTIONS:
+		var nl := _make_label(16, HORIZONTAL_ALIGNMENT_LEFT)
+		nl.text = def[1]
+		kg.add_child(nl)
+		var kb := Button.new()
+		kb.name = "Key_" + def[0]
+		kb.custom_minimum_size = Vector2(110, 0)
+		kb.add_theme_font_size_override("font_size", 16)
+		var act: String = def[0]
+		kb.pressed.connect(func() -> void: _start_rebind(act))
+		kg.add_child(kb)
+		_key_buttons[act] = kb
+	var kr := Button.new()
+	kr.name = "KeysResetButton"
+	kr.text = "キーをもとにもどす"
+	kr.add_theme_font_size_override("font_size", 16)
+	kr.pressed.connect(func() -> void: keys_reset.emit())
+	adv.add_child(kr)
 	_adv_button = Button.new()
 	_adv_button.name = "AdvancedButton"
 	_adv_button.text = "▼ くわしい設定"
@@ -1201,6 +1253,16 @@ func set_stats(text: String) -> void:
 
 ## はじめて遊ぶときだけ出す、最小限の操作のヒント（数秒で薄れて消える）。
 var _help_label: Label
+var _text_slider: HSlider
+var _text_value: Label
+var _key_buttons := {}
+var _rebinding := ""
+const REBIND_ACTIONS := [
+	["move_forward", "前へ"], ["move_back", "後ろへ"], ["move_left", "左へ"], ["move_right", "右へ"],
+	["action", "座る・入る"], ["crouch", "しゃがむ"], ["use_item", "持ち物を使う"], ["inspect_item", "拡大"],
+	["drop_item", "置く"], ["notebook", "ノート"], ["message_log", "履歴"], ["eye_down", "目を低く"], ["eye_up", "目を高く"],
+]
+var _text_base := {}   # 文字の大きさを変える前の、もとの大きさ（Control の ID → 大きさ）
 var _adv_button: Button
 
 
@@ -1213,6 +1275,47 @@ func set_help_text(text: String) -> void:
 ## 小さな操作の案内（初めてその操作が出てきたとき）。
 func show_tip(text: String, seconds := 7.0) -> void:
 	show_intro(text, seconds)
+
+
+## 文字の大きさを変える（画面の文字すべて。もとの大きさに倍率をかける）。
+func set_text_scale(mult: float) -> void:
+	if _text_slider:
+		_text_slider.set_value_no_signal(mult * 100.0)
+		_text_value.text = "%d %%" % int(mult * 100.0)
+	for c in _root.find_children("*", "Control", true, false):
+		if not (c is Label or c is Button or c is RichTextLabel):
+			continue
+		var id := c.get_instance_id()
+		if not _text_base.has(id):
+			_text_base[id] = c.get_theme_font_size("font_size")
+		c.add_theme_font_size_override("font_size", maxi(8, int(round(float(_text_base[id]) * mult))))
+
+
+## キーの割り当て欄に、いまのキーの名前を出す。
+func refresh_key_buttons() -> void:
+	for act in _key_buttons:
+		var names := []
+		for ev in InputMap.action_get_events(act):
+			if ev is InputEventKey:
+				names.append(OS.get_keycode_string((ev as InputEventKey).physical_keycode if (ev as InputEventKey).physical_keycode != 0 else (ev as InputEventKey).keycode))
+		(_key_buttons[act] as Button).text = " / ".join(names) if not names.is_empty() else "―"
+
+
+func _start_rebind(action: String) -> void:
+	_rebinding = action
+	(_key_buttons[action] as Button).text = "キーを押す…"
+
+
+func _input(event: InputEvent) -> void:
+	if _rebinding.is_empty() or not (event is InputEventKey) or not event.pressed or event.echo:
+		return
+	get_viewport().set_input_as_handled()
+	var act := _rebinding
+	_rebinding = ""
+	var ke := event as InputEventKey
+	if ke.keycode != KEY_ESCAPE:
+		key_rebound.emit(act, ke.physical_keycode if ke.physical_keycode != 0 else ke.keycode)
+	refresh_key_buttons()
 
 
 func show_intro(text: String, seconds := 9.0) -> void:

@@ -178,7 +178,7 @@ func _update_water() -> void:
 
 func _build_bowl(visual: Node3D) -> void:
 	var porcelain := MeshKit.mat("palace_gold_body", Color(0.74, 0.55, 0.2), 0.28, 0.8)
-	var inner := MeshKit.mat("basin_inner", Color(0.82, 0.86, 0.88), 0.3)
+	var inner := MeshKit.mat("basin_inner_dark", Color(0.08, 0.02, 0.03), 0.18, 0.2)   # 金の洗面台の底は、黒い漆（小さな物が見えるように）
 	var o0 := OUTER.position
 	var o1 := OUTER.end
 	var wall_h := o1.y - BOTTOM_Y

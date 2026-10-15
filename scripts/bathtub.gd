@@ -531,7 +531,7 @@ func _update_water() -> void:
 
 func _build_shell(visual: Node3D) -> void:
 	var porcelain := MeshKit.mat("palace_gold_body", Color(0.74, 0.55, 0.2), 0.28, 0.8)
-	var inner := MeshKit.mat("tub_inner", Color(0.55, 0.4, 0.14), 0.25, 0.7)
+	var inner := MeshKit.mat("tub_inner_dark", Color(0.08, 0.02, 0.03), 0.18, 0.2)   # 浴槽の底も、黒い漆（十円玉などが見えるように）
 	var h := HALF.y
 	var wall_h := h - BOTTOM_Y
 	var wy := BOTTOM_Y + wall_h * 0.5
@@ -555,7 +555,7 @@ func _build_shell(visual: Node3D) -> void:
 		MeshKit.box(visual, p[0], p[1], p[2])
 		MeshKit.shape_box(body, p[0], p[1])
 	# くぼみの底面だけ水色（底の箱の上面から 1mm 上。側面は壁に隠れる）
-	MeshKit.box(visual, Vector3(inner_x * 2.0, 0.002, (HALF.z - WALL) * 2.0), Vector3(0.0, BOTTOM_Y - 0.0005, 0.0), inner, "InnerBottom")
+	MeshKit.box(visual, Vector3(inner_x * 2.0, 0.002, (HALF.z - WALL) * 2.0), Vector3(0.0, BOTTOM_Y + 0.0012, 0.0), inner, "InnerBottom")
 
 
 func _build_note() -> void:

@@ -14,7 +14,7 @@ func _run() -> void:
 	var p = main.player
 	p.set_physics_process(false)
 	main.room.painting_map.set_slid(false)
-	for v in [["palace_a", Vector3(0.1, 0.0, 0.9), Vector3(0.0, 1.2, -0.8)], ["palace_b", Vector3(0.6, 0.0, 0.7), Vector3(-0.7, 1.3, -0.5)], ["palace_c", Vector3(-0.6, 0.0, 0.5), Vector3(0.2, 2.0, 0.3)], ["palace_d", Vector3(0.3, 0.0, -0.4), Vector3(0.0, 1.0, 1.2)], ["painting", Vector3(-0.2, 0.0, 0.5), Vector3(-0.5, 1.4, -1.2)], ["map", Vector3(-0.3, 0.0, 0.4), Vector3(-0.5, 1.5, -1.2)]]:
+	for v in [["palace_a", Vector3(0.1, 0.0, 0.9), Vector3(0.0, 1.2, -0.8)], ["palace_b", Vector3(0.6, 0.0, 0.7), Vector3(-0.7, 1.3, -0.5)], ["palace_c", Vector3(-0.6, 0.0, 0.5), Vector3(0.2, 2.0, 0.3)], ["palace_d", Vector3(0.3, 0.0, -0.4), Vector3(0.0, 1.0, 1.2)], ["tub", Vector3(0.0, 0.0, -0.1), Vector3(0.0, 0.2, -0.9)], ["sink", Vector3(-0.2, 0.0, 0.9), Vector3(-0.7, 0.8, 0.9)], ["painting", Vector3(-0.2, 0.0, 0.5), Vector3(-0.5, 1.4, -1.2)], ["map", Vector3(-0.3, 0.0, 0.4), Vector3(-0.5, 1.5, -1.2)]]:
 		p.global_position = v[1]
 		var d: Vector3 = v[2] - p.camera.global_position
 		p.rotation.y = atan2(-d.x, -d.z)

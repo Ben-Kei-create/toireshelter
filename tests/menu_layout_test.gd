@@ -34,7 +34,7 @@ func _run() -> void:
 					"  %s：背景 %s がビューポート全体と一致" % [menu_name, rect])
 			var buttons := 0
 			for button in menu.find_children("*", "Button", true, false):
-				if button is CheckButton or button.name == "HintAskButton" or button.name == "AdvancedButton":
+				if button is CheckButton or button.name == "HintAskButton" or button.name == "AdvancedButton" or str(button.name).begins_with("Key_") or button.name == "KeysResetButton":
 					continue   # 設定の「オン／オフ」と「神の声にきく」（スクロールの中）は数えない
 				buttons += 1
 				var b: Rect2 = (button as Control).get_global_rect()

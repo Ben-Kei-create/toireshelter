@@ -123,7 +123,7 @@ func _build_coin() -> void:
 	coin_node.name = "Coin"
 	coin_node.position = Vector3(0.004, -0.27, -0.09)
 	add_child(coin_node)
-	var disc := MeshKit.cylinder(coin_node, 0.0118, 0.0016, Vector3.ZERO, MeshKit.mat("coin10", Color(0.62, 0.36, 0.2), 0.4, 0.7), "Disc")
+	var disc := MeshKit.cylinder(coin_node, 0.0118, 0.0016, Vector3.ZERO, _bright_coin_mat(), "Disc")
 	disc.rotation.z = deg_to_rad(90.0)   # 円盤の面を部屋側（+x）へ
 
 
@@ -134,9 +134,18 @@ func take_coin() -> void:
 
 
 ## 十円玉の持ち物の拡大モデル（洗面台・浴槽に置く見た目にも使う）。
+## 十円玉の色：金と赤の部屋でも埋もれないよう、明るい銅色に、ほんのり自分で光らせる。
+static func _bright_coin_mat() -> StandardMaterial3D:
+	var m := MeshKit.mat("coin10", Color(0.92, 0.55, 0.3), 0.3, 0.7)
+	m.emission_enabled = true
+	m.emission = Color(0.9, 0.5, 0.25)
+	m.emission_energy_multiplier = 0.35
+	return m
+
+
 static func coin_model() -> Node3D:
 	var n := Node3D.new()
-	MeshKit.cylinder(n, 0.0235, 0.004, Vector3.ZERO, MeshKit.mat("coin10_zoom", Color(0.66, 0.38, 0.22), 0.35, 0.75), "Disc", -1.0, 32)
+	MeshKit.cylinder(n, 0.0235, 0.004, Vector3.ZERO, _bright_coin_mat(), "Disc", -1.0, 32)
 	return n
 
 

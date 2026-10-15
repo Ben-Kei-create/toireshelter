@@ -873,6 +873,9 @@ func _ready() -> void:
 	hud.sensitivity_changed.connect(_on_sensitivity_changed)
 	hud.typing_changed.connect(_on_typing_changed)
 	hud.hints_changed.connect(_on_hints_changed)
+	hud.key_rebound.connect(_on_key_rebound)
+	hud.keys_reset.connect(_on_keys_reset)
+	hud.text_scale_changed.connect(_on_text_scale_changed)
 	hud.hint_requested.connect(_on_hint_requested)
 	room.unit_risen.connect(_on_unit_risen)
 	room.sink.soap_dissolved.connect(func() -> void:
@@ -3057,12 +3060,19 @@ func _on_prize_won(index: int) -> void:
 		return
 	var id: String = PRIZES[index]
 	_prize_pending = true
-	await get_tree().create_timer(1.0).timeout
+	await get_tree().create_timer(1.0 / ride_speed).timeout
 	_prize_pending = false
 	if id == "rice_pack" and (inventory.has(id) or items_found.has(id)):
 		return
 	_give_stage5(id)
-	hud.show_message(STAGE5["prize_" + id], 6.0)
+	hud.show_message(STAGE5["prize_" + id] + "（%d / %d 個め）" % [index + 1, PRIZES.size()], 6.0)
+	# 景品が出た：手に取って見せる（少しのあいだ、拡大して見える）
+	SfxScript.play("chime", 1.1)
+	select_item(inventory.find(id))
+	_show_zoom()
+	await get_tree().create_timer(2.6).timeout
+	if hud.is_zoom_open() and selected_item() == id:
+		hud.show_item_zoom(null, "", "")
 
 
 func _give_stage5(id: String) -> void:
@@ -4079,11 +4089,73 @@ func _load_settings() -> void:
 	hud.set_hints_ui(progress.hints_on)
 	AudioSettingsScript.load_from(cfg)
 	guide.load_from(cfg)
+	_load_keys(cfg)
+	hud.set_text_scale(clampf(float(cfg.get_value("ui", "text_scale", 1.0)), 0.8, 1.6))
 	_refresh_help()
 	hud.set_audio_ui({"master": AudioSettingsScript.master, "sfx": AudioSettingsScript.sfx, "ambient": AudioSettingsScript.ambient,
 			"sfx_on": AudioSettingsScript.sfx_on, "ambient_on": AudioSettingsScript.ambient_on})
 	player.camera.position.y = player.eye_height
 	hud.set_eye_height_ui(player.eye_height)
+
+
+## 保存してあるキーの割り当てを、入力に反映する。
+func _load_keys(cfg: ConfigFile) -> void:
+	for def in hud.REBIND_ACTIONS:
+		var act: String = def[0]
+		if cfg.has_section_key("keys", act):
+			_set_action_key(act, int(cfg.get_value("keys", act)))
+	hud.refresh_key_buttons()
+
+
+## 動作 act のキーを、keycode だけにする（コントローラのボタンは、そのまま残す）。ほかの動作が同じキーを持っていたら、そこから外す。
+func _set_action_key(act: String, keycode: int) -> void:
+	for other in hud.REBIND_ACTIONS:
+		var o: String = other[0]
+		if o == act:
+			continue
+		for ev in InputMap.action_get_events(o):
+			if ev is InputEventKey and (ev as InputEventKey).physical_keycode == keycode:
+				InputMap.action_erase_event(o, ev)
+	for ev in InputMap.action_get_events(act):
+		if ev is InputEventKey:
+			InputMap.action_erase_event(act, ev)
+	var nk := InputEventKey.new()
+	nk.physical_keycode = keycode as Key
+	InputMap.action_add_event(act, nk)
+
+
+func _on_key_rebound(act: String, keycode: int) -> void:
+	_set_action_key(act, keycode)
+	if DisplayServer.get_name() != "headless":
+		var cfg := ConfigFile.new()
+		cfg.load(SETTINGS_PATH)
+		cfg.set_value("keys", act, keycode)
+		cfg.save(SETTINGS_PATH)
+	hud.refresh_key_buttons()
+	_refresh_help()
+
+
+func _on_keys_reset() -> void:
+	var defaults := {"move_forward": KEY_W, "move_back": KEY_S, "move_left": KEY_A, "move_right": KEY_D, "action": KEY_E, "crouch": KEY_C, "use_item": KEY_F, "inspect_item": KEY_Q, "drop_item": KEY_G, "notebook": KEY_N, "message_log": KEY_H, "eye_down": KEY_BRACKETLEFT, "eye_up": KEY_BRACKETRIGHT}
+	for act in defaults:
+		_set_action_key(act, defaults[act])
+	if DisplayServer.get_name() != "headless":
+		var cfg := ConfigFile.new()
+		cfg.load(SETTINGS_PATH)
+		if cfg.has_section("keys"):
+			cfg.erase_section("keys")
+		cfg.save(SETTINGS_PATH)
+	hud.refresh_key_buttons()
+	_refresh_help()
+
+
+func _on_text_scale_changed(v: float) -> void:
+	hud.set_text_scale(v)
+	if DisplayServer.get_name() != "headless":
+		var cfg := ConfigFile.new()
+		cfg.load(SETTINGS_PATH)
+		cfg.set_value("ui", "text_scale", v)
+		cfg.save(SETTINGS_PATH)
 
 
 ## 覚えた操作と案内を保存する。
