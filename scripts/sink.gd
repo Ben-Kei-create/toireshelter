@@ -138,12 +138,19 @@ func take_soap() -> void:
 
 
 ## せっけんを水に入れる。結果："ok" / "dry"（ふたをして水を溜めてからでないと沈まない）。
-func place_soap() -> String:
-	if not plug_in or level < SOAP_SOAK_LEVEL:
+func place_soap(allow_dry := false) -> String:
+	var wet := plug_in and level >= SOAP_SOAK_LEVEL
+	if not wet and not allow_dry:
 		return "dry"
-	soap_in_bowl = true
+	soap_in_bowl = true   # 先に置いておいても、あとで水がたまれば、溶けはじめる
 	_update_soap()
-	return "ok"
+	return "ok" if wet else "dry_ok"
+
+
+## 世界の位置 p が、洗面台のくぼみの上か。
+func in_cavity(p: Vector3) -> bool:
+	var l := to_local(p)
+	return l.x > CAVITY_X.x - 0.03 and l.x < CAVITY_X.y + 0.03 and l.z > CAVITY_Z.x - 0.03 and l.z < CAVITY_Z.y + 0.03 and l.y < WATER_MAX_Y + 0.2
 
 
 func _set_area(a: Area3D, on: bool) -> void:

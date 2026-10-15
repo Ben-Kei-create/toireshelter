@@ -164,7 +164,7 @@ func _run() -> void:
 	check(is_equal_approx(player.eye_height, 1.3), "低すぎる値は下限 130cm にそろう")
 	main.hud._height_slider.value = 150.0
 	var cfg := ConfigFile.new()
-	check(cfg.load("user://settings.cfg") == OK and is_equal_approx(float(cfg.get_value("player", "eye_height")), 1.5), "身長は設定ファイルに保存される")
+	check(cfg.load(main.SETTINGS_PATH) == OK and is_equal_approx(float(cfg.get_value("player", "eye_height")), 1.5), "身長は設定ファイルに保存される")
 	# 音：バス・音量・オンオフ・保存
 	var sfx_i := AudioServer.get_bus_index("SFX")
 	var amb_i := AudioServer.get_bus_index("Ambient")
@@ -178,7 +178,7 @@ func _run() -> void:
 	main.hud.audio_controls["ambient_on"].button_pressed = false
 	check(AudioServer.is_bus_mute(amb_i), "環境音もオフにできる")
 	cfg = ConfigFile.new()
-	check(cfg.load("user://settings.cfg") == OK and absf(float(cfg.get_value("audio", "master")) - 0.5) < 0.001 and cfg.get_value("audio", "sfx_on") == false, "音の設定も保存される")
+	check(cfg.load(main.SETTINGS_PATH) == OK and absf(float(cfg.get_value("audio", "master")) - 0.5) < 0.001 and cfg.get_value("audio", "sfx_on") == false, "音の設定も保存される")
 	main.hud.audio_controls["master"].value = 100.0
 	main.hud.audio_controls["sfx"].value = 100.0
 	main.hud.audio_controls["sfx_on"].button_pressed = true

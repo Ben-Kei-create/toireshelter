@@ -48,7 +48,7 @@ const COVER_TIME := 0.3
 const INSTALL_TIME := 0.6
 const DISH_POS := Vector3(-0.8, 0.0, 0.86)
 const SHELF_NOTE_POS := Vector3(-0.83, 1.332, 0.0)
-const TANK_NOTE_POS := Vector3(-0.899, 0.42, -0.04)
+const TANK_NOTE_POS := Vector3(-0.898, 0.42, -0.04)
 
 var plunger: Node3D
 var brush: Node3D

@@ -297,8 +297,10 @@ func _build_palace_trim() -> void:
 	var wh := 0.9   # 腰壁の高さ
 	var t := 0.004
 	# 奥の壁・左の壁の腰壁（右の壁は鏡裏収納の開口があるので、開口より下の黒い帯だけ）
-	_mesh_box(trim, Vector3(ROOM_W, wh, t), Vector3(0, wh * 0.5, -hd + t * 0.5 + 0.003), lacquer)
-	_mesh_box(trim, Vector3(t, wh, ROOM_D), Vector3(-hw + t * 0.5 + 0.003, wh * 0.5, 0), lacquer)
+	# 腰壁は、壁にぴったり貼る（紙・ステッカー・傷など、壁に貼った物の下に隠れない薄さ）
+	var tw := 0.0005
+	_mesh_box(trim, Vector3(ROOM_W, wh, tw), Vector3(0, wh * 0.5, -hd + tw * 0.5), lacquer)
+	_mesh_box(trim, Vector3(tw, wh, ROOM_D), Vector3(-hw + tw * 0.5, wh * 0.5, 0), lacquer)
 	_mesh_box(trim, Vector3(ROOM_W, 0.03, 0.012), Vector3(0, wh + 0.015, -hd + 0.009), gold)
 	_mesh_box(trim, Vector3(0.012, 0.03, ROOM_D), Vector3(-hw + 0.009, wh + 0.015, 0), gold)
 	# 巾木（金）

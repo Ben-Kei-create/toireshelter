@@ -117,6 +117,7 @@ func _process(delta: float) -> void:
 	advance(delta)
 	if shower_held:
 		_update_held_shower(delta)
+	_step_hose(delta)
 
 
 # ---------------------------------------------------------------- 手に持ったシャワー
@@ -312,10 +313,105 @@ func _build_shower() -> void:
 	add_child(shower)
 	# シャワーの水は、蛇口の水流より白く薄く（細かい水の束に見えるように）
 	shower._stream_mat.albedo_color = Color(0.92, 0.97, 1.0, 0.32)
-	# ホース：蛇口の本体の左端から下へ垂れて、シャワーの柄の下へ
-	var hose := MeshKit.mat("hose", Color(0.8, 0.8, 0.82), 0.3, 0.6)
-	MeshKit.pipe(self, [Vector3(0.47, 0.68, wz + 0.04), Vector3(0.4, 0.6, wz + 0.07), Vector3(0.28, 0.62, wz + 0.08),
-			Vector3(0.21, 0.9, wz + 0.09), Vector3(0.2, 1.3, wz + 0.1), Vector3(0.2, 1.63, wz + 0.11)], 0.008, hose)
+	# ホース：蛇口の本体の左端から、シャワーの柄の下まで。動くホース（_step_hose）で、持ち歩くと、あとから追いついてくる
+	_build_hose(wz)
+
+
+# ---------------------------------------------------------------- シャワーのホース（ひも状のものの物理：ベルレ法）
+
+const HOSE_N := 16                    # 点の数
+const HOSE_LEN := 1.7                 # ホースの長さ（m）。これより遠くへは、ヘッドを持っていけない
+var _hose_pts := PackedVector3Array()
+var _hose_prev := PackedVector3Array()
+var _hose_segs: Array = []
+var _hose_anchor := Vector3.ZERO      # 蛇口の側（ローカル）
+var _hose_rest := Vector3.ZERO        # シャワーを掛けたときの、柄の下（ローカル）
+
+
+func _build_hose(wz: float) -> void:
+	_hose_anchor = Vector3(0.47, 0.68, wz + 0.04)
+	_hose_rest = Vector3(0.2, 1.63, wz + 0.11)
+	var hose := MeshKit.mat("palace_gold_hose", Color(0.8, 0.62, 0.24), 0.3, 0.8)
+	var root := Node3D.new()
+	root.name = "Hose"
+	add_child(root)
+	for i in HOSE_N - 1:
+		var mi := MeshInstance3D.new()
+		var cm := CylinderMesh.new()
+		cm.top_radius = 0.008
+		cm.bottom_radius = 0.008
+		cm.height = 1.0
+		cm.radial_segments = 8
+		mi.mesh = cm
+		mi.material_override = hose
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		root.add_child(mi)
+		_hose_segs.append(mi)
+	# はじめは、掛けたシャワーへ向かって、少したるんだ形から
+	for i in HOSE_N:
+		var t := float(i) / float(HOSE_N - 1)
+		var p := _hose_anchor.lerp(_hose_rest, t) + Vector3(0.0, -0.25 * sin(PI * t), 0.0)
+		_hose_pts.append(p)
+		_hose_prev.append(p)
+	for k in 30:
+		_step_hose(0.016)
+
+
+## ホースを delta 秒ぶん進める：両端を固定（蛇口の側と、ヘッド）、あいだは重力で垂れ、長さを保つ。
+func _step_hose(delta: float) -> void:
+	if _hose_pts.is_empty():
+		return
+	var dt := minf(delta, 0.033)
+	var end := _hose_rest
+	if shower_held and shower != null:
+		end = to_local(shower.global_position)
+	# ヘッドが、ホースの長さより遠くへ行こうとしたら、ホースがぴんと張って、そこで止まる
+	var to_end := end - _hose_anchor
+	if to_end.length() > HOSE_LEN * 0.98:
+		end = _hose_anchor + to_end.normalized() * HOSE_LEN * 0.98
+		if shower_held:
+			shower.global_position = to_global(end)
+	# 積分（重力、空気の抵抗）
+	for i in range(1, HOSE_N - 1):
+		var p := _hose_pts[i]
+		var vel := (p - _hose_prev[i]) * 0.985
+		_hose_prev[i] = p
+		_hose_pts[i] = p + vel + Vector3(0.0, -9.8, 0.0) * dt * dt
+	_hose_pts[0] = _hose_anchor
+	_hose_pts[HOSE_N - 1] = end
+	var seg_len := HOSE_LEN / float(HOSE_N - 1)
+	for it in 10:
+		for i in HOSE_N - 1:
+			var a := _hose_pts[i]
+			var b := _hose_pts[i + 1]
+			var d := b - a
+			var dist := d.length()
+			if dist < 0.0001:
+				continue
+			var corr := d * ((dist - seg_len) / dist)
+			if i == 0:
+				_hose_pts[i + 1] = b - corr
+			elif i == HOSE_N - 2:
+				_hose_pts[i] = a + corr
+			else:
+				_hose_pts[i] = a + corr * 0.5
+				_hose_pts[i + 1] = b - corr * 0.5
+		_hose_pts[0] = _hose_anchor
+		_hose_pts[HOSE_N - 1] = end
+		for i in range(1, HOSE_N - 1):   # 浴槽の底より下へは、行かない
+			if _hose_pts[i].y < BOTTOM_Y + 0.012:
+				_hose_pts[i].y = BOTTOM_Y + 0.012
+	for i in HOSE_N - 1:
+		var a2 := _hose_pts[i]
+		var b2 := _hose_pts[i + 1]
+		var seg: MeshInstance3D = _hose_segs[i]
+		var dir := b2 - a2
+		var l := dir.length()
+		seg.position = (a2 + b2) * 0.5
+		if l > 0.0001:
+			var dn := dir / l
+			seg.basis = Basis(Quaternion(Vector3.UP, dn)) if absf(dn.dot(Vector3.UP)) < 0.9999 else Basis.IDENTITY
+			seg.scale = Vector3(1.0, l, 1.0)
 
 
 func _build_bottles() -> void:

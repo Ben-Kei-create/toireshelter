@@ -97,11 +97,15 @@ func _build_scratches() -> void:
 	# 傷の画像（透過付き）を、壁面の 1.5mm 手前の薄い板に貼る。GL Compatibility でも描けるよう、デカールではなく QuadMesh。
 	# 細い線が縮小で消えないよう、ミップマップ付きの線形フィルタ＋半透明の合成。影は落とさない
 	var q := QuadMesh.new()
-	var h := 0.17
+	var h := 0.24
 	q.size = Vector2(h * SCRATCH_TEX.get_width() / SCRATCH_TEX.get_height(), h)
 	var m := StandardMaterial3D.new()
 	m.albedo_texture = SCRATCH_TEX
-	m.albedo_color = Color(0.55, 0.5, 0.45)   # 画像の線は淡いので、少し暗くして遠くからも線が残るようにする
+	m.albedo_color = Color(1.0, 0.9, 0.62)   # 黒い腰壁の上でも見えるよう、明るい金色の線にして、ほんのり光らせる
+	m.emission_enabled = true
+	m.emission_texture = SCRATCH_TEX
+	m.emission = Color(1.0, 0.82, 0.45)
+	m.emission_energy_multiplier = 1.4
 	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
 	m.roughness = 0.9
@@ -136,16 +140,20 @@ func take_coin() -> void:
 ## 十円玉の持ち物の拡大モデル（洗面台・浴槽に置く見た目にも使う）。
 ## 十円玉の色：金と赤の部屋でも埋もれないよう、明るい銅色に、ほんのり自分で光らせる。
 static func _bright_coin_mat() -> StandardMaterial3D:
-	var m := MeshKit.mat("coin10", Color(0.92, 0.55, 0.3), 0.3, 0.7)
+	var m := MeshKit.mat("coin10", Color(0.98, 0.8, 0.32), 0.12, 0.95)   # メダルのような、つやのある金色
 	m.emission_enabled = true
-	m.emission = Color(0.9, 0.5, 0.25)
-	m.emission_energy_multiplier = 0.35
+	m.emission = Color(1.0, 0.78, 0.28)
+	m.emission_energy_multiplier = 0.5
 	return m
 
 
 static func coin_model() -> Node3D:
 	var n := Node3D.new()
 	MeshKit.cylinder(n, 0.0235, 0.004, Vector3.ZERO, _bright_coin_mat(), "Disc", -1.0, 32)
+	# 縁のふちどり（メダルのように、少し盛り上がる）と、真ん中の浮き彫り
+	var rim := MeshKit.cylinder(n, 0.0238, 0.0052, Vector3.ZERO, MeshKit.mat("coin10_rim", Color(1.0, 0.86, 0.4), 0.1, 1.0), "Rim", -1.0, 32)
+	rim.scale = Vector3(1.0, 1.0, 1.0)
+	MeshKit.cylinder(n, 0.019, 0.0058, Vector3.ZERO, _bright_coin_mat(), "Face", -1.0, 32)
 	return n
 
 

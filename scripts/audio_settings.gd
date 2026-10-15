@@ -3,7 +3,7 @@ extends RefCounted
 ## 音は3つのバス（Master・SFX・Ambient）に分ける。効果音（sfx.gd）は SFX、換気扇・路地・しずく（ambient_sound.gd）は Ambient。
 ## 音量は 0〜1（0 は無音）。効果音と環境音はそれぞれオン／オフもできる（オフは完全に消す）。
 
-const PATH := "user://settings.cfg"
+static var PATH := "user://settings_test.cfg" if DisplayServer.get_name() == "headless" else "user://settings.cfg"
 
 static var master := 1.0
 static var sfx := 1.0

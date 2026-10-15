@@ -127,7 +127,7 @@ const MESSAGES := {
 	"coin_taken_back": "十円玉を拾い上げた。",
 	"soap_pickup": "洗面台の下に、固形せっけんが落ちていた。拾った。",
 	"soap_placed": "せっけんを洗面台の水に沈めた。……ゆっくり溶けていく。",
-	"soap_dry": "洗面台に、水が溜まっていない。",
+	"soap_dry": "せっけんを、洗面台の底に置いた。水がたまれば、溶けはじめそうだ。",
 	"soap_dissolved": "せっけんが溶けて、中から重たい鉛のおもりが現れた。",
 	"sinker_pickup": "鉛のおもりを手に入れた。ずっしり重い。",
 	"ball_sunk": "粉の中から、固い玉がひとつ沈んだ。水では、色がにじむだけだ。",
@@ -704,7 +704,8 @@ const TUB_BODY_HEIGHT := 0.8
 const TUB_EXITS := [Vector3(0.05, 0.0, -0.15), Vector3(0.1, 0.0, 0.1), Vector3(0.0, 0.0, 0.5)]
 
 const AudioSettingsScript := preload("res://scripts/audio_settings.gd")
-const SETTINGS_PATH := "user://settings.cfg"
+## 設定の保存先。ヘッドレス（テスト）では別ファイルにして、プレイヤーの設定を書き換えない
+var SETTINGS_PATH := "user://settings_test.cfg" if DisplayServer.get_name() == "headless" else "user://settings.cfg"
 const PROMPT_EXAMINE := "左クリック：調べる"
 const PROMPT_PICKUP := "左クリック：拾う"
 const PROMPT_REPAIR := "左クリック：ドライバーで直す"
@@ -2552,7 +2553,7 @@ func _use_prompt(target: Object) -> String:
 	# 何に効くかは教えない（持っているだけ・狙うだけで答えが出ないように）。手に持った物を、狙った先に使う、とだけ出す
 	if String(target.get_meta("interact_id", "")).is_empty():
 		return ""
-	return "F：%sを使う" % item_name(id)
+	return "F：使う"   # 持ち物は、もう選んでいるので、名前は出さない
 
 
 ## F：選んだ持ち物を照準の対象に使う。失敗しても物は減らない。
@@ -2730,13 +2731,7 @@ func use_selected() -> void:
 				hud.show_message(MESSAGES["cannot_use"])
 		return
 	if id == "soap" and tid in SINK_TARGETS:
-		if room.sink.place_soap() == "ok":
-			remove_item("soap")
-			SfxScript.play("plop")
-			hud.show_message(MESSAGES["soap_placed"])
-			progress.discover("soap_placed")
-		else:
-			hud.show_message(MESSAGES["soap_dry"])
+		_put_soap_in_sink()
 		return
 	if id == "ten_yen" and tid in SINK_TARGETS:
 		if room.sink.plug_in:
@@ -3375,6 +3370,15 @@ const PLACE_REACH := 2.4
 
 
 ## G：手に持った物を、狙った先に置く。置いた物は、あとで拾える。
+## せっけんを、洗面台のくぼみに入れる（F でも、G で置いても同じ）。水があれば沈み、なければ底に置いておく（水がたまれば、溶けはじめる）。
+func _put_soap_in_sink() -> void:
+	var r: String = room.sink.place_soap(true)
+	remove_item("soap")
+	SfxScript.play("plop")
+	hud.show_message(MESSAGES["soap_placed"] if r == "ok" else MESSAGES["soap_dry"], 5.0)
+	progress.discover("soap_placed")
+
+
 func _drop_selected() -> void:
 	if paused or cleared or reading or gaming or mj_playing or peeping or txn > 0 or riding:
 		return
@@ -3398,6 +3402,9 @@ func _drop_selected() -> void:
 		hud.show_message(STAGE5["drop_here"])
 		return
 	p = floor_hit.position
+	if id == "soap" and room.sink.in_cavity(p):
+		_put_soap_in_sink()   # 洗面台に置いたせっけんは、ただの置き物ではなく、溶かす対象
+		return
 	_place_item(id, p, randf() * TAU)
 	var nm := item_name(id)
 	remove_item(id)

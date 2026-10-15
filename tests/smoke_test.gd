@@ -537,7 +537,7 @@ func _run() -> void:
 	main.use_selected()
 	_check(not main.door_open and main.inventory.has("spare_roll"), "ドアに予備ロールを使っても何も起きず、消費しない")
 	main.select_item(main.inventory.find("driver"))
-	_check(main._use_prompt(player.get_focused(true)) == "F：ドライバーを使う", "ドライバーを選んでドアを狙うと「F：ドライバーを使う」")
+	_check(main._use_prompt(player.get_focused(true)) == "F：使う", "ドライバーを選んでドアを狙うと「F：ドライバーを使う」")
 	main.use_selected()
 	_check(main.door_open and main.inventory.has("driver"), "F でドライバーを使うとドアを直せる（ドライバーは消費しない）")
 

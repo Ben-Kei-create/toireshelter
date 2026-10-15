@@ -189,6 +189,6 @@ func _run() -> void:
 	main.hud._bob_check.button_pressed = true
 	check(player.head_bob and main.hud._bob_check.text.contains("オン"), "設定のスイッチでオンに戻せる")
 	var cfg := ConfigFile.new()
-	check(cfg.load("user://settings.cfg") == OK and cfg.get_value("player", "head_bob") == true, "設定ファイルに保存される")
+	check(cfg.load(main.SETTINGS_PATH) == OK and cfg.get_value("player", "head_bob") == true, "設定ファイルに保存される")
 	print("detail_test: ", "OK" if failures == 0 else "%d FAILED" % failures)
 	quit(1 if failures > 0 else 0)

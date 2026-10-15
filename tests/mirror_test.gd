@@ -45,7 +45,7 @@ func _run() -> void:
 	main.select_item(main.inventory.find("spare_roll"))   # 拾っただけでは手に持たない
 	player.global_position = stand
 	_aim(player, lock_pt)
-	_check(main.selected_item() == "spare_roll" and main._use_prompt(player.get_focused(true)) == "F：予備ロールを使う", "予備ロールを選んでいても、案内は何に効くかを教えない（「F：予備ロールを使う」）")
+	_check(main.selected_item() == "spare_roll" and main._use_prompt(player.get_focused(true)) == "F：使う", "予備ロールを選んでいても、案内は何に効くかを教えない（「F：予備ロールを使う」）")
 	await _key(KEY_F)
 	_check(cab.locked and main.hud._message_label.text == main.MESSAGES["cannot_use"] and main.inventory.has("spare_roll"),
 			"予備ロールで F：「ここでは使えない」、解錠しない、消費しない")
@@ -58,7 +58,7 @@ func _run() -> void:
 	player.global_position = stand
 	_aim(player, lock_pt)
 	await _key([KEY_1, KEY_2, KEY_3][main.inventory.find("driver")])   # ドライバーの枠の番号キー
-	_check(main.selected_item() == "driver" and main._use_prompt(player.get_focused(true)) == "F：ドライバーを使う",
+	_check(main.selected_item() == "driver" and main._use_prompt(player.get_focused(true)) == "F：使う",
 			"ドライバーを選んで右端を狙うと「F：ドライバーを使う」（何に効くかは教えない）")
 	# 連打
 	for i in 3:
@@ -105,7 +105,7 @@ func _run() -> void:
 	m2.select_item(m2.inventory.find("driver"))
 	p2.global_position = stand
 	_aim(p2, c2.door_pivot.to_global(Vector3(-0.02, 0.25, 0.22)))
-	_check(m2._use_prompt(p2.get_focused(true)) == "F：ドライバーを使う", "扉を狙っても「F：ドライバーを使う」")
+	_check(m2._use_prompt(p2.get_focused(true)) == "F：使う", "扉を狙っても「F：ドライバーを使う」")
 	await _key(KEY_F)
 	_check(not c2.locked, "扉を狙って F でも解錠できる")
 

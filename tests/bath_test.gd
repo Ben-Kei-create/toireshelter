@@ -41,7 +41,7 @@ func _run() -> void:
 	player.global_position = Vector3(0.3, 0.0, -0.2)
 	var tub_aim: Vector3 = tub.to_global(Vector3(0.3, 0.3, 0.375))
 	_aim(player, tub_aim)
-	_check(main._use_prompt(player.get_focused(true)) == "F：ユブロマンを使う", "浴槽を狙うと「F：ユブロマンを使う」")
+	_check(main._use_prompt(player.get_focused(true)) == "F：使う", "浴槽を狙うと「F：ユブロマンを使う」")
 	tub.level = 0.05
 	tub.advance(0.0)
 	await _key(KEY_F)

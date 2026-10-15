@@ -167,7 +167,7 @@ func _run() -> void:
 	var holder_target: Vector3 = sup.get_node("PaperHolder").global_position + Vector3(0.08, -0.02, 0.0)
 	_aim(player, holder_target)
 	await _key(KEY_2)
-	_check(main._use_prompt(player.get_focused(true)) == "F：予備ロールを使う", "予備ロールを選んでホルダーを狙うと「F：予備ロールを使う」")
+	_check(main._use_prompt(player.get_focused(true)) == "F：使う", "予備ロールを選んでホルダーを狙うと「F：予備ロールを使う」")
 	await _key(KEY_F)
 	_check(main.hud._message_label.text == main.MESSAGES["cover_closed"] and main.inventory.has("spare_roll") and not sup.has_paper,
 			"カバーが閉じていると「先にカバーを開けよう。」。予備ロールは消費しない")
