@@ -643,6 +643,8 @@ const STAGE5 := {
 	"chest_small": "箱の底に、小さなツルハシが 1 本あった。もらっていこう。",
 	"small_have": "また、小さなツルハシが釣れた。……もう、持っている。",
 	"duct_sound": "耳栓をしたら、ダクトのうなりが消えた。……トン、トン、トトン。壁の向こうから、規則正しい音がする。こたつの奥のほうこうだ。",
+	"butsudan_dark": "仏壇だ。暗くて、よく見えない。位牌が二つあるようだ。……線香のにおいがする。",
+	"butsudan_lit": "仏壇に手を合わせた。チーン。ろうそくの火がゆれている。位牌のひとつは、名前が、薄れて読めない。",
 	"hp_pick": "こたつの中に、ヘッドホンが落ちていた。誰かの物だろうか。",
 	"hp_on": "ヘッドホンを耳につけた。……ざあ、とノイズが鳴って、誰かの話し声が聞こえてくる。",
 	"hp_voice": "二人の声。くぐもっていて、何を話しているのか、聞き取れない。……片方は、自分の声に似ている気がする。",
@@ -1782,7 +1784,7 @@ func _prompt_for(target: Object) -> String:
 			return PROMPTS["tv_remote"]
 		"door_knob", "fuse", "hand_mirror", "pickaxe", "crystal", "ladder_prop", "washitsu_coin", "heirloom_photo", "lighter", "rice_pack", "shot_coin", "bad_book", "card_pick_0", "card_pick_1", "card_pick_2", "card_pick_3", "aq_coin", "dish_core", "dart_coin", "headphones", "placed_item":
 			return PROMPT_PICKUP
-		"balcony_wall_w", "balcony_wall_e", "granny_chest":
+		"balcony_wall_w", "balcony_wall_e", "granny_chest", "butsudan":
 			return PROMPT_EXAMINE
 		"feed_box":
 			return PROMPT_EXAMINE
@@ -2064,6 +2066,12 @@ func _on_interact_requested(target: Object) -> void:
 			hud.show_message(STAGE5["wall_%s_look" % id.right(1)], 5.0)
 		"granny_chest":
 			_open_chest()
+		"butsudan":
+			var wr = room.washitsu
+			progress.discover("butsudan")
+			if wr.festive:
+				SfxScript.play("chime", 0.5)
+			hud.show_message(STAGE5["butsudan_lit"] if wr.festive else STAGE5["butsudan_dark"], 6.0)
 		"headphones":
 			if inventory.has("headphones") or items_found.has("headphones"):
 				return

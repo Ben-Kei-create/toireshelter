@@ -8,6 +8,7 @@ extends Node3D
 const MeshKit := preload("res://scripts/mesh_kit.gd")
 const Silhouettes := preload("res://scripts/silhouettes.gd")
 const Stage4Items := preload("res://scripts/stage4_items.gd")
+const Sfx := preload("res://scripts/sfx.gd")
 
 const HX := 1.8
 const HZ := 1.35
@@ -59,6 +60,8 @@ func _ready() -> void:
 	_build_shrine_and_ranma()
 	_build_table()
 	_build_extras()
+	_build_butsudan()
+	_build_lanterns()
 	MeshKit.auto_round = true
 
 
@@ -333,6 +336,159 @@ func set_scroll_alignment(a: float) -> void:
 
 
 ## 家宝の差し込み口を 1 つ光らせる。
+# ---------------------------------------------------------------- 仏壇と、まわる提灯
+
+var butsudan: Node3D
+var _candle_lights: Array = []
+var _candle_flames: Array = []
+var _lanterns: Array = []        # {node, mat, light}
+var _lantern_t := 0.0
+var festive := false             # 家宝が開いてから、提灯とろうそくが灯る
+const LANTERN_N := 22
+const LANTERN_Y := 2.05
+const LANTERN_INSET := 0.22
+
+
+## 東の壁の低い所の仏壇：黒漆の戸棚に金の宮殿、位牌が二つ、ろうそく、線香、おりん。
+func _build_butsudan() -> void:
+	butsudan = Node3D.new()
+	butsudan.name = "Butsudan"
+	butsudan.position = Vector3(HX - 0.26, 0.0, -0.45)
+	butsudan.rotation.y = -PI * 0.5   # ローカル +z（正面）を -x（部屋の中）へ
+	add_child(butsudan)
+	var lacquer := MeshKit.mat("butsudan_lacquer", Color(0.06, 0.04, 0.04), 0.25, 0.1)
+	var gold := MeshKit.mat("butsudan_gold", Color(0.85, 0.68, 0.25), 0.3, 0.8)
+	var wood := MeshKit.mat("butsudan_wood", Color(0.2, 0.1, 0.07), 0.5)
+	MeshKit.box(butsudan, Vector3(0.9, 0.62, 0.5), Vector3(0, 0.31, 0), lacquer, "Cabinet")
+	for sx in [-0.21, 0.21]:   # 下の戸棚の引き戸の取っ手と金の縁
+		MeshKit.box(butsudan, Vector3(0.36, 0.5, 0.012), Vector3(sx, 0.31, 0.256), wood, "Door")
+		MeshKit.box(butsudan, Vector3(0.02, 0.08, 0.016), Vector3(sx + (-0.14 if sx > 0 else 0.14), 0.31, 0.262), gold, "Handle")
+	MeshKit.box(butsudan, Vector3(0.96, 0.04, 0.54), Vector3(0, 0.64, 0), lacquer, "Top")
+	# 宮殿（上段）：背板は金、天井に屋根
+	MeshKit.box(butsudan, Vector3(0.72, 0.86, 0.04), Vector3(0, 1.1, -0.2), gold, "Back")
+	for sx in [-0.37, 0.37]:
+		MeshKit.box(butsudan, Vector3(0.04, 0.86, 0.4), Vector3(sx, 1.1, 0.0), lacquer, "Side")
+	MeshKit.box(butsudan, Vector3(0.84, 0.05, 0.46), Vector3(0, 1.55, 0.0), lacquer, "Roof")
+	MeshKit.box(butsudan, Vector3(0.9, 0.03, 0.5), Vector3(0, 1.595, 0.02), gold, "RoofTrim")
+	MeshKit.box(butsudan, Vector3(0.7, 0.025, 0.4), Vector3(0, 0.77, 0.0), wood, "Shelf")
+	# 位牌 2 つ
+	for sx in [-0.14, 0.14]:
+		MeshKit.box(butsudan, Vector3(0.08, 0.2, 0.025), Vector3(sx, 0.89, 0.0), gold, "Ihai")
+		MeshKit.box(butsudan, Vector3(0.1, 0.03, 0.05), Vector3(sx, 0.78, 0.0), lacquer, "IhaiBase")
+	MeshKit.box(butsudan, Vector3(0.025, 0.04, 0.002), Vector3(-0.14, 0.9, 0.0135), MeshKit.mat("ihai_name", Color(0.05, 0.04, 0.03), 0.9), "Name")
+	# 手前の台：ろうそく立て 2 つ、線香立て、おりん
+	for sx in [-0.28, 0.28]:
+		MeshKit.cylinder(butsudan, 0.022, 0.1, Vector3(sx, 0.7, 0.14), gold, "CandleStand", 0.012, 12)
+		MeshKit.cylinder(butsudan, 0.014, 0.08, Vector3(sx, 0.79, 0.14), MeshKit.mat("candle_wax", Color(0.95, 0.9, 0.78), 0.8), "Candle", -1.0, 10)
+		var flame := MeshKit.sphere(butsudan, 0.011, Vector3(sx, 0.848, 0.14), MeshKit.mat("candle_flame", Color(1.0, 0.8, 0.4), 0.5))
+		flame.scale = Vector3(0.7, 1.5, 0.7)
+		var fm := flame.material_override as StandardMaterial3D
+		fm.emission_enabled = true
+		fm.emission = Color(1.0, 0.65, 0.25)
+		fm.emission_energy_multiplier = 0.0
+		_candle_flames.append(flame)
+		var lamp := OmniLight3D.new()
+		lamp.position = Vector3(sx, 0.9, 0.2)
+		lamp.light_color = Color(1.0, 0.68, 0.32)
+		lamp.light_energy = 0.0
+		lamp.omni_range = 1.6
+		butsudan.add_child(lamp)
+		_candle_lights.append(lamp)
+	MeshKit.cylinder(butsudan, 0.04, 0.035, Vector3(0, 0.675, 0.16), MeshKit.mat("incense_bowl", Color(0.3, 0.28, 0.25), 0.6, 0.4), "IncenseBowl", 0.05, 16)
+	for k in 3:
+		MeshKit.cylinder(butsudan, 0.002, 0.1, Vector3(-0.012 + k * 0.012, 0.74, 0.16), MeshKit.mat("incense_stick", Color(0.35, 0.2, 0.12), 0.9), "Incense", -1.0, 6).rotation.z = deg_to_rad(-6.0 + k * 6.0)
+	MeshKit.cylinder(butsudan, 0.045, 0.035, Vector3(0.12, 0.66, 0.15), gold, "Rin", 0.06, 20)
+	var a := MeshKit.interact_area(butsudan, "ButsudanArea", "butsudan", null)
+	MeshKit.shape_box(a, Vector3(1.0, 1.7, 0.6), Vector3(0, 0.85, 0.05))
+
+
+## 部屋のぐるりの天井ぎわに、提灯が横一列に並んで、ゆっくり回る（走馬灯のように）。
+func _build_lanterns() -> void:
+	var cord := MeshKit.mat("lantern_cord", Color(0.2, 0.15, 0.1), 0.9)
+	var x0 := HX - LANTERN_INSET
+	var z0 := HZ - LANTERN_INSET
+	for pair in [[Vector3(0, LANTERN_Y + 0.2, -z0), Vector3(x0 * 2.0, 0.01, 0.01)], [Vector3(0, LANTERN_Y + 0.2, z0), Vector3(x0 * 2.0, 0.01, 0.01)],
+			[Vector3(-x0, LANTERN_Y + 0.2, 0), Vector3(0.01, 0.01, z0 * 2.0)], [Vector3(x0, LANTERN_Y + 0.2, 0), Vector3(0.01, 0.01, z0 * 2.0)]]:
+		MeshKit.box(self, pair[1], pair[0], cord, "LanternRail")
+	for i in LANTERN_N:
+		var n := Node3D.new()
+		n.name = "Lantern%d" % i
+		add_child(n)
+		var red: bool = i % 2 == 0
+		var m := MeshKit.mat("lantern_%d" % (i % 2), Color(0.8, 0.15, 0.1) if red else Color(0.95, 0.9, 0.78), 0.8)
+		m.emission_enabled = true
+		m.emission = Color(1.0, 0.45, 0.2) if red else Color(1.0, 0.8, 0.5)
+		m.emission_energy_multiplier = 0.0
+		var body := MeshKit.sphere(n, 0.09, Vector3(0, 0.0, 0), m)
+		body.scale = Vector3(1.0, 1.2, 1.0)
+		MeshKit.cylinder(n, 0.05, 0.015, Vector3(0, 0.13, 0), MeshKit.mat("lantern_cap", Color(0.08, 0.07, 0.06), 0.7), "Cap", -1.0, 10)
+		MeshKit.cylinder(n, 0.05, 0.015, Vector3(0, -0.13, 0), MeshKit.mat("lantern_cap", Color(0.08, 0.07, 0.06), 0.7), "Bottom", -1.0, 10)
+		MeshKit.cylinder(n, 0.003, 0.2, Vector3(0, 0.23, 0), cord, "String", -1.0, 4)
+		var light: OmniLight3D = null
+		if i % 4 == 0:
+			light = OmniLight3D.new()
+			light.light_color = Color(1.0, 0.6, 0.3)
+			light.light_energy = 0.0
+			light.omni_range = 1.8
+			n.add_child(light)
+		_lanterns.append({"node": n, "mat": m, "light": light})
+	_place_lanterns()
+
+
+func _perimeter_point(d: float) -> Vector3:
+	var x0 := HX - LANTERN_INSET
+	var z0 := HZ - LANTERN_INSET
+	var per := 4.0 * (x0 + z0)
+	d = fposmod(d, per)
+	var w := 2.0 * x0
+	var h := 2.0 * z0
+	if d < w:
+		return Vector3(-x0 + d, LANTERN_Y, -z0)
+	d -= w
+	if d < h:
+		return Vector3(x0, LANTERN_Y, -z0 + d)
+	d -= h
+	if d < w:
+		return Vector3(x0 - d, LANTERN_Y, z0)
+	d -= w
+	return Vector3(-x0, LANTERN_Y, z0 - d)
+
+
+func _place_lanterns() -> void:
+	var per := 4.0 * ((HX - LANTERN_INSET) + (HZ - LANTERN_INSET))
+	for i in _lanterns.size():
+		var n: Node3D = _lanterns[i].node
+		n.position = _perimeter_point(_lantern_t + per * float(i) / float(_lanterns.size()))
+		n.rotation.z = 0.04 * sin(_lantern_t * 2.0 + i)
+
+
+func _process(delta: float) -> void:
+	if _lanterns.is_empty():
+		return
+	_lantern_t += delta * (0.22 if festive else 0.05)
+	_place_lanterns()
+	if festive:
+		var fl := 1.0 + 0.08 * sin(_lantern_t * 40.0) + 0.05 * sin(_lantern_t * 23.0)
+		for l in _candle_lights:
+			(l as OmniLight3D).light_energy = 0.35 * fl
+
+
+## 提灯とろうそくに灯りをともす（家宝が開いたあと）。
+func set_festive(on: bool) -> void:
+	festive = on
+	for l in _lanterns:
+		(l.mat as StandardMaterial3D).emission_energy_multiplier = 1.6 if on else 0.0
+		if l.light:
+			(l.light as OmniLight3D).light_energy = 0.28 if on else 0.0
+	for f in _candle_flames:
+		((f as MeshInstance3D).material_override as StandardMaterial3D).emission_energy_multiplier = 3.0 if on else 0.0
+	if not on:
+		for lt in _candle_lights:
+			(lt as OmniLight3D).light_energy = 0.0
+	if on:
+		Sfx.play("chime", 0.6, -8.0)
+
+
 func light_slot(i: int) -> void:
 	if i >= 0 and i < heirloom_slots.size():
 		var m := StandardMaterial3D.new()
@@ -343,11 +499,12 @@ func light_slot(i: int) -> void:
 		(heirloom_slots[i] as MeshInstance3D).material_override = m
 
 
-## 家宝の蓋が開いて、写真が見える。
+## 家宝の蓋が開いて、写真が見える。提灯とろうそくに灯りがともる。
 func open_heirloom(instant := false) -> void:
 	if heirloom_open:
 		return
 	heirloom_open = true
+	set_festive(true)
 	var lid := heirloom.get_node("Lid") as Node3D
 	if instant:
 		lid.rotation.x = deg_to_rad(-100.0)
