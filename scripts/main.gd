@@ -17,6 +17,7 @@ const KotatsuScript := preload("res://scripts/kotatsu.gd")
 const SmallPropsScript := preload("res://scripts/small_props.gd")
 const FishingScript := preload("res://scripts/fishing.gd")
 const HeadphoneAudio := preload("res://scripts/headphone_audio.gd")
+const ControlsGuide := preload("res://scripts/controls_guide.gd")
 const StoryData := preload("res://scripts/story_data.gd")
 const IntercomScript := preload("res://scripts/intercom.gd")
 const CorkGunScript := preload("res://scripts/cork_gun.gd")
@@ -718,6 +719,9 @@ var _mutter_idle_i := 0
 var _reader_after: Callable
 var phone_coin_taken := false
 var medal_given := false
+var guide := ControlsGuide.new()   # 操作の案内（覚えた操作・案内した操作）
+var _tip_cooldown := 0.0
+var _action_cache := ""
 var txn := 0                       # 取引の最中（購入・メダル交換・クレーン）。この間は、保存を後回しにして、置く・捨てるも止める
 var _ufo_txn := false
 var _prize_pending := false
@@ -967,12 +971,6 @@ func _begin_play(with_opening := false) -> void:
 		if with_opening:
 			_opening_event()
 	_count_examinable()
-	var seen_cfg := ConfigFile.new()
-	seen_cfg.load(SETTINGS_PATH)
-	if not bool(seen_cfg.get_value("ui", "intro_seen", false)):
-		hud.show_intro("移動：W A S D　視点：マウス　調べる：左クリック\n座る・入る：E　しゃがむ：C　メッセージの履歴：H\nノート：N　目の高さ：[ と ]　設定：Esc")
-		seen_cfg.set_value("ui", "intro_seen", true)
-		seen_cfg.save(SETTINGS_PATH)
 
 
 func _process(_delta: float) -> void:
@@ -1001,6 +999,8 @@ func _process(_delta: float) -> void:
 	if not paused and room.exterior.blowgun_sign:
 		room.exterior.set_blowgun_sign_visible(player.eye_height >= ExteriorScript.SIGN_MIN_EYE and ExteriorScript.in_balcony(player.global_position))
 	_update_wall_hold(_delta)
+	if not paused and _title == null:
+		_update_tips(_delta)
 	if _ufo_txn and not room.apartment.ufo_catcher.busy and not _prize_pending:
 		_ufo_txn = false
 		txn_end()
@@ -1040,9 +1040,13 @@ func _process(_delta: float) -> void:
 	if not use.is_empty():
 		parts.append(use)
 	var action := _action_for(focused)
+	_action_cache = action
 	if not action.is_empty():
 		parts.append(ACTION_PROMPTS[action])
-	hud.set_prompt("　／　".join(parts))
+	var shown := "　／　".join(parts)
+	if guide.using_pad:   # コントローラのときは、ボタンの呼び名にする
+		shown = shown.replace("左クリック", "Ａボタン").replace("E：", "Yボタン：").replace("F：", "Xボタン：")
+	hud.set_prompt(shown)
 
 
 ## 開発用：環境変数 TOIRE_PREVIEW=elevator / entrance で、まだ歩いて来られない場所（エレベーターの箱の中・1 階の入口）に立って始める。
@@ -1147,7 +1151,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		if event.is_action_pressed("pause"):
 			get_viewport().set_input_as_handled()
 			_close_reader()
-		elif event is InputEventMouseButton and event.pressed and (event as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT:
+		elif (event is InputEventMouseButton and event.pressed and (event as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT) or (event is InputEventJoypadButton and event.is_action_pressed("interact")):
 			get_viewport().set_input_as_handled()
 			_reader_page += 1
 			SfxScript.play("page")
@@ -1189,6 +1193,12 @@ func _unhandled_input(event: InputEvent) -> void:
 			return
 		if event.is_action_pressed("item_8"):
 			select_item(hud.inv_off + 7)
+			return
+		if event.is_action_pressed("item_prev") and inventory.size() > 0:
+			select_item(posmod((selected if selected >= 0 else 0) - 1, inventory.size()))
+			return
+		if event.is_action_pressed("item_next") and inventory.size() > 0:
+			select_item(posmod((selected if selected >= 0 else -1) + 1, inventory.size()))
 			return
 		if event.is_action_pressed("inspect_item"):
 			toggle_zoom()
@@ -3918,6 +3928,7 @@ func _close_notebook() -> void:
 
 func _pause() -> void:
 	hud.set_hint_ask_ui(progress.hints_left(), progress.hints_on, progress.HINT_LIMIT)
+	_refresh_help()
 	if hud.is_notebook_open():
 		hud.close_notebook()
 		player.controls_enabled = true
@@ -3960,10 +3971,81 @@ func _load_settings() -> void:
 	add_child(progress)
 	hud.set_hints_ui(progress.hints_on)
 	AudioSettingsScript.load_from(cfg)
+	guide.load_from(cfg)
+	_refresh_help()
 	hud.set_audio_ui({"master": AudioSettingsScript.master, "sfx": AudioSettingsScript.sfx, "ambient": AudioSettingsScript.ambient,
 			"sfx_on": AudioSettingsScript.sfx_on, "ambient_on": AudioSettingsScript.ambient_on})
 	player.camera.position.y = player.eye_height
 	hud.set_eye_height_ui(player.eye_height)
+
+
+## 覚えた操作と案内を保存する。
+func _save_guide() -> void:
+	if DisplayServer.get_name() == "headless":
+		return   # テストでは、プレイヤーの設定を書き換えない
+	var cfg := ConfigFile.new()
+	cfg.load(SETTINGS_PATH)
+	guide.save_to(cfg)
+	cfg.save(SETTINGS_PATH)
+
+
+func _refresh_help() -> void:
+	hud.set_help_text(guide.help_text())
+
+
+## すべての入力を見て、初めてした操作を「覚えた」にする。
+func _input(event: InputEvent) -> void:
+	var id := guide.learn_from(event)
+	if not id.is_empty():
+		_save_guide()
+		_refresh_help()
+
+
+## 初めてその操作が出てきた：小さな案内を出す（間をあけて、1 つずつ）。
+func _tip(id: String) -> void:
+	if _tip_cooldown > 0.0 or not guide.should_tip(id) or paused or cleared or reading or txn > 0:
+		return
+	hud.show_tip(guide.tip_text(id), 7.0)
+	_tip_cooldown = 12.0
+	_save_guide()
+
+
+## 毎フレーム：どの操作の案内を出すか決める。
+func _update_tips(delta: float) -> void:
+	_tip_cooldown = maxf(0.0, _tip_cooldown - delta)
+	if absf(Input.get_axis("look_left", "look_right")) > 0.3 or absf(Input.get_axis("look_up", "look_down")) > 0.3:
+		if guide.learn_look_from_pad() != "":
+			_save_guide()
+			_refresh_help()
+	if Input.get_vector("move_left", "move_right", "move_forward", "move_back").length() > 0.3 and guide.learn_move_from_axes() != "":
+		_save_guide()
+		_refresh_help()
+	if play_time < 1.0:
+		_tip("move")
+		return
+	if play_time > 8.0 and guide.learned.has("move"):
+		_tip("look")
+	if play_time > 15.0 and hud._dot != null and hud._dot.color.b < 0.6:
+		_tip("interact")   # 光る点（調べられる物に乗った）
+	if not _action_cache.is_empty():
+		_tip("action")
+	if not inventory.is_empty():
+		_tip("select")
+		if guide.learned.has("select"):
+			_tip("use_item")
+			_tip("inspect")
+	if inventory.size() >= 3:
+		_tip("drop")
+	if not progress.notes.is_empty():
+		_tip("notebook")
+	if region == "duct" or region == "washitsu":
+		_tip("eye")
+	if play_time > 90.0 and guide.learned.has("move"):
+		_tip("crouch")
+	if play_time > 150.0:
+		_tip("pause")
+	if play_time > 300.0:
+		_tip("log")
 
 
 func _on_eye_height_changed(value: float) -> void:
@@ -4059,11 +4141,42 @@ func _setup_input_map() -> void:
 	_add_key_action("item_8", [KEY_8])
 	_add_key_action("inspect_item", [KEY_Q])
 	_add_key_action("drop_item", [KEY_G])
+	_add_key_action("item_prev", [])
+	_add_key_action("item_next", [])
+	for a in ["look_left", "look_right", "look_up", "look_down"]:
+		_add_key_action(a, [])
 	if not InputMap.has_action("interact"):
 		InputMap.add_action("interact")
 		var click := InputEventMouseButton.new()
 		click.button_index = MOUSE_BUTTON_LEFT
 		InputMap.action_add_event("interact", click)
+	_setup_gamepad()
+
+
+## コントローラ（Xbox 風の配置）：左スティックで歩く、右スティックで見回す。
+## A＝調べる／X＝持ち物を使う／Y＝E（座る・入る）／B＝しゃがむ／LB・RB＝持ち物を選ぶ／十字キー上＝拡大・下＝置く・左＝履歴／BACK＝ノート／START＝設定／スティック押し込み＝目の高さ。
+func _setup_gamepad() -> void:
+	var buttons := {
+		"interact": [JOY_BUTTON_A], "use_item": [JOY_BUTTON_X], "action": [JOY_BUTTON_Y], "crouch": [JOY_BUTTON_B],
+		"item_prev": [JOY_BUTTON_LEFT_SHOULDER], "item_next": [JOY_BUTTON_RIGHT_SHOULDER],
+		"inspect_item": [JOY_BUTTON_DPAD_UP], "drop_item": [JOY_BUTTON_DPAD_DOWN], "message_log": [JOY_BUTTON_DPAD_LEFT],
+		"notebook": [JOY_BUTTON_BACK], "pause": [JOY_BUTTON_START], "eye_down": [JOY_BUTTON_LEFT_STICK], "eye_up": [JOY_BUTTON_RIGHT_STICK],
+	}
+	for a in buttons:
+		for b in buttons[a]:
+			var ev := InputEventJoypadButton.new()
+			ev.button_index = b
+			InputMap.action_add_event(a, ev)
+	var axes := {
+		"move_left": [JOY_AXIS_LEFT_X, -1.0], "move_right": [JOY_AXIS_LEFT_X, 1.0], "move_forward": [JOY_AXIS_LEFT_Y, -1.0], "move_back": [JOY_AXIS_LEFT_Y, 1.0],
+		"look_left": [JOY_AXIS_RIGHT_X, -1.0], "look_right": [JOY_AXIS_RIGHT_X, 1.0], "look_up": [JOY_AXIS_RIGHT_Y, -1.0], "look_down": [JOY_AXIS_RIGHT_Y, 1.0],
+	}
+	for a in axes:
+		var ev := InputEventJoypadMotion.new()
+		ev.axis = axes[a][0]
+		ev.axis_value = axes[a][1]
+		InputMap.action_add_event(a, ev)
+		InputMap.action_set_deadzone(a, 0.25)
 
 
 func _add_key_action(action: String, keys: Array) -> void:

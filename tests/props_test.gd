@@ -105,7 +105,7 @@ func _run() -> void:
 	game.stop()
 	for i in 600:
 		game.step(1.0 / 60.0)
-	check(game.hits > 0 or game.score_left + game.score_right > 0, "デモは勝手に進む（打ち返し %d 回）" % game.hits)
+	check(game.hits > 0 or game.tt_y > -1 or game.score > 0, "デモは勝手に進む（固めた数 %d）" % game.hits)
 	apt.set_tv_on(false)
 	check(not apt.tv_on and apt.get_node("TvCorner/Tv/Screen").material_override.albedo_color.v < 0.1, "電源を切ると画面が黒い")
 	apt.set_tv_on(true)
@@ -117,23 +117,29 @@ func _run() -> void:
 	var f: Vector3 = -player.camera.global_transform.basis.z
 	var to_tv: Vector3 = (apt.tv_screen_position() - player.camera.global_position).normalized()
 	check(f.dot(to_tv) > 0.98, "ゲームを始めると画面のほうを向く")
-	game.left_y = 90.0
-	game.input = Vector2(0, -1)
-	for i in 30:
-		game.step(1.0 / 60.0)
-	check(game.left_y < 90.0 - 30.0, "上キーでラケットが上へ動く")
-	game.input = Vector2(0, 1)
-	for i in 60:
-		game.step(1.0 / 60.0)
-	check(game.left_y > 90.0, "下キーで下へ動く")
+	var tx0: int = game.tt_x
+	game.input = Vector2(-1, 0)
+	for i in 6:
+		game.step(0.12)
+	check(game.tt_x < tx0, "A キーでブロックが左へ動く")
 	game.input = Vector2.ZERO
-	game.score_left = 4
-	game.ball = Vector2(game.W + 10.0, 80.0)
-	game.vel = Vector2(100.0, 0.0)
-	game.step(0.01)
-	check(game.message == "YOU WIN", "先に5点とると勝ち")
+	for r in 18:
+		game.tt_grid[r][0] = 1
+		game.tt_grid[r][1] = 1
+		game.tt_grid[r][2] = 1
+	game.tt_y = -1
+	game.tt_x = 3
+	game.tt_kind = "O"
+	game.tt_rot = 0
+	game.tt_grid[0][4] = 1   # 出口をふさぐ
+	game.tt_grid[0][5] = 1
+	for i in 20:
+		game.step(0.2)
+		if game.message != "":
+			break
+	check(game.message == "GAME OVER", "積み上がるとゲームオーバー")
 	game.step(3.0)
-	check(game.message == "" and game.score_left == 0, "勝敗のあと自動で最初から")
+	check(game.message == "" and game.tt_lines == 0, "あとで自動で最初から")
 	main._stop_game()
 	check(not main.gaming and player.controls_enabled and not game.playing, "やめると操作が戻る")
 	main._on_interact_requested(apt.get_node("TvCorner/Console/ConsoleArea"))
@@ -147,6 +153,9 @@ func _run() -> void:
 	main._pause()
 	var menu: Control = main.hud._pause_menu
 	check(menu.visible and main.hud._hint_label.text.begins_with("Esc：設定") and not main.hud._hint_label.text.contains("WASD"), "Esc で設定が開く（上端の案内は Esc：設定）")
+	for cid in main.guide.CONTROLS:
+		main.guide.learned[cid.id] = true   # 操作を覚えたあとの説明
+	main._refresh_help()
 	var controls := menu.find_child("Controls", true, false) as Label   # 設定画面の入れ物の階層が変わっても探せるように、名前で探す
 	check(controls != null and (controls.text.contains("E：") or controls.text.contains("座る・入る・立つ：E")), "設定に操作説明がある")
 	main.hud._height_slider.value = 165.0

@@ -873,6 +873,8 @@ func _build_settings(menu: Control) -> void:
 	get_viewport().size_changed.connect(_fit_settings)
 	_fit_settings()
 	var help := _make_label(20, HORIZONTAL_ALIGNMENT_LEFT)
+	help.name = "HelpText"
+	_help_label = help
 	help.name = "Controls"
 	help.text = "操作説明\n移動：W A S D（矢印キーも可）　　視点：マウス\n調べる・使う：左クリック　　座る・入る・立つ：E\nしゃがむ：C　　持ち物を使う：F　　選ぶ：1〜8・ホイール　　拡大：Q　　置く：G　　メッセージの履歴：H\n推理ノート（手がかり・パスワード・幕の目次）：N　　目の高さを変える：[ と ]\n釣り：釣り竿を拾い、ベランダの手すりを狙ってクリック。浮きが跳ねたらもう一度\nテレビゲーム中：W／A／S／D で操作、E でやめる\n設定を開く・閉じる：Esc"
 	box.add_child(help)
@@ -1175,6 +1177,20 @@ func set_stats(text: String) -> void:
 
 
 ## はじめて遊ぶときだけ出す、最小限の操作のヒント（数秒で薄れて消える）。
+var _help_label: Label
+
+
+## 設定画面の操作説明を差し替える（main.gd が、覚えた操作だけを書いた文を渡す）。
+func set_help_text(text: String) -> void:
+	if _help_label:
+		_help_label.text = text
+
+
+## 小さな操作の案内（初めてその操作が出てきたとき）。
+func show_tip(text: String, seconds := 7.0) -> void:
+	show_intro(text, seconds)
+
+
 func show_intro(text: String, seconds := 9.0) -> void:
 	if _intro == null:
 		var lab := _make_label(20, HORIZONTAL_ALIGNMENT_CENTER)

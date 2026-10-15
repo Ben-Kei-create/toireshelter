@@ -189,6 +189,13 @@ func _physics_process(delta: float) -> void:
 	else:
 		velocity.y = 0.0
 
+	if controls_enabled and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED and pose != Pose.TRANSITION and pose != Pose.LYING:
+		# 右スティックで見回す
+		var look := Input.get_vector("look_left", "look_right", "look_up", "look_down")
+		if look.length() > 0.01:
+			rotate_y(-look.x * 2.4 * delta * sensitivity)
+			_pitch = clampf(_pitch - look.y * 1.8 * delta * sensitivity, deg_to_rad(-PITCH_LIMIT_DEG), deg_to_rad(PITCH_LIMIT_DEG))
+			camera.rotation.x = _pitch
 	var input := Vector2.ZERO
 	if controls_enabled:
 		input = Input.get_vector("move_left", "move_right", "move_forward", "move_back")
