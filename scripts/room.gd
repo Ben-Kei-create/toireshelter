@@ -50,9 +50,12 @@ const DOOR_W := 0.7
 const DOOR_H := 1.9
 const DOOR_OPEN_DEG := -90.0
 
-const WALL_COLOR := Color(0.82, 0.78, 0.65)   # 少し黄ばんだアイボリーの樹脂パネル
-const SEAM_COLOR := Color(0.6, 0.57, 0.47)
-const CAULK_COLOR := Color(0.55, 0.55, 0.53)   # ゴム目地
+## トイレは、黒と赤を基調にした、宮殿のような美術館の部屋（清潔感のある、深紅の壁・黒い漆の腰壁・金の縁・シャンデリア）。
+const WALL_COLOR := Color(0.3, 0.035, 0.05)    # 深紅
+const SEAM_COLOR := Color(0.62, 0.46, 0.16)    # 金の縁
+const CAULK_COLOR := Color(0.62, 0.47, 0.17)   # 金の目地
+const BLACK_LACQUER := Color(0.04, 0.025, 0.03)
+const GOLD := Color(0.66, 0.5, 0.17)
 const PANEL_TARGET_W := 0.6   # パネル幅の目安。壁の長さを割り切れる枚数に丸める
 const DETAIL_GAP := 0.002     # 壁面から浮かせる量（面の重なりによるちらつき防止）
 const VENT_SIZE := 0.24
@@ -90,8 +93,8 @@ var front_door: FrontDoorScript
 var sky_clock: SkyClockScript
 var light_switch: Node3D
 # トイレの電球：自室のスイッチで入り切りする。消してからつけ直す回数が PURPLE_AFTER に達すると紫色になる（そのまま）
-const BULB_POS := Vector3(0.15, 2.17, 0.35)
-const BATH_LIGHT_ENERGY := 0.55
+const BULB_POS := Vector3(0.15, 2.17, 0.35)   # シャンデリアの吊り元（天井）
+const BATH_LIGHT_ENERGY := 0.7   # 深紅と黒の壁は光を吸うので、少し明るく
 const BATH_LIGHT_COLOR := Color(1.0, 0.89, 0.76)
 const PURPLE_LIGHT_COLOR := Color(0.25, 0.4, 1.0)   # 青い蛍光灯（名前は旧仕様のまま：紫→青）
 const PURPLE_AFTER := 4
@@ -148,6 +151,7 @@ func _ready() -> void:
 	_build_environment()
 	_build_shell()
 	_build_wall_details()
+	_build_palace_trim()
 	# 玄関ホール・自室（apartment.gd）と、換気経路・ベランダ・外景（exterior.gd）
 	apartment = ApartmentScript.new()
 	apartment.name = "Apartment"
@@ -212,28 +216,145 @@ func _ready() -> void:
 	add_child(ambient)
 
 
-# ---------------------------------------------------------------- トイレの電球
+# ---------------------------------------------------------------- 宮殿のしつらえ
+
+static var _pw: ImageTexture
+static var _pf: ImageTexture
+
+
+## 深紅の壁：ダマスク織り風の、ひし形の格子と小さな花（うすく浮き出す）。
+static func _palace_wall_tex() -> ImageTexture:
+	if _pw == null:
+		var n := 128
+		var img := Image.create(n, n, false, Image.FORMAT_RGB8)
+		var base := Color(0.3, 0.035, 0.05)
+		for y in n:
+			for x in n:
+				var u := float(x) / n
+				var v := float(y) / n
+				var d := absf(fposmod(u + v, 0.5) - 0.25) + absf(fposmod(u - v, 0.5) - 0.25)   # ひし形の格子
+				var c := base
+				if d < 0.05:
+					c = base.lightened(0.1)
+				var fx := fposmod(u, 0.5) - 0.25
+				var fy := fposmod(v, 0.5) - 0.25
+				if fx * fx + fy * fy < 0.0035:
+					c = base.lightened(0.14)
+				elif fx * fx + fy * fy < 0.009:
+					c = base.darkened(0.12)
+				img.set_pixel(x, y, c)
+		img.generate_mipmaps()
+		_pw = ImageTexture.create_from_image(img)
+	return _pw
+
+
+## 床：黒と深紅の市松模様の大理石、金の目地。
+static func _palace_floor_tex() -> ImageTexture:
+	if _pf == null:
+		var n := 256
+		var img := Image.create(n, n, false, Image.FORMAT_RGB8)
+		var noise := FastNoiseLite.new()
+		noise.frequency = 0.04
+		noise.seed = 3
+		for y in n:
+			for x in n:
+				var cx := int(x * 2 / n)
+				var cy := int(y * 2 / n)
+				var black := (cx + cy) % 2 == 0
+				var v := noise.get_noise_2d(x, y) * 0.5 + 0.5
+				var c := Color(0.05, 0.04, 0.05).lightened(0.05 * v) if black else Color(0.3, 0.035, 0.05).lightened(0.1 * v)
+				var gx := absi(x % (n / 2) - 0) < 2 or absi(x % (n / 2) - (n / 2 - 1)) < 1
+				var gy := absi(y % (n / 2) - 0) < 2 or absi(y % (n / 2) - (n / 2 - 1)) < 1
+				if gx or gy:
+					c = Color(0.62, 0.47, 0.17)
+				img.set_pixel(x, y, c)
+		img.generate_mipmaps()
+		_pf = ImageTexture.create_from_image(img)
+	return _pf
+
+
+## 壁の腰（黒い漆の羽目板）と金のモールディング、天井ぎわの金の縁。
+func _build_palace_trim() -> void:
+	var trim := Node3D.new()
+	trim.name = "PalaceTrim"
+	add_child(trim)
+	var gold := _mat("palace_frame_gold", GOLD, 0.3, 0.75)
+	var lacquer := _mat("palace_lacquer", BLACK_LACQUER, 0.22, 0.1)
+	var hw := ROOM_W * 0.5
+	var hd := ROOM_D * 0.5
+	var wh := 0.9   # 腰壁の高さ
+	var t := 0.004
+	# 奥の壁・左の壁の腰壁（右の壁は鏡裏収納の開口があるので、開口より下の黒い帯だけ）
+	_mesh_box(trim, Vector3(ROOM_W, wh, t), Vector3(0, wh * 0.5, -hd + t * 0.5 + 0.003), lacquer)
+	_mesh_box(trim, Vector3(t, wh, ROOM_D), Vector3(-hw + t * 0.5 + 0.003, wh * 0.5, 0), lacquer)
+	_mesh_box(trim, Vector3(ROOM_W, 0.03, 0.012), Vector3(0, wh + 0.015, -hd + 0.009), gold)
+	_mesh_box(trim, Vector3(0.012, 0.03, ROOM_D), Vector3(-hw + 0.009, wh + 0.015, 0), gold)
+	# 巾木（金）
+	_mesh_box(trim, Vector3(ROOM_W, 0.08, 0.01), Vector3(0, 0.04, -hd + 0.008), gold)
+	_mesh_box(trim, Vector3(0.01, 0.08, ROOM_D), Vector3(-hw + 0.008, 0.04, 0), gold)
+	# 天井ぎわの金の縁（4 辺）。鏡裏収納の開口より上
+	var cy := ROOM_H - 0.045
+	_mesh_box(trim, Vector3(ROOM_W, 0.09, 0.03), Vector3(0, cy, -hd + 0.015), gold)
+	_mesh_box(trim, Vector3(0.03, 0.09, ROOM_D), Vector3(-hw + 0.015, cy, 0), gold)
+	_mesh_box(trim, Vector3(0.03, 0.09, ROOM_D), Vector3(hw - 0.015, cy, 0), gold)
+	_mesh_box(trim, Vector3(ROOM_W, 0.09, 0.03), Vector3(0, cy, hd - 0.015), gold)
+	# 汚れの絵は、ぜんぶ隠す（清潔に）
+	var wear := get_node_or_null("BathWear")
+	if wear:
+		for g in ["Walls", "Floor", "Fixtures"]:
+			var gn := wear.get_node_or_null(g)
+			if gn:
+				(gn as Node3D).visible = false
+
+
+# ---------------------------------------------------------------- トイレのシャンデリア（電球の代わり）
+
 
 func _build_bath_bulb() -> void:
-	# 天井の電球（見た目）：丸い台と、光る球。消えているときは乳白色
+	# 天井のシャンデリア（金の枝 6 本・クリスタル・灯り）。灯りの色の変わり方（白／青）は、電球のときと同じ
 	var fixture := Node3D.new()
 	fixture.name = "BathBulb"
 	fixture.position = BULB_POS
 	add_child(fixture)
-	MeshKit.cylinder(fixture, 0.05, 0.02, Vector3(0, 0.01, 0), _mat("bulb_base", Color(0.85, 0.85, 0.83), 0.5), "Socket")
+	var gold := _mat("palace_frame_gold", GOLD, 0.3, 0.75)
+	MeshKit.cylinder(fixture, 0.07, 0.02, Vector3(0, 0.01, 0), gold, "CeilingRose", -1.0, 20)   # 天井の飾り板
+	MeshKit.cylinder(fixture, 0.008, 0.07, Vector3(0, -0.03, 0), gold, "Chain", -1.0, 8)
+	MeshKit.sphere(fixture, 0.035, Vector3(0, -0.085, 0), gold)
+	MeshKit.cylinder(fixture, 0.012, 0.1, Vector3(0, -0.13, 0), gold, "Stem", 0.03, 10)
 	_bulb_mat = StandardMaterial3D.new()
 	_bulb_mat.albedo_color = Color(1.0, 0.95, 0.8)
 	_bulb_mat.emission_enabled = true
 	_apply_bath_light()
-	var bulb := MeshKit.sphere(fixture, 0.04, Vector3(0, -0.03, 0), _bulb_mat)
+	var bulb := MeshKit.sphere(fixture, 0.04, Vector3(0, -0.2, 0), _bulb_mat)   # 中央の大きな灯り
 	bulb.name = "Bulb"
 	bulb.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var crystal := StandardMaterial3D.new()
+	crystal.albedo_color = Color(0.85, 0.92, 1.0, 0.55)
+	crystal.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	crystal.roughness = 0.05
+	crystal.metallic = 0.2
+	for i in 6:
+		var ang := TAU * float(i) / 6.0
+		var dir := Vector3(cos(ang), 0, sin(ang))
+		# 枝：中央から外へ、少し下がってから上へ反る
+		var arm := MeshKit.cylinder(fixture, 0.005, 0.2, dir * 0.1 + Vector3(0, -0.13, 0), gold, "Arm%d" % i, -1.0, 6)
+		arm.rotation = Vector3(0, -ang, deg_to_rad(90.0))
+		MeshKit.cylinder(fixture, 0.016, 0.02, dir * 0.2 + Vector3(0, -0.14, 0), gold, "Cup%d" % i, 0.008, 8)
+		var cb := MeshKit.sphere(fixture, 0.016, dir * 0.2 + Vector3(0, -0.115, 0), _bulb_mat)
+		cb.scale = Vector3(0.8, 1.4, 0.8)
+		cb.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		for k in 2:   # 枝の先から下がる、クリスタル
+			var cp := dir * (0.12 + 0.07 * k) + Vector3(0, -0.2 - 0.03 * k, 0)
+			MeshKit.cylinder(fixture, 0.0015, 0.05, cp + Vector3(0, 0.025, 0), gold, "Wire", -1.0, 4)
+			var gem := MeshKit.sphere(fixture, 0.012, cp - Vector3(0, 0.005, 0), crystal)
+			gem.scale = Vector3(0.7, 1.7, 0.7)
+			gem.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 
 
 func _apply_bath_light() -> void:
 	var col := PURPLE_LIGHT_COLOR if bath_purple else BATH_LIGHT_COLOR
 	bath_light.light_color = col
-	bath_light.light_energy = (0.9 if bath_purple else BATH_LIGHT_ENERGY) if bath_light_on else 0.0
+	bath_light.light_energy = (1.2 if bath_purple else BATH_LIGHT_ENERGY) if bath_light_on else 0.0
 	_bulb_mat.emission = col
 	_bulb_mat.emission_energy_multiplier = 3.0 if bath_light_on else 0.0
 	_bulb_mat.albedo_color = Color(0.75, 0.55, 1.0) if (bath_purple and bath_light_on) else (Color(1.0, 0.95, 0.8) if bath_light_on else Color(0.8, 0.8, 0.78))
@@ -262,7 +383,7 @@ func set_bath_light(on: bool) -> String:
 		for i in 3:
 			tw.tween_callback(func() -> void: bath_light.light_energy = 0.0)
 			tw.tween_interval(0.07)
-			tw.tween_callback(func() -> void: bath_light.light_energy = (0.9 if bath_purple else BATH_LIGHT_ENERGY))
+			tw.tween_callback(func() -> void: bath_light.light_energy = (1.2 if bath_purple else BATH_LIGHT_ENERGY))
 			tw.tween_interval(0.09)
 	return key
 
@@ -808,7 +929,7 @@ func _build_environment() -> void:
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	# 電球色（2700〜3000K 相当）で少し薄暗いユニットバス。環境光も暖色にして、影が真っ黒にならないようにする
 	env.ambient_light_color = Color(0.8, 0.77, 0.72)
-	env.ambient_light_energy = 0.4
+	env.ambient_light_energy = 0.45
 	# 明るい白い設備が白飛びして輪郭が消えないよう、トーンマッピングで明るい部分をなだらかに抑える
 	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 	env.tonemap_exposure = 0.8
@@ -828,7 +949,7 @@ func _build_environment() -> void:
 	# 少し入口寄りに置き、設備の手前側の面を照らして奥・下に影を落とす（影はこの1灯だけ）
 	room_light.position = Vector3(0.15, 2.05, 0.35)   # 電球（BULB_POS）の少し下
 	room_light.light_color = Color(1.0, 0.89, 0.76)   # 電球色（黄色を乗せすぎない）
-	room_light.light_energy = 0.55
+	room_light.light_energy = 0.8
 	room_light.omni_range = 4.0
 	room_light.shadow_enabled = true
 	room_light.shadow_bias = 0.03
@@ -853,11 +974,11 @@ func _build_shell() -> void:
 	add_child(shell)
 
 	# 壁：薄いアイボリー／床：少し暗いグレー／設備：白（PORCELAIN）で明度差をつける
-	var wall_mat := _mat("wall", WALL_COLOR)
+	var wall_mat := MeshKit.tiled_mat("palace_wall", _palace_wall_tex(), 0.5, Color(1, 1, 1), 0.55)
 	# 床：暖かいグレージュの色はそのまま、細かい粒の模様だけ足す
-	var floor_tint := Color(FLOOR_COLOR.r / FLOOR_TEX_AVG.r, FLOOR_COLOR.g / FLOOR_TEX_AVG.g, FLOOR_COLOR.b / FLOOR_TEX_AVG.b)
-	var floor_mat := MeshKit.tiled_mat("floor_tex", FLOOR_TEX, 0.6, floor_tint, 0.6)
-	var ceil_mat := _mat("ceiling", Color(0.95, 0.95, 0.95))
+	var floor_mat := MeshKit.tiled_mat("palace_floor", _palace_floor_tex(), 0.8, Color(1, 1, 1), 0.18)
+	floor_mat.metallic = 0.12
+	var ceil_mat := _mat("palace_ceiling", Color(0.3, 0.04, 0.06), 0.7)
 
 	var outer_w := ROOM_W + WALL_T * 2.0
 	var outer_d := ROOM_D + WALL_T * 2.0
@@ -896,7 +1017,7 @@ func _build_shell() -> void:
 	_static_box(shell, "WallFrontTop", Vector3(DOOR_W, top_h, WALL_T), Vector3(0, DOOR_H + top_h * 0.5, front_z), wall_mat)
 
 	# ドア枠（見た目のみ）
-	var frame_mat := _mat("frame", Color(0.45, 0.33, 0.22))
+	var frame_mat := _mat("palace_frame_gold", GOLD, 0.3, 0.75)
 	var frame := Node3D.new()
 	frame.name = "DoorFrame"
 	shell.add_child(frame)
@@ -1348,8 +1469,12 @@ func _build_door() -> void:
 	door_pivot.add_child(visual)
 	var panel_size := Vector3(DOOR_W - 0.01, DOOR_H - 0.01, 0.04)
 	var panel_center := Vector3(DOOR_W * 0.5, DOOR_H * 0.5, 0.0)
-	_mesh_box(visual, panel_size, panel_center, _mat("door", Color(0.62, 0.5, 0.38), 0.7))
-	var knob_mat := _mat("knob", Color(0.8, 0.72, 0.45), 0.3, 0.8)
+	_mesh_box(visual, panel_size, panel_center, _mat("palace_door", BLACK_LACQUER, 0.25, 0.1))
+	for pz in [-0.021, 0.021]:   # 扉の金の縁取りと、赤い飾り板
+		_mesh_box(visual, Vector3(DOOR_W - 0.16, DOOR_H - 0.3, 0.004), Vector3(DOOR_W * 0.5, DOOR_H * 0.5, pz), _mat("palace_door_red", Color(0.45, 0.05, 0.07), 0.4))
+		_mesh_box(visual, Vector3(DOOR_W - 0.12, 0.014, 0.006), Vector3(DOOR_W * 0.5, DOOR_H - 0.14, pz), _mat("palace_frame_gold", GOLD, 0.3, 0.75))
+		_mesh_box(visual, Vector3(DOOR_W - 0.12, 0.014, 0.006), Vector3(DOOR_W * 0.5, 0.14, pz), _mat("palace_frame_gold", GOLD, 0.3, 0.75))
+	var knob_mat := _mat("knob", Color(0.9, 0.7, 0.25), 0.25, 0.9)
 	_mesh_box(visual, Vector3(0.05, 0.05, 0.06), Vector3(DOOR_W - 0.08, 0.95, -0.05), knob_mat)
 	_mesh_box(visual, Vector3(0.05, 0.05, 0.06), Vector3(DOOR_W - 0.08, 0.95, 0.05), knob_mat)
 

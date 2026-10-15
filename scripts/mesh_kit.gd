@@ -279,12 +279,12 @@ static func _detail_texture(kind: String) -> ImageTexture:
 				"wrinkle":
 					# しわ：やわらかい斜めの谷
 					var r := absf(sin((float(x) + float(y) * 0.6) * 0.17 + v * 6.0))
-					g = 0.84 + 0.1 * r + 0.06 * v
+					g = 0.88 + 0.08 * r + 0.04 * v
 				"scratch":
 					g = 0.9 + 0.08 * v - (0.1 if rng.randf() < 0.012 else 0.0)
 				_:
 					# 汚れ：ぼんやりした濃淡と、点々としたよごれ
-					g = 0.82 + 0.15 * v - (0.12 if rng.randf() < 0.01 else 0.0)
+					g = 0.94 + 0.06 * v   # 汚れではなく、ごくうすい濃淡だけ（清潔に）
 			img.set_pixel(x, y, Color(g, g, g * 0.985))
 	img.generate_mipmaps()
 	var t := ImageTexture.create_from_image(img)
