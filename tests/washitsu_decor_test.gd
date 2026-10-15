@@ -26,6 +26,10 @@ func _run() -> void:
 		var q: Vector3 = l.node.position
 		inside = inside and absf(q.x) < w.HX and absf(q.z) < w.HZ and q.y > 1.8 and q.y < w.H
 	_check(inside, "提灯は、部屋の中の、天井ぎわにある")
+	_check(w.get_node("Attic").get_children().filter(func(c): return str(c.name).begins_with("AtticRoom")).size() == 6 and w._attic_lanterns.size() == 9, "天井のすき間の上に、屋根裏の部屋が横一列に 6 つ、提灯の列がある")
+	var ap0: Vector3 = w._attic_lanterns[0].position
+	await create_timer(0.6).timeout
+	_check(w._attic_lanterns[0].position.distance_to(ap0) > 0.001, "屋根裏の提灯は、ゆっくり回る")
 	main._on_interact_requested(w.get_node("Butsudan/ButsudanArea"))
 	_check(main.hud._message_label.text == main.STAGE5["butsudan_dark"], "暗いときの仏壇")
 	w.open_heirloom(true)

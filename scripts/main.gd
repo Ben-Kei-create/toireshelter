@@ -773,6 +773,7 @@ var kotatsu_seat := 0              # 座っている（入っている）こた�
 var peeping := false               # のぞき穴の画面が開いている
 var coding := false                # 数字・文字の入力画面が開いている
 var _code_buf := ""
+var _code_cand := 0               # コントローラで選んでいる文字（0〜）
 var _code_len := 4
 var _code_digits := true
 var _code_title := ""
@@ -1140,6 +1141,30 @@ func _unhandled_input(event: InputEvent) -> void:
 			_stop_game()
 		return
 	if coding:
+		if event is InputEventJoypadButton and event.pressed:
+			# コントローラ：十字キー上下で文字を選び、A で入れる・B で消す・START で決める・BACK でやめる
+			get_viewport().set_input_as_handled()
+			var pool := "0123456789" if _code_digits else "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+			match (event as InputEventJoypadButton).button_index:
+				JOY_BUTTON_DPAD_UP:
+					_code_cand = posmod(_code_cand + 1, pool.length())
+					_refresh_code()
+				JOY_BUTTON_DPAD_DOWN:
+					_code_cand = posmod(_code_cand - 1, pool.length())
+					_refresh_code()
+				JOY_BUTTON_A:
+					if _code_buf.length() < _code_len:
+						_code_buf += pool[_code_cand]
+						SfxScript.play("click", 1.2)
+						_refresh_code()
+				JOY_BUTTON_B:
+					_code_buf = _code_buf.substr(0, maxi(0, _code_buf.length() - 1))
+					_refresh_code()
+				JOY_BUTTON_START:
+					_close_code(true)
+				JOY_BUTTON_BACK:
+					_close_code(false)
+			return
 		if event is InputEventKey and event.pressed and not event.echo:
 			var ke := event as InputEventKey
 			get_viewport().set_input_as_handled()
@@ -1560,7 +1585,11 @@ func _open_code(title: String, prompt: String, length: int, digits: bool, cb: Ca
 
 
 func _refresh_code() -> void:
-	hud.show_code(_code_title, _code_prompt, _code_buf, _code_len)
+	var prompt := _code_prompt
+	if guide.using_pad:
+		var pool := "0123456789" if _code_digits else "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+		prompt += "\n十字キー上下：文字を選ぶ【%s】　A：入れる　B：消す　START：決める　BACK：やめる" % pool[posmod(_code_cand, pool.length())]
+	hud.show_code(_code_title, prompt, _code_buf, _code_len)
 
 
 func _close_code(submit: bool) -> void:

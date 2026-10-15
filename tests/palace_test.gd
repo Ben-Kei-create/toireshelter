@@ -44,6 +44,9 @@ func _run() -> void:
 		if c is Node3D:
 			span = maxf(span, absf((c as Node3D).position.x))
 	_check(span > 0.6, "シャンデリアは、宮殿のように大きい（半径 %.2f m）" % span)
+	var ry0: float = fx.rotation.y
+	await create_timer(0.5).timeout
+	_check(fx.rotation.y > ry0, "シャンデリアは、ゆっくり回る")
 	_check(room.bath_light.light_energy > 0.4 and room.bulb_present, "電球がはまっていると、灯りがつく")
 	main._on_interact_requested(room.bulb_area)
 	_check(not room.bulb_present and main.inventory.has("chandelier_bulb") and room.bath_light.light_energy == 0.0, "電球を外せる。灯りが消える")

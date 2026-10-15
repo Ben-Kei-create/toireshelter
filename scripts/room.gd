@@ -390,6 +390,13 @@ func _build_bath_bulb() -> void:
 
 
 ## 電球を外す／はめる。外すと、トイレの中は真っ暗（灯りも環境光も消える）。
+func _process(delta: float) -> void:
+	# シャンデリアは、ゆっくり回る
+	var fx := get_node_or_null("BathBulb") as Node3D
+	if fx:
+		fx.rotation.y += delta * 0.12
+
+
 func set_bulb(present: bool) -> void:
 	bulb_present = present
 	_bulb_node.visible = present

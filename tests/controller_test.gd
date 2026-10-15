@@ -68,6 +68,19 @@ func _run() -> void:
 	_check(g.should_tip("move") and not g.should_tip("crouch"), "覚えた操作の案内は、もう出ない")
 	main.hud.show_tip(g.tip_text("move"), 1.0)
 	_check(main.hud._intro.visible and not g.should_tip("move"), "案内を出すと、一度だけにする")
+	# コードの入力（コントローラ）
+	main._open_code("テスト", "番号", 4, true, func(t: String) -> void: main.set_meta("code_result", t))
+	main.guide.using_pad = true
+	for i in 7:
+		main._unhandled_input(_btn(JOY_BUTTON_DPAD_UP))
+	main._unhandled_input(_btn(JOY_BUTTON_A))
+	main._unhandled_input(_btn(JOY_BUTTON_DPAD_DOWN))
+	main._unhandled_input(_btn(JOY_BUTTON_A))
+	_check(main._code_buf == "76", "コントローラで、十字キーで選んで A で入れる（%s）" % main._code_buf)
+	main._unhandled_input(_btn(JOY_BUTTON_B))
+	_check(main._code_buf == "7", "B で 1 文字消える")
+	main._unhandled_input(_btn(JOY_BUTTON_START))
+	_check(not main.coding and String(main.get_meta("code_result", "")) == "7", "START で決める")
 	print("CONTROLLER TEST: %s (%d failure(s))" % ["PASS" if _failures == 0 else "FAIL", _failures])
 	quit(1 if _failures > 0 else 0)
 

@@ -62,6 +62,7 @@ func _ready() -> void:
 	_build_extras()
 	_build_butsudan()
 	_build_lanterns()
+	_build_attic()
 	MeshKit.auto_round = true
 
 
@@ -85,7 +86,15 @@ func _build_shell() -> void:
 	var wall := MeshKit.mat("washitsu_wall", Color(0.55, 0.5, 0.4), 0.95)
 	var wood := MeshKit.mat("washitsu_wood", Color(0.28, 0.2, 0.14), 0.7)
 	_solid(body, Vector3(HX * 2.0 + 0.2, 0.2, HZ * 2.0 + 0.2), Vector3(0, -0.1, 0), floor_m, "Floor")
-	MeshKit.box(self, Vector3(HX * 2.0 + 0.2, 0.1, HZ * 2.0 + 0.2), Vector3(0, H + 0.05, 0), wood, "Ceiling")
+	# 天井：北側に、横に長いすき間（のぞき穴）をあけてある。見上げると、屋根裏の部屋の列が見える
+	var cw := HX * 2.0 + 0.2
+	var slot_z0 := -1.15
+	var slot_z1 := -0.65
+	var slot_x := 1.5
+	MeshKit.box(self, Vector3(cw, 0.1, (HZ + 0.1) - slot_z1), Vector3(0, H + 0.05, (slot_z1 + HZ + 0.1) * 0.5), wood, "CeilingSouth")
+	MeshKit.box(self, Vector3(cw, 0.1, slot_z0 - (-HZ - 0.1)), Vector3(0, H + 0.05, (slot_z0 - HZ - 0.1) * 0.5), wood, "CeilingNorth")
+	for sx in [-1.0, 1.0]:
+		MeshKit.box(self, Vector3(cw * 0.5 - slot_x, 0.1, slot_z1 - slot_z0), Vector3(sx * (slot_x + (cw * 0.5 - slot_x) * 0.5), H + 0.05, (slot_z0 + slot_z1) * 0.5), wood, "CeilingSide")
 	_solid(body, Vector3(HX * 2.0 + 0.2, H, 0.2), Vector3(0, H * 0.5, -HZ - 0.1), wall, "NorthWall")
 	_solid(body, Vector3(HX * 2.0 + 0.2, H, 0.2), Vector3(0, H * 0.5, HZ + 0.1), wall, "SouthWall")
 	_solid(body, Vector3(0.2, H, HZ * 2.0), Vector3(-HX - 0.1, H * 0.5, 0), wall, "WestWall")
@@ -435,6 +444,88 @@ func _build_lanterns() -> void:
 	_place_lanterns()
 
 
+## 天井のすき間の上：屋根裏に、小さな部屋が横一列にならび、小さな提灯の列が、そのあいだをゆっくり回っていく。
+var _attic_lanterns: Array = []
+var _attic_t := 0.0
+var _attic_mats: Array = []
+const ATTIC_Y := 2.45
+
+
+func _build_attic() -> void:
+	var attic := Node3D.new()
+	attic.name = "Attic"
+	add_child(attic)
+	var beam := MeshKit.mat("attic_beam", Color(0.16, 0.1, 0.07), 0.8)
+	var back_z := -1.52
+	MeshKit.box(attic, Vector3(HX * 2.0, 1.05, 0.06), Vector3(0, ATTIC_Y + 0.5, back_z - 0.03), beam, "AtticBack")
+	MeshKit.box(attic, Vector3(HX * 2.0, 0.05, 0.9), Vector3(0, ATTIC_Y + 1.05, -1.05), beam, "AtticRoof")
+	MeshKit.box(attic, Vector3(HX * 2.0, 0.06, 0.36), Vector3(0, ATTIC_Y - 0.03, -1.34), beam, "AtticFloor")   # 部屋の列の足もとだけ（すき間はふさがない）
+	var wall_cols := [Color(0.85, 0.78, 0.6), Color(0.6, 0.75, 0.6), Color(0.85, 0.6, 0.62), Color(0.62, 0.68, 0.85), Color(0.9, 0.82, 0.5), Color(0.5, 0.45, 0.55)]
+	var n := 6
+	var rw := 0.5
+	for i in n:
+		var cx := (float(i) - float(n - 1) * 0.5) * (rw + 0.05)
+		var rm := Node3D.new()
+		rm.name = "AtticRoom%d" % i
+		rm.position = Vector3(cx, ATTIC_Y, back_z)
+		attic.add_child(rm)
+		var wc: Color = wall_cols[i]
+		MeshKit.box(rm, Vector3(rw, 0.58, 0.02), Vector3(0, 0.3, 0.01), MeshKit.mat("attic_wall_%d" % i, wc, 0.9), "Wall")
+		MeshKit.box(rm, Vector3(rw, 0.015, 0.34), Vector3(0, 0.01, 0.17), MeshKit.mat("attic_floor", Color(0.55, 0.45, 0.3), 0.9), "Floor")
+		MeshKit.box(rm, Vector3(0.02, 0.58, 0.34), Vector3(-rw * 0.5, 0.3, 0.17), beam, "SideL")
+		MeshKit.box(rm, Vector3(0.02, 0.58, 0.34), Vector3(rw * 0.5, 0.3, 0.17), beam, "SideR")
+		MeshKit.box(rm, Vector3(rw, 0.02, 0.34), Vector3(0, 0.6, 0.17), beam, "Top")
+		# 小さな家具：卓・ふとん・本棚・窓・人影など、部屋ごとにちがう
+		match i % 3:
+			0:
+				MeshKit.box(rm, Vector3(0.18, 0.07, 0.12), Vector3(-0.08, 0.05, 0.18), MeshKit.mat("attic_table", Color(0.4, 0.26, 0.15), 0.8), "Table")
+				MeshKit.box(rm, Vector3(0.05, 0.05, 0.05), Vector3(-0.08, 0.115, 0.18), MeshKit.mat("attic_cup", Color(0.9, 0.9, 0.85), 0.5), "Cup")
+			1:
+				MeshKit.box(rm, Vector3(0.3, 0.04, 0.2), Vector3(0.0, 0.035, 0.18), MeshKit.mat("attic_futon", Color(0.85, 0.7, 0.7), 0.9), "Futon")
+				MeshKit.box(rm, Vector3(0.08, 0.03, 0.06), Vector3(-0.1, 0.07, 0.18), MeshKit.mat("attic_pillow", Color(0.95, 0.95, 0.9), 0.9), "Pillow")
+			_:
+				MeshKit.box(rm, Vector3(0.14, 0.3, 0.06), Vector3(0.12, 0.17, 0.05), MeshKit.mat("attic_shelf", Color(0.35, 0.22, 0.12), 0.8), "Shelf")
+				MeshKit.box(rm, Vector3(0.1, 0.1, 0.01), Vector3(-0.1, 0.35, 0.022), MeshKit.mat("attic_window", Color(0.4, 0.55, 0.75), 0.5), "Window")
+		if i == 4:   # 一つだけ、小さな人影が、こちらを向いている
+			MeshKit.box(rm, Vector3(0.05, 0.14, 0.02), Vector3(0.0, 0.09, 0.28), MeshKit.mat("attic_figure", Color(0.03, 0.03, 0.04), 1.0), "Figure")
+			MeshKit.sphere(rm, 0.028, Vector3(0.0, 0.2, 0.28), MeshKit.mat("attic_figure", Color(0.03, 0.03, 0.04), 1.0))
+		# 部屋の灯り（部屋ごとの小さな光る板）
+		var glow := MeshKit.mat("attic_glow_%d" % i, Color(1.0, 0.85, 0.55), 0.5)
+		glow.emission_enabled = true
+		glow.emission = Color(1.0, 0.75, 0.4)
+		glow.emission_energy_multiplier = 0.0
+		MeshKit.box(rm, Vector3(0.1, 0.012, 0.1), Vector3(0.0, 0.585, 0.17), glow, "Lamp")
+		_attic_mats.append(glow)
+	# 提灯の列：部屋の前をゆっくり横へ進み、端でぐるりと奥へ回って戻る（輪になって回る）
+	for k in 9:
+		var ln := Node3D.new()
+		ln.name = "AtticLantern%d" % k
+		attic.add_child(ln)
+		var red: bool = k % 2 == 0
+		var m := MeshKit.mat("lantern_%d" % (k % 2), Color(0.8, 0.15, 0.1) if red else Color(0.95, 0.9, 0.78), 0.8)
+		var body := MeshKit.sphere(ln, 0.05, Vector3.ZERO, m)
+		body.scale = Vector3(1.0, 1.2, 1.0)
+		_attic_lanterns.append(ln)
+	_place_attic_lanterns()
+
+
+func _place_attic_lanterns() -> void:
+	var span := 3.0     # 列の長さ
+	var loop := span * 2.0 + 0.8
+	for i in _attic_lanterns.size():
+		var d := fposmod(_attic_t + loop * float(i) / float(_attic_lanterns.size()), loop)
+		var pos: Vector3
+		if d < span:
+			pos = Vector3(-span * 0.5 + d, ATTIC_Y + 0.48, -1.12)          # 手前の列（右へ）
+		elif d < span + 0.4:
+			pos = Vector3(span * 0.5, ATTIC_Y + 0.48, lerpf(-1.12, -1.4, (d - span) / 0.4))
+		elif d < span * 2.0 + 0.4:
+			pos = Vector3(span * 0.5 - (d - span - 0.4), ATTIC_Y + 0.48, -1.4)   # 奥の列（左へ）
+		else:
+			pos = Vector3(-span * 0.5, ATTIC_Y + 0.48, lerpf(-1.4, -1.12, (d - span * 2.0 - 0.4) / 0.4))
+		(_attic_lanterns[i] as Node3D).position = pos
+
+
 func _perimeter_point(d: float) -> Vector3:
 	var x0 := HX - LANTERN_INSET
 	var z0 := HZ - LANTERN_INSET
@@ -467,6 +558,8 @@ func _process(delta: float) -> void:
 		return
 	_lantern_t += delta * (0.22 if festive else 0.05)
 	_place_lanterns()
+	_attic_t += delta * (0.18 if festive else 0.03)
+	_place_attic_lanterns()
 	if festive:
 		var fl := 1.0 + 0.08 * sin(_lantern_t * 40.0) + 0.05 * sin(_lantern_t * 23.0)
 		for l in _candle_lights:
@@ -480,6 +573,8 @@ func set_festive(on: bool) -> void:
 		(l.mat as StandardMaterial3D).emission_energy_multiplier = 1.6 if on else 0.0
 		if l.light:
 			(l.light as OmniLight3D).light_energy = 0.28 if on else 0.0
+	for am in _attic_mats:
+		(am as StandardMaterial3D).emission_energy_multiplier = 2.0 if on else 0.0
 	for f in _candle_flames:
 		((f as MeshInstance3D).material_override as StandardMaterial3D).emission_energy_multiplier = 3.0 if on else 0.0
 	if not on:
