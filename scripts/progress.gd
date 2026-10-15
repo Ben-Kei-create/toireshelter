@@ -369,7 +369,7 @@ func _stage4_snapshot() -> Dictionary:
 		"wall_broken": apt.kotatsu.wall_broken,
 		"slots": w.slots_filled, "heirloom_open": w.heirloom_open, "photo_taken": w.photo_taken,
 		"ladder_taken": w.ladder_taken, "coin_taken": w.coin_taken,
-		"ladder_placed": room.ladder_placed, "bad_book_taken": apt.bad_book_taken, "cards_taken": main.cards_taken.duplicate(), "cards_in_safe": main.cards_in_safe.duplicate(), "safe_slots": apt.closet.safe_slots.duplicate(), "safe_open": apt.closet.safe_open, "safe_list_taken": main.safe_list_taken, "phone_coin_taken": main.phone_coin_taken, "feed_unlocked": apt.aquarium.feed_unlocked, "tank_coin_taken": apt.aquarium.coin_taken, "toilet_clogged": room.toilet.clogged, "ufo_taken": apt.ufo_catcher.taken, "front_unlocked": not room.front_door.locked, "shot_coin_taken": main.shot_coin_taken, "shot_coin_pos": [main.shot_coin_node.position.x, main.shot_coin_node.position.y, main.shot_coin_node.position.z] if main.shot_coin_node else [], "god_silent": main.god_silent, "lighter_taken": room.exterior.breaker.lighter_taken, "rice_taken": room.apartment.kitchen.rice_taken,
+		"ladder_placed": room.ladder_placed, "bad_book_taken": apt.bad_book_taken, "cards_taken": main.cards_taken.duplicate(), "cards_in_safe": main.cards_in_safe.duplicate(), "safe_slots": apt.closet.safe_slots.duplicate(), "safe_open": apt.closet.safe_open, "safe_list_taken": main.safe_list_taken, "phone_coin_taken": main.phone_coin_taken, "memos_found": main.memos_found.duplicate(), "muttered": main.muttered.duplicate(), "mutter_i": main._mutter_idle_i, "feed_unlocked": apt.aquarium.feed_unlocked, "tank_coin_taken": apt.aquarium.coin_taken, "toilet_clogged": room.toilet.clogged, "ufo_taken": apt.ufo_catcher.taken, "front_unlocked": not room.front_door.locked, "shot_coin_taken": main.shot_coin_taken, "shot_coin_pos": [main.shot_coin_node.position.x, main.shot_coin_node.position.y, main.shot_coin_node.position.z] if main.shot_coin_node else [], "god_silent": main.god_silent, "lighter_taken": room.exterior.breaker.lighter_taken, "rice_taken": room.apartment.kitchen.rice_taken,
 	}
 
 
@@ -401,6 +401,9 @@ func _stage4_apply(d: Dictionary) -> void:
 	main.cards_in_safe = Array(d.get("cards_in_safe", [])).map(func(v): return int(v))
 	main.safe_list_taken = bool(d.get("safe_list_taken", false))
 	main.phone_coin_taken = bool(d.get("phone_coin_taken", false))
+	main.memos_found = Array(d.get("memos_found", [])).map(func(v): return String(v))
+	main.muttered = Dictionary(d.get("muttered", {}))
+	main._mutter_idle_i = int(d.get("mutter_i", 0))
 	apt.aquarium.coin_taken = bool(d.get("tank_coin_taken", false))
 	if bool(d.get("feed_unlocked", false)):
 		apt.aquarium.unlock_feed_box(true)

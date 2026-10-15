@@ -736,6 +736,16 @@ func _build_desk_and_chair() -> void:
 		for dz in [-0.16, 0.16]:
 			MeshKit.box(chair, Vector3(0.03, 0.45, 0.03), Vector3(cx + dx, 0.225, -0.55 + dz), wood)
 	MeshKit.shape_box(_body, Vector3(0.38, 0.85, 0.38), Vector3(cx, 0.425, -0.55))
+	# 机の上の日記（自分の字。コタニという知らない名前）
+	var dn := Node3D.new()
+	dn.name = "DiaryMine"
+	dn.position = Vector3(x0 + 0.25, 0.735 + 0.01, -0.5)
+	dn.rotation.y = 0.2
+	add_child(dn)
+	MeshKit.box(dn, Vector3(0.16, 0.02, 0.22), Vector3.ZERO, MeshKit.mat("diary_cover", Color(0.35, 0.18, 0.2), 0.8), "Diary")
+	MeshKit.box(dn, Vector3(0.15, 0.016, 0.21), Vector3(0.004, 0, 0), MeshKit.mat("diary_pages", Color(0.93, 0.9, 0.8), 0.9), "Pages")
+	var dna := MeshKit.interact_area(dn, "DiaryArea", "diary_mine", null)
+	MeshKit.shape_box(dna, Vector3(0.2, 0.08, 0.26), Vector3(0, 0.03, 0))
 	# 椅子の座面に置いてある、黒く塗りつぶされた本（悪口本）
 	bad_book_node = Node3D.new()
 	bad_book_node.name = "BadBook"

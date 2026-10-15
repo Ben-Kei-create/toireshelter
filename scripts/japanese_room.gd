@@ -254,6 +254,16 @@ func _build_table() -> void:
 		MeshKit.sphere(map, 0.03, Vector3(p.x, 0.05, p.y), MeshKit.mat("map_tree", Color(0.2, 0.42, 0.2), 0.9))
 	var ta := MeshKit.interact_area(table, "TownMapArea", "town_map")
 	MeshKit.shape_box(ta, Vector3(1.2, 0.26, 0.64), Vector3(0, 0.46, 0))
+	# 座卓の端の日記（おばあちゃんの字）
+	var dg := Node3D.new()
+	dg.name = "DiaryGrandma"
+	dg.position = Vector3(-0.45, 0.36, 0.1)
+	dg.rotation.y = -0.3
+	table.add_child(dg)
+	MeshKit.box(dg, Vector3(0.16, 0.02, 0.22), Vector3(0, 0.01, 0), MeshKit.mat("diary_cover_g", Color(0.2, 0.3, 0.22), 0.8), "Diary")
+	MeshKit.box(dg, Vector3(0.15, 0.016, 0.21), Vector3(0.004, 0.01, 0), MeshKit.mat("diary_pages", Color(0.93, 0.9, 0.8), 0.9), "Pages")
+	var dga := MeshKit.interact_area(dg, "DiaryArea", "diary_grandma", null)
+	MeshKit.shape_box(dga, Vector3(0.2, 0.08, 0.26), Vector3(0, 0.04, 0))
 	# ざぶとん
 	var zab := MeshKit.mat("washitsu_zabuton", Color(0.42, 0.2, 0.42), 0.95)
 	for p in [Vector3(0.3, 0.025, 0.95), Vector3(-0.7, 0.025, 0.25)]:

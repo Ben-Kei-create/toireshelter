@@ -16,6 +16,7 @@ const ApartmentScript := preload("res://scripts/apartment.gd")
 const KotatsuScript := preload("res://scripts/kotatsu.gd")
 const SmallPropsScript := preload("res://scripts/small_props.gd")
 const FishingScript := preload("res://scripts/fishing.gd")
+const StoryData := preload("res://scripts/story_data.gd")
 const IntercomScript := preload("res://scripts/intercom.gd")
 const CorkGunScript := preload("res://scripts/cork_gun.gd")
 const MahjongGame := preload("res://scripts/mahjong_game.gd")
@@ -37,7 +38,7 @@ const JapaneseRoomScript := preload("res://scripts/japanese_room.gd")
 const BurningTorchScript := preload("res://scripts/burning_torch.gd")
 
 const MESSAGES := {
-	"start": "……気がつくと、ユニットバスに閉じ込められていた。ここから出て、部屋の外へ出なければ。",
+	"start": "……目が覚めると、トイレの中だった。ユニットバスの、自分の部屋の。ここから出て、部屋の外へ出なければ。",
 	"toilet": "普通の便器だ。水は流れるが、ここから出られるわけではない。",
 	"bathtub": "空っぽの浴槽。乾いていて、何も入っていない。",
 	"bathtub_water": "浴槽に水がたまっている。",
@@ -653,6 +654,11 @@ var _flash_light: SpotLight3D
 var shot_coin_node: Node3D
 var shot_coin_taken := false
 var safe_list_taken := false
+var memos_found: Array = []        # 見つけたメモの id（teddy など）
+var muttered := {}                 # 出した独り言（場所・順番）
+var _mutter_next := 150.0          # 次の独り言を出す遊んだ時間（秒）
+var _mutter_idle_i := 0
+var _reader_after: Callable
 var phone_coin_taken := false
 var cards_in_safe: Array = []      # 金庫に置いたカード（番号）。順番を間違えると戻る
 var cards_taken: Array = []        # 拾ったカード（番号）
@@ -869,12 +875,12 @@ func _on_title_start(continue_save: bool) -> void:
 	hud.set_title_mode(false)
 	get_tree().paused = false
 	player.controls_enabled = true
-	_begin_play()
+	_begin_play(not continue_save)
 	hud.fade_to(0.0, 1.6)
 
 
 ## 遊びはじめ：視点を掴み、続きがあれば読み込み、最初の一言と操作のヒントを出す。
-func _begin_play() -> void:
+func _begin_play(with_opening := false) -> void:
 	_title_seen = true
 	_apply_preview()
 	if OS.get_environment("TOIRE_YEN100") == "1":
@@ -884,6 +890,8 @@ func _begin_play() -> void:
 		hud.show_message("……前に来た、あの部屋だ。続きから。", 4.0, "voice")
 	else:
 		hud.show_message(MESSAGES["start"], 5.0)
+		if with_opening:
+			_opening_event()
 	_count_examinable()
 	var seen_cfg := ConfigFile.new()
 	seen_cfg.load(SETTINGS_PATH)
@@ -904,6 +912,11 @@ func _process(_delta: float) -> void:
 			progress.discover("ko_line")
 			progress.add_note("ko_line", "KO線", "右手の遠くに高架の線路。電車がゆっくり走っている。", "手がかり")
 	_update_lint(_delta)
+	if not paused and not cleared and play_time >= _mutter_next and not reading and not mj_playing and not gaming and not peeping and not hiding_in_closet():
+		_mutter_next = play_time + 150.0 + randf() * 90.0
+		if _mutter_idle_i < StoryData.IDLE_MUTTERS.size():
+			_mutter(StoryData.IDLE_MUTTERS[_mutter_idle_i])
+			_mutter_idle_i += 1
 	_update_torch_light(_delta)
 	_update_scroll(_delta)
 	var carried: String = room.apartment.cellar.carrying_name
@@ -1446,6 +1459,10 @@ func _close_reader() -> void:
 	reading = false
 	hud.hide_reader()
 	player.controls_enabled = true
+	if _reader_after.is_valid():
+		var after := _reader_after
+		_reader_after = Callable()
+		after.call()
 	# 特定の短編集には、栞が挟まっている（最後のページまで読んだとき）
 	if BOOKMARK_BOOKS.has(_reader_title) and _reader_page >= _reader_pages.size() - 1:
 		var bm: String = BOOKMARK_BOOKS[_reader_title]
@@ -1703,6 +1720,7 @@ func _on_interact_requested(target: Object) -> void:
 		examined[id] = true
 		progress.note_activity()
 		progress.discover(id)
+		_maybe_find_memo(id)
 		if NOTE_CLUES.has(id):
 			var clue: Array = NOTE_CLUES[id]
 			progress.add_note(id, clue[0], clue[1], clue[2])
@@ -1901,6 +1919,10 @@ func _on_interact_requested(target: Object) -> void:
 			add_coin(1)
 			SfxScript.play("chime")
 			hud.show_message(STAGE5["aq_coin_msg"], 5.0)
+		"diary_mine":
+			_read_diary(StoryData.MY_DIARY, "diary_mine", "自分の日記", "自分の字で、見覚えのない「コタニ」という人のことが書いてある。最後は、破りとられている。")
+		"diary_grandma":
+			_read_diary(StoryData.GRANDMA_DIARY, "diary_grandma", "おばあちゃんの日記", "おばあちゃんは、出ていくことを決めた。理由は書いていない。最後に、顔を合わせたかったらしい。")
 		"closet_safe":
 			if room.apartment.closet.safe_open:
 				hud.show_message(STAGE5["safe_empty"] if safe_list_taken else STAGE5["safe_open"])
@@ -2519,6 +2541,9 @@ func _physics_process(_delta: float) -> void:
 		hud.show_message(ENDING["lobby"], 5.0)
 	elif region == "alley" and _last_region == "lobby" and not vending_done:
 		hud.show_message(ENDING["vending_look"], 6.0)
+	elif region in StoryData.REGION_MUTTERS and not muttered.has(region) and _last_region != "":
+		muttered[region] = true
+		_mutter(StoryData.REGION_MUTTERS[region])
 	_last_region = region
 
 
@@ -2852,6 +2877,71 @@ func _place_card(id: String, tid: String) -> void:
 				_give_stage5(cid)
 		cards_in_safe.clear()
 		hud.show_message(STAGE5["safe_wrong"], 4.0)
+
+
+# ---------------------------------------------------------------- 物語（オープニング・独り言・メモ・日記）
+
+func hiding_in_closet() -> bool:
+	return player.pose == PlayerScript.Pose.CLOSET
+
+
+## 独り言：脱出には関係しない、胸のざわつく一言。
+func _mutter(text: String) -> void:
+	if paused or cleared or reading:
+		return
+	hud.show_message(text, 5.5)
+
+
+## 新しくはじめたとき：目覚め → インターホン → ドアが開かない → 閉じこもった覚えがない。
+func _opening_event() -> void:
+	await get_tree().create_timer(5.5).timeout
+	if not is_inside_tree() or cleared:
+		return
+	room.apartment.intercom.ring()
+	await get_tree().create_timer(6.0).timeout
+	if not is_inside_tree() or cleared:
+		return
+	hud.show_message("出ようとして、ドアに手をかけた。……閉まっている。外から、誰かが、閉めたのか。", 6.0)
+	await get_tree().create_timer(7.5).timeout
+	if not is_inside_tree() or cleared:
+		return
+	hud.show_message("どうして、自分は、トイレに閉じこもっている？　思い出せない。……ここが、自分の部屋であることだけは、たしかなのに。", 7.0)
+
+
+## 動作のない飾りを調べると、貼り紙に気づく（文字が欠けていて、ちゃんとは読めない）。
+func _maybe_find_memo(id: String) -> void:
+	if not StoryData.MEMOS.has(id) or memos_found.has(id):
+		return
+	memos_found.append(id)
+	var memo: Array = StoryData.MEMOS[id]
+	progress.add_note("memo_" + memo[0], "メモ " + memo[0], memo[1], "メモ")
+	await get_tree().create_timer(1.2).timeout
+	if not is_inside_tree() or reading or paused or cleared:
+		return
+	hud.show_message("……何か、貼ってある。メモだ。", 3.0)
+	await get_tree().create_timer(1.0).timeout
+	if reading or paused or cleared:
+		return
+	_open_reader("メモ " + memo[0], [memo[1]], null, Color(0.9, 0.88, 0.72))
+	var n := memos_found.size()
+	_reader_after = func() -> void:
+		if n == 3:
+			_mutter("（また、メモだ。……誰が、こんなものを）")
+		elif n == 6:
+			_mutter("（全部、同じ人の字だ。……見覚えが、ある気がする）")
+		elif n == 10:
+			_mutter("（十枚目。……「ごめんね」って、誰に言っているんだ）")
+
+
+func _read_diary(pages: Array, id: String, title: String, note_text: String) -> void:
+	progress.add_note(id, title, note_text, "日記")
+	_open_reader(title, pages, null, Color(0.78, 0.7, 0.55))
+	if id == "diary_grandma":
+		_reader_after = func() -> void:
+			_mutter("（……あのインターホンは、おばあちゃんだったのか）")
+	else:
+		_reader_after = func() -> void:
+			_mutter("（コタニ……？　書いた覚えが、ない。誰なんだ、この人は）")
 
 
 ## 悪口本を、トイレ（浮き上がった浴室）の便器に流す：本が流れて、便器が詰まる。濡れた本が浮かび、コインが 1 枚こぼれる（5 枚目）。
