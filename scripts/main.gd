@@ -370,7 +370,7 @@ const ITEMS := {
 	"soap": {"name": "固形せっけん", "desc": "ピンクの固形せっけん。水に浸けておくと、溶けていく。"},
 	"ten_yen": {"name": "十円玉", "desc": "古い十円玉。丸いものは、ふたになる。"},
 	"match_stick": {"name": "マッチ棒", "desc": "1 本だけのマッチ。箱には『火事の元』と印字されていた。"},
-	"room_key": {"name": "部屋の鍵", "desc": "ベランダの窓の鍵。……玄関の鍵ではない。"},
+	"room_key": {"name": "窓の鍵", "desc": "ベランダの窓の鍵。……玄関の鍵ではない。"},
 	"torch": {"name": "松明", "desc": "木の棒の先に、火がついている。部屋が暗くても、まわりだけは見える。"},
 	"door_knob": {"name": "壊れたドアノブ", "desc": "壊れたドアノブ。ホールの柱の、小さな扉の穴に合いそうだ。"},
 	"fuse": {"name": "ヒューズ", "desc": "小さなヒューズ。ブレーカーに差せそうだ。"},
@@ -655,6 +655,8 @@ const STAGE5 := {
 	"chandelier_put": "電球をはめた。トイレの中が、また明るくなった。",
 	"chandelier_empty": "電球のない、巨大なシャンデリア。……真っ暗だ。電球をはめれば、つくだろう。",
 	"chandelier_look": "宮殿のような、巨大なシャンデリア。真ん中の大きな電球が、ねじ込まれている。外せそうだ。",
+	"neighbor_window": "お隣の部屋の窓が、開いている。……あそこから入れば、ここから出られそうだ。（まだ、やり残しがあるなら、引き返そう）",
+	"torch_combine": "棒の先に、マッチ棒を合わせられそうだ。棒を手に持って、F を押してみよう。",
 	"hp_pick": "こたつの中に、ヘッドホンが落ちていた。誰かの物だろうか。",
 	"hp_on": "ヘッドホンを耳につけた。……ざあ、とノイズが鳴って、誰かの話し声が聞こえてくる。",
 	"hp_voice": "二人の声。くぐもっていて、何を話しているのか、聞き取れない。……片方は、自分の声に似ている気がする。",
@@ -742,6 +744,9 @@ var vending_busy := false
 var wall_hits := {"w": 0, "e": 0}   # 隔て板を叩いた回数（大きなツルハシ 62 回、小さなツルハシ 1994 回で割れる）
 var _wall_hold := 0.0
 var _neighbor_seen := false
+var _window_warned := false
+var cards_seen := {}                # 青い光の下で、点の数を見たカード（名前に点の数が付く）
+var _torch_hinted := false
 var _granny_seen := false
 var chest_small_taken := false
 var _hp_audio := HeadphoneAudio.new()
@@ -1018,7 +1023,7 @@ func _process(_delta: float) -> void:
 	if _ufo_txn and not room.apartment.ufo_catcher.busy and not _prize_pending:
 		_ufo_txn = false
 		txn_end()
-	room.washitsu.set_mouse_hole_visible(player.eye_height <= room.washitsu.MOUSE_EYE_MAX)
+	room.washitsu.set_mouse_hole_visible(player.eye_height <= room.washitsu.MOUSE_EYE_MAX or player.pose == PlayerScript.Pose.CROUCH)
 	_update_duct_sound()
 	_check_neighbor_escape()
 	if _hp_on and _hp_player and not _hp_player.playing and _hp_audio.ready():
@@ -2412,10 +2417,13 @@ func add_item(id: String) -> bool:
 	SfxScript.play("pop")
 	inventory.append(id)
 	items_found[id] = true
+	if not _torch_hinted and inventory.has("wood_stick") and inventory.has("match_stick"):
+		_torch_hinted = true
+		hud.show_message(STAGE5["torch_combine"], 5.0)
 	select_item(selected)   # 拾っただけでは手に持たない（1〜3 かホイールで選ぶ）
 	if not _item_tutorial_shown:
 		_item_tutorial_shown = true
-		hud.show_message("持ち物は 1〜3 かマウスホイールで手に持つ。狙った先に F で使う。Q で拡大して調べられる。", 6.0)
+		hud.show_message("持ち物は 1〜8 かマウスホイールで手に持つ。狙った先に F で使う。Q で拡大して調べられる。", 6.0)
 	progress.save()
 	return true
 
@@ -2490,6 +2498,8 @@ func item_name(id: String) -> String:
 		return "UFOコイン×%d" % coin_count
 	if id == "bath_powder" and powder_used:
 		return "ユブロマン（空）"
+	if id.begins_with("blank_card_") and cards_seen.has(id):
+		return "白紙のトランプ（点 %d）" % CARD_DOTS[int(id.substr(11))]
 	return ITEMS[id]["name"]
 
 
@@ -2517,6 +2527,7 @@ func _show_zoom() -> void:
 		if not room.power_on and room.bath_light_on and room.bath_purple:
 			var k := int(id.substr(11))
 			model = Stage5Items.blank_card_model(CARD_DOTS[k], true)
+			cards_seen[id] = true
 			desc = "青い光の下で、点が光って見える。点の数：%d。" % CARD_DOTS[k]
 	hud.show_item_zoom(model, item_name(id), desc)
 
@@ -3210,8 +3221,8 @@ func hiding_in_closet() -> bool:
 
 ## 独り言：脱出には関係しない、胸のざわつく一言。
 func _mutter(text: String) -> void:
-	if paused or cleared or reading:
-		return
+	if paused or cleared or reading or hud._message_time_left > 0.5:
+		return   # 読んでいる最中の文章は、さえぎらない
 	hud.show_message(text, 5.5)
 
 
@@ -3474,7 +3485,7 @@ func _flash_beam(from: Vector3, to: Vector3) -> void:
 	m.look_at(to, up)
 	m.rotate_object_local(Vector3.RIGHT, PI * 0.5)
 	var tw := create_tween()
-	tw.tween_property(mat, "albedo_color:a", 0.0, 1.4)
+	tw.tween_property(mat, "albedo_color:a", 0.0, 2.4)
 	tw.tween_callback(m.queue_free)
 
 
@@ -3489,7 +3500,7 @@ func _hit_partition(tool_id: String, side: String) -> void:
 	SfxScript.play("thunk", 0.7 + randf() * 0.2, -3.0)
 	ext.set_partition_damage(side, ratio)
 	if wall_hits[side] == 1:
-		hud.show_message(STAGE5["wall_hit"], 1.5)
+		hud.show_message(STAGE5["wall_hit"] + "（F を長押しでも、叩きつづけられる）", 3.0)
 	elif wall_hits[side] == int(need * 0.25):
 		hud.show_message(STAGE5["wall_q1"], 3.0)
 	elif wall_hits[side] == int(need * 0.5):
@@ -3550,6 +3561,9 @@ func _check_neighbor_escape() -> void:
 	if ext.part_open["e"] and not _granny_seen and x > 4.0:
 		_granny_seen = true
 		hud.show_message(STAGE5["granny_balcony"], 5.0)
+	if ext.part_open["w"] and not _window_warned and x < -0.9:
+		_window_warned = true
+		hud.show_message(STAGE5["neighbor_window"], 5.0)
 	if ext.part_open["w"] and x < -1.6 and player.global_position.y > -0.5 and not cleared:
 		_clear("neighbor")
 
