@@ -30,6 +30,7 @@ func _run() -> void:
 	_check(not room.power_on and not apt.gem_broken, "せり上がったあと：停電・宝石はまだ割れていない")
 
 	# ---------------------------------------------------------------- 手かがみ
+	room.mirror_cabinet.is_open = true   # 戸棚が開いているときだけ、手かがみは取れる
 	main._on_interact_requested(room.mirror_cabinet.get_node("Items/HandMirror/HandMirrorArea"))
 	_check(main.inventory.has("hand_mirror") and not room.mirror_cabinet.hand_mirror.visible, "戸棚の手かがみを拾う")
 	# ---------------------------------------------------------------- 宝石：条件がそろうまで割れない

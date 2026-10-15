@@ -31,7 +31,7 @@ func _run() -> void:
 	main.hud._message_label.text = ""
 	player.try_interact()
 	await _seconds(0.6)
-	_check(cab.locked and not cab.is_open and main.hud._message_label.text == "鏡の扉は開かない。右端に溝付きの留め具がある。",
+	_check(cab.locked and not cab.is_open and main.hud._message_label.text.begins_with("鏡の扉は開かない。右端に溝付きの留め具がある。"),
 			"施錠中にクリック：「右端に溝付きの留め具がある」、開かない")
 
 	# 未取得：F を押しても何も選ばれていない

@@ -307,6 +307,7 @@ func _build_shower() -> void:
 	# 水は少し太めの流れ（散水の代わり）
 	shower.setup(Vector3(0, -0.09, 0.145), BOTTOM_Y, null, 0.022)
 	var area := MeshKit.interact_area(shower, "ShowerArea", "bath_shower", shower)
+	area.set_meta("interact_range", 2.4)   # 浴槽の中からも、手が届く（シャワーは壁の高い所）
 	MeshKit.shape_box(area, Vector3(0.1, 0.16, 0.2), Vector3(0, -0.04, 0.1))
 	add_child(shower)
 	# シャワーの水は、蛇口の水流より白く薄く（細かい水の束に見えるように）

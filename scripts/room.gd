@@ -319,6 +319,7 @@ func rise_unit(player: Node3D, instant := false) -> void:
 		_finish_rise()
 		return
 	Sfx.play("rumble")
+	_build_rise_effects()
 	if "controls_enabled" in player:
 		player.controls_enabled = false
 	var tw := create_tween()
@@ -340,6 +341,12 @@ func _apply_rise(t: float) -> void:
 		var cam: Camera3D = _rise_player.camera
 		cam.h_offset = randf_range(-a, a)
 		cam.v_offset = randf_range(-a, a)
+	if _smoke:
+		_smoke.position.y = rise_offset - 0.1
+	for c in _cracks:
+		if not (c[0] as Node3D).visible and rise_offset > float(c[1]):
+			(c[0] as Node3D).visible = true
+			Sfx.play("crack", 0.6 + randf() * 0.5, -6.0)
 	if t > 0.72 and not _door_broken:
 		_break_door()
 
@@ -347,6 +354,14 @@ func _apply_rise(t: float) -> void:
 func _finish_rise() -> void:
 	rising = false
 	risen = true
+	if _smoke:
+		_smoke.emitting = false
+		get_tree().create_timer(4.0).timeout.connect(func() -> void:
+			if _smoke:
+				_smoke.queue_free()
+				_smoke = null)
+	for c in _cracks:
+		(c[0] as Node3D).visible = true
 	if _rise_player and "camera" in _rise_player:
 		var cam: Camera3D = _rise_player.camera
 		cam.h_offset = 0.0
@@ -367,6 +382,108 @@ func _finish_rise() -> void:
 	exterior.set_exit_rise(RISE_H)     # 換気ダクトの出口の穴を、上がった高さへ
 	bath_light.omni_range = 8.0        # 上がった浴室の電球は、遠く下のホールまで、扉から漏れて届く
 	unit_risen.emit()
+
+
+## せり上がりの演出：もうもうとした煙（浴室の底のまわり）と、柱・ホールの床に走るひび割れ。
+var _smoke: CPUParticles3D
+var _cracks: Array = []   # [node, 見えはじめる浴室の上がった高さ]
+
+
+func _build_rise_effects() -> void:
+	_smoke = CPUParticles3D.new()
+	_smoke.name = "RiseSmoke"
+	_smoke.amount = 160
+	_smoke.lifetime = 3.2
+	_smoke.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX
+	_smoke.emission_box_extents = Vector3(ROOM_W * 0.5 + 0.2, 0.05, ROOM_D * 0.5 + 0.2)
+	_smoke.direction = Vector3(0, 1, 0.6)
+	_smoke.spread = 40.0
+	_smoke.initial_velocity_min = 0.2
+	_smoke.initial_velocity_max = 0.7
+	_smoke.gravity = Vector3(0, 0.1, 0.1)
+	_smoke.scale_amount_min = 0.8
+	_smoke.scale_amount_max = 1.8
+	var grad := Gradient.new()
+	grad.offsets = PackedFloat32Array([0.0, 0.2, 1.0])
+	grad.colors = PackedColorArray([Color(0.72, 0.7, 0.66, 0.0), Color(0.72, 0.7, 0.66, 0.2), Color(0.6, 0.58, 0.55, 0.0)])
+	_smoke.color_ramp = grad
+	var sm := SphereMesh.new()
+	sm.radius = 0.2
+	sm.height = 0.4
+	var mat := StandardMaterial3D.new()
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.vertex_color_use_as_albedo = true
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	mat.albedo_color = Color(1, 1, 1, 1)
+	sm.material = mat
+	_smoke.mesh = sm
+	_smoke.position = Vector3(0, 0.0, 0.0)
+	add_child(_smoke)
+	_smoke.emitting = true
+	# ひび：ホールの床（浴室の前）と、柱のホール側の面
+	_cracks.clear()
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 77
+	var fz := ROOM_D * 0.5 + WALL_T
+	for k in 7:   # 床
+		var root := Node3D.new()
+		root.position = Vector3(rng.randf_range(-ROOM_W * 0.5, ROOM_W * 0.5), 0.012, fz + 0.1 + rng.randf() * 0.5)
+		root.visible = false
+		add_child(root)
+		_crack_line(root, rng, Vector3(rng.randf_range(-0.6, 0.6), 0, 1.0).normalized(), rng.randf_range(0.5, 1.1), true)
+		_cracks.append([root, 0.1 + k * 0.1])
+	for k in 8:   # 柱の面（ホールの床から立ち上がる）
+		var root2 := Node3D.new()
+		root2.position = Vector3(rng.randf_range(-0.55, 0.9), rng.randf_range(0.25, RISE_H - 0.3), fz - 0.015)
+		root2.visible = false
+		add_child(root2)
+		_crack_line(root2, rng, Vector3(rng.randf_range(-0.7, 0.7), rng.randf_range(0.5, 1.0), 0).normalized(), rng.randf_range(0.3, 0.8), false)
+		_cracks.append([root2, root2.position.y + 0.15])
+
+
+## ひび割れ 1 本：少しずつ向きを変える細い板を、つなげる。flat なら床（xz）、そうでなければ柱の面（xy）。
+func _crack_line(parent: Node3D, rng: RandomNumberGenerator, dir: Vector3, length: float, flat: bool) -> void:
+	var dark := _mat("crack_dark", Color(0.05, 0.05, 0.06), 1.0)
+	var pos := Vector3.ZERO
+	var n := 5
+	var d := dir
+	for i in n:
+		var seg := length / n
+		var bm := BoxMesh.new()
+		bm.size = Vector3(seg, 0.012, 0.006) if flat else Vector3(seg, 0.006, 0.006)
+		var mi := MeshInstance3D.new()
+		mi.mesh = bm
+		mi.material_override = dark
+		parent.add_child(mi)
+		mi.position = pos + d * seg * 0.5
+		var ang := atan2(d.z, d.x) if flat else atan2(d.y, d.x)
+		if flat:
+			mi.rotation.y = -ang
+		else:
+			mi.rotation.z = ang
+		pos += d * seg
+		var wob := rng.randf_range(-0.6, 0.6)
+		d = (d.rotated(Vector3.UP if flat else Vector3.BACK, wob)).normalized()
+		# 枝分かれ
+		if i == 2:
+			var br := Node3D.new()
+			br.position = pos
+			parent.add_child(br)
+			var bd := d.rotated(Vector3.UP if flat else Vector3.BACK, 0.9 * (1.0 if rng.randf() > 0.5 else -1.0)).normalized()
+			var seg2 := length * 0.15
+			var bm2 := BoxMesh.new()
+			bm2.size = Vector3(seg2, 0.012, 0.006) if flat else Vector3(seg2, 0.006, 0.006)
+			var m2 := MeshInstance3D.new()
+			m2.mesh = bm2
+			m2.material_override = dark
+			br.add_child(m2)
+			m2.position = bd * seg2 * 0.5
+			var a2 := atan2(bd.z, bd.x) if flat else atan2(bd.y, bd.x)
+			if flat:
+				m2.rotation.y = -a2
+			else:
+				m2.rotation.z = a2
 
 
 ## 浴室の下の柱（暗いコンクリート）。上がるにつれ、上端が浴室の底について伸びる。
@@ -624,6 +741,21 @@ func set_moonlight(on: bool) -> void:
 	create_tween().tween_method(func(v: float) -> void:
 		sky_clock.ambient_scale = v
 		sky_clock.set_time(sky_clock.time), sky_clock.ambient_scale, target, 1.0)
+
+
+## 鍵のかかったドアのノブを回す：ガチャガチャと鳴って、ドアが小刻みに揺れる。
+func rattle_door() -> void:
+	if door_busy or _door_broken or door_pivot == null:
+		return
+	door_busy = true
+	for k in 3:
+		Sfx.play("clunk", 1.5 + k * 0.1, -4.0)
+		await get_tree().create_timer(0.11).timeout
+	var tw := create_tween()
+	for k in 6:
+		tw.tween_property(door_pivot, "rotation:y", deg_to_rad(1.6 if k % 2 == 0 else -1.2), 0.04)
+	tw.tween_property(door_pivot, "rotation:y", 0.0, 0.05)
+	tw.tween_callback(func() -> void: door_busy = false)
 
 
 func open_door() -> void:

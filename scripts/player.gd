@@ -31,6 +31,7 @@ const SENS_MIN := 0.4
 const SENS_MAX := 2.5
 const GRAVITY := 9.8
 const INTERACT_RANGE := 1.8       # 通常の対象を調べられる距離
+const TUB_REACH := 1.25           # 浴槽の中に座っているとき、手が届く距離（それより遠い物は、操作の表示も出ない）
 const INTERACT_RANGE_MAX := 2.4   # レイの長さ。対象ごとの interact_range メタの上限
 const EYE_HEIGHT := 1.5
 const CROUCH_EYE_HEIGHT := 0.6
@@ -396,7 +397,7 @@ func get_focused(force_update: bool = false) -> Object:
 	if not hit.has_meta("interact_id"):
 		return null
 	# 距離の上限は対象ごと（天井の換気口など）。指定がなければ INTERACT_RANGE
-	var max_range: float = hit.get_meta("interact_range", INTERACT_RANGE)
+	var max_range: float = hit.get_meta("interact_range", TUB_REACH if pose == Pose.IN_TUB else INTERACT_RANGE)
 	if ray.global_position.distance_to(ray.get_collision_point()) > max_range:
 		return null
 	return hit

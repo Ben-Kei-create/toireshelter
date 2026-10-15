@@ -64,12 +64,28 @@ func _exit_tree() -> void:
 		instance = null
 
 
+const VOICE_VARIANTS := 20
+var _voice_cache := {}
+var _voice_last := -1
+
+
+## 神の声は、20 通りのパターン（母音の並び・高さ・長さ）からその都度選ぶ。最初に必要になったときに作って覚えておく。
+func _pick_voice() -> AudioStream:
+	var k := _rng.randi_range(0, VOICE_VARIANTS - 1)
+	if k == _voice_last:
+		k = (k + 1) % VOICE_VARIANTS
+	_voice_last = k
+	if not _voice_cache.has(k):
+		_voice_cache[k] = _streams["voice"] if k == 0 else _wave(_make_voice_variant(k))
+	return _voice_cache[k]
+
+
 func _play(sound: String, pitch: float, db: float) -> void:
 	if not _streams.has(sound):
 		return
 	var p := _players[_next]
 	_next = (_next + 1) % _players.size()
-	p.stream = _streams[sound]
+	p.stream = _pick_voice() if sound == "voice" else _streams[sound]
 	p.pitch_scale = pitch
 	p.volume_db = MASTER_DB + db
 	p.play()
@@ -377,6 +393,51 @@ func _make_voice() -> PackedFloat32Array:
 	for i in s.size():
 		var t := float(i) / MIX
 		s[i] *= clampf((2.2 - t) / 0.4, 0.0, 1.0)
+	return s
+
+
+## 神の声の別パターン：母音（あ・い・う・え・お）の並び・声の高さ・ゆれ・長さを、番号ごとに変える。
+func _make_voice_variant(k: int) -> PackedFloat32Array:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 9100 + k * 31
+	# [第 1 フォルマント, 第 2 フォルマント]：あ・い・う・え・お
+	var vowels := [[800.0, 1250.0], [300.0, 2300.0], [330.0, 800.0], [500.0, 1900.0], [500.0, 900.0]]
+	var n := rng.randi_range(2, 4)
+	var total := 0.5 + 0.45 * n + rng.randf() * 0.3
+	var s := _buf(total + 0.4)
+	var base := rng.randf_range(165.0, 255.0)
+	var dir := rng.randf_range(-0.12, 0.08)          # 全体の上がり下がり
+	var vib := rng.randf_range(3.5, 6.5)
+	var ph := 0.0
+	var hush := _noise(s.size(), rng.randf_range(0.15, 0.35))
+	var t0 := 0.06
+	for si in n:
+		var v: Array = vowels[rng.randi_range(0, 4)]
+		var dur := rng.randf_range(0.32, 0.62)
+		var pitch_mul := 1.0 + dir * si + rng.randf_range(-0.05, 0.05)
+		var i0 := int(t0 * MIX)
+		var i1 := mini(int((t0 + dur) * MIX), s.size())
+		for i in range(i0, i1):
+			var u := float(i - i0) / maxf(1.0, float(i1 - i0))
+			var t := float(i) / MIX
+			var env := pow(sin(PI * u), 0.7)
+			var f0 := base * pitch_mul * (1.0 - 0.04 * u) * (1.0 + 0.012 * sin(TAU * vib * t))
+			ph += TAU * f0 / MIX
+			var val := 0.0
+			for h in range(1, 15):
+				var fh := f0 * float(h)
+				var w := exp(-pow((fh - float(v[0])) / 170.0, 2.0)) + 0.55 * exp(-pow((fh - float(v[1])) / 250.0, 2.0)) + 0.04
+				val += w * sin(ph * float(h)) / float(h)
+			s[i] += 0.16 * env * val + 0.025 * env * hush[i]
+		t0 += dur + rng.randf_range(0.02, 0.1)
+	var dry := s.duplicate()
+	for tap in [[0.11, 0.3], [0.23, 0.2], [0.37, 0.12]]:
+		var d := int(float(tap[0]) * MIX)
+		for i in range(d, s.size()):
+			s[i] += float(tap[1]) * dry[i - d]
+	for i in s.size():
+		var t := float(i) / MIX
+		s[i] *= clampf((total + 0.4 - t) / 0.4, 0.0, 1.0)
 	return s
 
 

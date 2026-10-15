@@ -328,6 +328,6 @@ func get_prompt(_id: String) -> String:
 
 func interact(_id: String) -> String:
 	if locked:
-		return "cabinet_locked"
+		return "cabinet_locked_mirror" if hand_mirror and hand_mirror.visible else "cabinet_locked"
 	toggle()
 	return ""

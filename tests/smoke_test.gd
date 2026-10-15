@@ -421,7 +421,7 @@ func _run() -> void:
 	for i in 3:
 		player.try_interact()
 	await _seconds(0.6)
-	_check(not cab.is_open and absf(cab.door_pivot.rotation.y) < 0.001 and main.hud._message_label.text == main.MESSAGES["cabinet_locked"],
+	_check(not cab.is_open and absf(cab.door_pivot.rotation.y) < 0.001 and main.hud._message_label.text == main.MESSAGES["cabinet_locked_mirror"],
 			"施錠中はクリックしても開かず「鍵がかかっている」")
 	_check(cab.door_pivot.has_node("Lock"), "扉の右端に鍵の金具がある")
 	cab.unlock()   # ここから先は解錠した状態で確認（解錠の仕掛けはまだない）

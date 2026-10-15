@@ -88,6 +88,7 @@ const MESSAGES := {
 	"wood_stick": "壊れた扉の枠の破片。細長い木の棒だ。拾った。",
 	"fuse_hatch": "柱の面に、小さな扉。ノブがない。丸い穴だけが空いている。",
 	"cabinet_locked": "鏡の扉は開かない。右端に溝付きの留め具がある。",
+	"cabinet_locked_mirror": "鏡の扉は開かない。右端に溝付きの留め具がある。……鏡の奥に、手かがみのような物が刺さって見える。いまは、取れない。",
 	"cabinet_unlocked": "留め具を外した。鏡の扉が開けられる。",
 	"bath_bucket": "風呂桶。軽いプラスチック製だ。",
 	"shampoo": "シャンプー。側面のギザギザで、目を閉じていても分かる。",
@@ -516,6 +517,7 @@ const LIQUOR := {
 ## 段階 4（隣の和室）の説明。
 const STAGE4 := {
 	"mirror_pickup": "手かがみを手に入れた。",
+	"mirror_stuck": "鏡に、手かがみのような物が刺さっている。……扉の向こうだ。いまは、取れない。",
 	"gem_look": "大きな宝石。展示札には『触ると普通』とある。……ぼんやり、紫に光っている。",
 	"gem_look_mirror": "大きな宝石。手かがみで、何かの光を当てたら……？",
 	"gem_bright": "部屋が明るくて、反射が見えない。暗くしないと。",
@@ -1838,6 +1840,9 @@ func _on_interact_requested(target: Object) -> void:
 		"hand_mirror":
 			if inventory.has("hand_mirror") or items_found.has("hand_mirror"):
 				return
+			if not room.mirror_cabinet.is_open:
+				hud.show_message(STAGE4["mirror_stuck"], 5.0)
+				return
 			_give_stage4("hand_mirror")
 			room.mirror_cabinet.take_hand_mirror()
 			hud.show_message(STAGE4["mirror_pickup"])
@@ -2161,6 +2166,8 @@ func _on_interact_requested(target: Object) -> void:
 		"door":
 			if door_open:
 				return
+			if not has_driver:
+				room.rattle_door()
 			hud.show_message(MESSAGES["door_loose"] if has_driver else MESSAGES["door_locked"])
 
 
