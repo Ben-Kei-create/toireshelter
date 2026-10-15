@@ -15,6 +15,7 @@ const BooksScript := preload("res://scripts/books.gd")
 const KotatsuScript := preload("res://scripts/kotatsu.gd")
 const HallFusumaScript := preload("res://scripts/hall_fusuma.gd")
 const FigureArt := preload("res://scripts/figure_art.gd")
+const Stage4Items := preload("res://scripts/stage4_items.gd")
 const AirconScript := preload("res://scripts/aircon.gd")
 const FanScript := preload("res://scripts/fan.gd")
 const UfoCatcherScript := preload("res://scripts/ufo_catcher.gd")
@@ -68,6 +69,14 @@ var window_open := false
 var window_locked := false   # ベランダ側から、部屋の鍵がないと開かない（浴室がせり上がったあとに施錠。room.gd の rise_unit）
 var hall_fusuma: Node3D       # ホールと自室の境のふすま（hall_fusuma.gd）
 signal curtain_changed(closed: bool)
+## 宝石（大きな多面体）：トイレの青い光を手かがみで反射させると割れて、ツルハシと結晶が出る（main.gd）。
+var gem_root: Node3D
+var gem_stone: MeshInstance3D
+var gem_broken := false
+var pickaxe_prop: Node3D
+var crystal_prop: Node3D
+var pickaxe_taken := false
+var crystal_taken := false
 var window_busy := false
 var window_panel: Node3D   # 外側のレールの引き違い窓（開けると右へ）
 var hall_ceiling: MeshInstance3D          # ホールの天井（浴室が上がったあと、突き破られて消える）
@@ -864,10 +873,84 @@ func _build_gem() -> void:
 	mi.position = Vector3(0, 0.42 + 0.3, 0)
 	mi.rotation = Vector3(deg_to_rad(12.0), deg_to_rad(20.0), 0)
 	root.add_child(mi)
+	gem_root = root
+	gem_stone = mi
+	# 照準の判定（石のまわり。手かがみを向ける）
+	var garea := MeshKit.interact_area(root, "GemArea", "gem")
+	MeshKit.shape_box(garea, Vector3(0.6, 0.62, 0.6), Vector3(0, 0.72, 0))
 	MeshKit.shape_box(_body, Vector3(0.36, 1.05, 0.36), root.position + Vector3(0, 0.525, 0))
 	# 展示札「触ると普通」（台座の正面＝部屋の中央側 -x）
 	_sign(root, "collection_label_08", Vector3(-0.181, 0.25, 0.0), 0.12, Vector3.LEFT)
 	MeshKit.image_quad(root, MeshKit.prop_tex("sticker_card_1"), Vector2(0.15, 0.15 * 485.0 / 511.0), Vector3(0, 0.21, -0.1815), Vector3.FORWARD, "StickerCard", false, 0.4)   # 石焼き大魔王（台座の北の面）
+
+
+## 宝石が割れる：ひび → 砕けて消える。台座の上に結晶、足元に大きなツルハシが残る。
+func break_gem(instant := false) -> void:
+	if gem_broken:
+		return
+	gem_broken = true
+	if not instant:
+		Sfx.play("crack", 0.9)
+		var tw := create_tween()
+		for i in 6:
+			tw.tween_property(gem_stone, "position:x", 0.012 * (1.0 if i % 2 == 0 else -1.0), 0.04)
+		tw.tween_property(gem_stone, "scale", Vector3(1.15, 1.15, 1.15), 0.12)
+		tw.tween_callback(func() -> void:
+			Sfx.play("crack", 0.6)
+			Sfx.play("clunk", 1.2))
+		tw.tween_property(gem_stone, "scale", Vector3(0.01, 0.01, 0.01), 0.2)
+		tw.tween_callback(func() -> void: gem_stone.visible = false)
+	else:
+		gem_stone.visible = false
+	(gem_root.get_node("GemArea") as Area3D).collision_layer = 0
+	# 砕けた紫のかけら（見た目だけ）
+	var shard_m := MeshKit.mat("gem_shard", Color(0.5, 0.25, 0.8), 0.15, 0.3)
+	shard_m.emission_enabled = true
+	shard_m.emission = Color(0.4, 0.15, 0.75)
+	shard_m.emission_energy_multiplier = 0.4
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 77
+	for i in 9:
+		var sh := MeshKit.box(gem_root, Vector3(rng.randf_range(0.03, 0.07), rng.randf_range(0.02, 0.05), rng.randf_range(0.03, 0.06)), Vector3(rng.randf_range(-0.3, 0.3), 0.015, rng.randf_range(-0.3, 0.3)), shard_m, "GemShard")
+		sh.rotation = Vector3(rng.randf_range(-1, 1), rng.randf_range(0, TAU), rng.randf_range(-1, 1))
+	# 結晶（台座の上）と、ツルハシ（足元の床）
+	crystal_prop = Node3D.new()
+	crystal_prop.name = "Crystal"
+	crystal_prop.position = Vector3(0, 0.44, 0)
+	gem_root.add_child(crystal_prop)
+	crystal_prop.add_child(Stage4Items.crystal_model())
+	var ca := MeshKit.interact_area(crystal_prop, "CrystalArea", "crystal")
+	MeshKit.shape_box(ca, Vector3(0.14, 0.14, 0.14), Vector3(0, 0.06, 0))
+	pickaxe_prop = Node3D.new()
+	pickaxe_prop.name = "Pickaxe"
+	pickaxe_prop.position = Vector3(-0.38, 0.02, 0.18)
+	pickaxe_prop.rotation = Vector3(0, 0.5, 0)
+	gem_root.add_child(pickaxe_prop)
+	var pm := Stage4Items.pickaxe_model()
+	pm.rotation = Vector3(0, 0, deg_to_rad(90.0))
+	pickaxe_prop.add_child(pm)
+	var pa := MeshKit.interact_area(pickaxe_prop, "PickaxeArea", "pickaxe")
+	MeshKit.shape_box(pa, Vector3(0.6, 0.1, 0.18), Vector3(0, 0.03, 0))
+	if crystal_taken:
+		crystal_prop.visible = false
+		ca.collision_layer = 0
+	if pickaxe_taken:
+		pickaxe_prop.visible = false
+		pa.collision_layer = 0
+
+
+func take_crystal() -> void:
+	crystal_taken = true
+	if crystal_prop:
+		crystal_prop.visible = false
+		(crystal_prop.get_node("CrystalArea") as Area3D).collision_layer = 0
+
+
+func take_pickaxe() -> void:
+	pickaxe_taken = true
+	if pickaxe_prop:
+		pickaxe_prop.visible = false
+		(pickaxe_prop.get_node("PickaxeArea") as Area3D).collision_layer = 0
 
 
 # ---------------------------------------------------------------- 額装絵画（仮の抽象模様）

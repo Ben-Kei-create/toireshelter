@@ -156,7 +156,7 @@ func _run() -> void:
 	await create_timer(1.8).timeout
 	_check(br.fuse_in and room.power_on and main.power_restored and not main.inventory.has("fuse"), "ヒューズを差すと、部屋の電気がつく")
 	_check(not main.thrown_torch.burning, "ベランダの松明の火が消える")
-	_check(main.progress.chapter == 3, "第4幕へ進む（%s）" % main.progress.chapter_name())
+	_check(main.progress.chapter == 2, "電気が戻っても、まだ第3幕（暗い部屋）のまま（%s）。第4幕は、隣の和室から" % main.progress.chapter_name())
 	main._on_interact_requested(tv)
 	_check(main.hud._message_label.text != main.POWER_DEAD["tv_play"], "電気が戻ると、テレビなどが使える")
 

@@ -243,7 +243,12 @@ func _process(delta: float) -> void:
 
 ## メッセージを表示する。新しいメッセージは前のものを置き換える（重ならない）。
 ## kind="voice" は、神の声（うすい紫の字、かぎ括弧つき。独り言のヒントなど）。
+var voice_silenced := false   # 神の声が黙っている（家宝の写真のあと。エンディングの一言だけは、このフラグを外して出す）
+
+
 func show_message(text: String, seconds: float = -1.0, kind := "") -> void:
+	if kind == "voice" and voice_silenced:
+		return
 	if seconds <= 0.0:
 		# 日本語を読める時間：最低2.5秒、1文字あたり約0.12秒
 		seconds = maxf(2.5, 1.0 + text.length() * 0.12)

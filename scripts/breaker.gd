@@ -10,6 +10,8 @@ const Sfx := preload("res://scripts/sfx.gd")
 signal fuse_inserted
 
 var cover_open := false
+var lighter_taken := false
+var _lighter_node: Node3D
 var fuse_in := false
 var _cover: Node3D
 var _fuse_node: Node3D
@@ -48,6 +50,18 @@ func _ready() -> void:
 	sc.rotation.x = deg_to_rad(90.0)
 	MeshKit.box(_screw, Vector3(0.026, 0.004, 0.004), Vector3(0, 0, -0.005), MeshKit.mat("breaker_slot", Color(0.1, 0.1, 0.1), 0.8), "Slot")
 	MeshKit.box(_screw, Vector3(0.004, 0.026, 0.004), Vector3(0, 0, -0.005), MeshKit.mat("breaker_slot", Color(0.1, 0.1, 0.1), 0.8), "Slot2")
+	# 箱の底の隅のライター（蓋を開けると見える）
+	_lighter_node = Node3D.new()
+	_lighter_node.name = "Lighter"
+	_lighter_node.position = Vector3(0.09, -0.15, -0.1)
+	_lighter_node.rotation = Vector3(0, 0, deg_to_rad(75.0))
+	_lighter_node.visible = false
+	add_child(_lighter_node)
+	var Stage4Items := preload("res://scripts/stage4_items.gd")
+	_lighter_node.add_child(Stage4Items.lighter_model())
+	var la := MeshKit.interact_area(_lighter_node, "LighterArea", "lighter")
+	la.collision_layer = 0
+	MeshKit.shape_box(la, Vector3(0.1, 0.1, 0.08), Vector3.ZERO)
 	var area := MeshKit.interact_area(self, "BreakerArea", "breaker", self)
 	MeshKit.shape_box(area, Vector3(0.34, 0.42, 0.2), Vector3(0, 0, -0.1))
 
@@ -71,6 +85,9 @@ func open_cover() -> bool:
 		return false
 	cover_open = true
 	Sfx.play("click")
+	if not lighter_taken:
+		_lighter_node.visible = true
+		(_lighter_node.get_node("LighterArea") as Area3D).collision_layer = MeshKit.LAYER_INTERACT
 	var tw := create_tween().set_parallel(true)
 	tw.tween_property(_screw, "rotation:z", TAU * 2.0, 0.7)
 	tw.chain().tween_property(_cover, "rotation:y", deg_to_rad(-105.0), 0.7)
@@ -90,9 +107,18 @@ func insert_fuse() -> String:
 	return "ok"
 
 
+func take_lighter() -> void:
+	lighter_taken = true
+	_lighter_node.visible = false
+	(_lighter_node.get_node("LighterArea") as Area3D).collision_layer = 0
+
+
 ## 保存からの復元（演出なし）。
-func restore(p_cover_open: bool, p_fuse_in: bool) -> void:
+func restore(p_cover_open: bool, p_fuse_in: bool, p_lighter_taken := false) -> void:
 	cover_open = p_cover_open
 	fuse_in = p_fuse_in
+	lighter_taken = p_lighter_taken
+	_lighter_node.visible = cover_open and not lighter_taken
+	(_lighter_node.get_node("LighterArea") as Area3D).collision_layer = MeshKit.LAYER_INTERACT if _lighter_node.visible else 0
 	_cover.rotation.y = deg_to_rad(-105.0) if cover_open else 0.0
 	_fuse_node.visible = fuse_in

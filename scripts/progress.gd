@@ -24,7 +24,7 @@ const DISCOVERIES := {
 	"driver": "ドライバー", "microwave": "電子レンジ", "calendar": "カレンダー",
 	"inspect_lever": "点検レバー", "vent_stretch": "背伸びで換気口へ", "ladder": "ボロボロのはしご", "lean_out": "手すりから乗り出す", "ko_line": "KO線", "unit_rise": "ゴゴゴ（浴室が上がった）", "wood_stick": "木の棒",
 	"ten_yen": "十円玉", "soap": "固形せっけん", "soap_placed": "せっけんを沈めた", "sink_lid": "洗面台のふた", "soap_dissolved": "せっけんが溶けた", "sinker": "鉛のおもり", "tub_lid": "浴槽のふた", "bath_ball": "入浴剤の玉",
-	"ball_dissolved": "玉が溶けた", "match_stick": "マッチ棒", "room_key": "部屋の鍵", "torch": "松明", "torch_thrown": "松明を捨てた", "window_unlocked": "窓の鍵を開けた", "door_knob": "壊れたドアノブ", "hatch_open": "小さな扉が開いた", "fuse": "ヒューズ", "breaker_open": "ブレーカーの蓋", "power_back": "部屋の電気", "chuuren": "九蓮宝燈", "curtain_digits": "カーテンの数字", "lint_washed": "毛だまり", "lint": "毛だまりを拾う", "mirror_paper": "鏡文字のメモ",
+	"ball_dissolved": "玉が溶けた", "match_stick": "マッチ棒", "room_key": "部屋の鍵", "torch": "松明", "torch_thrown": "松明を捨てた", "window_unlocked": "窓の鍵を開けた", "door_knob": "壊れたドアノブ", "hatch_open": "小さな扉が開いた", "fuse": "ヒューズ", "breaker_open": "ブレーカーの蓋", "power_back": "部屋の電気", "chuuren": "九蓮宝燈", "hand_mirror": "手かがみ", "gem": "宝石が割れた", "pickaxe": "大きなツルハシ", "crystal": "結晶", "kotatsu_wall": "こたつの壁を壊した", "washitsu": "隣の和室", "scroll_aligned": "掛け軸の影絵", "bm_dog": "栞（犬）", "bm_monkey": "栞（猿）", "bm_pheasant": "栞（キジ）", "heirloom_open": "家宝が開いた", "photo_tkg": "写真『おふくろのTKG』", "lighter": "ライター", "wood_ladder": "はしご（和室）", "washitsu_coin": "和室のコイン", "rice_pack": "パックご飯", "cold_tkg": "冷めたTKG", "tkg": "TKG", "tkg_eaten": "TKGを食べた", "ladder_placed": "はしごを立てかけた", "curtain_digits": "カーテンの数字", "lint_washed": "毛だまり", "lint": "毛だまりを拾う", "mirror_paper": "鏡文字のメモ",
 }
 
 ## 幕（章）の名前。いまの幕より先は、行くまで「？？？」と出す。
@@ -157,6 +157,9 @@ func _hints() -> Array:
 	var risen: bool = main.room.risen
 	var dark: bool = risen and not main.room.power_on
 	return [
+		{"id": "s4_mirror", "ok": dark and risen and main.inventory.has("hand_mirror") and not main.room.apartment.gem_broken, "text": "トイレの青い光を、手かがみで、宝石へ。部屋は暗いほうがいい。"},
+		{"id": "s4_wall", "ok": main.inventory.has("pickaxe") and not main.room.apartment.kotatsu.wall_broken, "text": "こたつの中を、ずっと奥まで進んでみよう。壁があった気がする。"},
+		{"id": "s4_scroll", "ok": main.region == "washitsu" and not discovered.has("scroll_aligned"), "text": "掛け軸は、ある高さで見ると、ちがうものになる気がする。"},
 		{"id": "s3_key", "ok": dark and main.room.exterior.ladder_down and not main.items_found.has("room_key") and main.room.apartment.window_locked, "text": "鍵はどこかに落ちていないか。下を見てみよう。"},
 		{"id": "s3_torch", "ok": dark and main.inventory.has("wood_stick") and main.inventory.has("match_stick"), "text": "棒の先に、火をつけられそうだ。"},
 		{"id": "s3_dark", "ok": dark and main.region == "room", "text": "電気は、どこから来ているのだろう。"},
@@ -186,6 +189,9 @@ func hints_left() -> int:
 
 ## 設定の「神の声にきく」。回数に限りがある。返り値：ok（ヒントを出した）／off（神の声モードがオフ）／none（もう回数がない）。
 func ask_hint() -> String:
+	if main.god_silent:
+		main.hud.show_message(main.STAGE4["hint_silent"])
+		return "none"
 	if not hints_on:
 		return "off"
 	if hints_left() <= 0:
@@ -290,6 +296,7 @@ func snapshot() -> Dictionary:
 		"chapter": chapter,
 		"stage2": _stage2_snapshot(),
 		"stage3": _stage3_snapshot(),
+		"stage4": _stage4_snapshot(),
 	}
 
 
@@ -350,6 +357,57 @@ func _restore_stage3_models(inv: Array) -> void:
 	for id in ["match_stick", "room_key", "torch", "door_knob", "fuse"]:
 		if inv.has(id):
 			main._give_stage3_model(id)
+
+
+func _stage4_snapshot() -> Dictionary:
+	var room = main.room
+	var apt = room.apartment
+	var w = room.washitsu
+	return {
+		"mirror_taken": not room.mirror_cabinet.hand_mirror.visible,
+		"gem_broken": apt.gem_broken, "pickaxe_taken": apt.pickaxe_taken, "crystal_taken": apt.crystal_taken,
+		"wall_broken": apt.kotatsu.wall_broken,
+		"slots": w.slots_filled, "heirloom_open": w.heirloom_open, "photo_taken": w.photo_taken,
+		"ladder_taken": w.ladder_taken, "coin_taken": w.coin_taken,
+		"ladder_placed": room.ladder_placed, "god_silent": main.god_silent, "lighter_taken": room.exterior.breaker.lighter_taken, "rice_taken": room.apartment.kitchen.rice_taken,
+	}
+
+
+func _stage4_apply(d: Dictionary) -> void:
+	var room = main.room
+	var apt = room.apartment
+	var w = room.washitsu
+	if bool(d.get("mirror_taken", false)):
+		room.mirror_cabinet.take_hand_mirror()
+	apt.pickaxe_taken = bool(d.get("pickaxe_taken", false))
+	apt.crystal_taken = bool(d.get("crystal_taken", false))
+	if bool(d.get("gem_broken", false)):
+		apt.break_gem(true)
+	if bool(d.get("wall_broken", false)):
+		apt.kotatsu.break_wall(true)
+	w.slots_filled = int(d.get("slots", 0))
+	for i in w.slots_filled:
+		w.light_slot(i)
+	w.photo_taken = bool(d.get("photo_taken", false))
+	if bool(d.get("heirloom_open", false)):
+		w.open_heirloom(true)
+	if bool(d.get("ladder_taken", false)):
+		w.take_ladder()
+	if bool(d.get("coin_taken", false)):
+		w.take_coin()
+	if bool(d.get("ladder_placed", false)):
+		room.place_ladder()
+	if bool(d.get("rice_taken", false)):
+		apt.kitchen.take_rice()
+	main.god_silent = bool(d.get("god_silent", false))
+	main.hud.voice_silenced = main.god_silent
+	room.exterior.breaker.restore(room.exterior.breaker.cover_open, room.exterior.breaker.fuse_in, bool(d.get("lighter_taken", false)))
+
+
+func _restore_stage4_models(inv: Array) -> void:
+	for id in ["hand_mirror", "pickaxe", "crystal", "bm_dog", "bm_monkey", "bm_pheasant", "lighter", "wood_ladder", "photo_tkg", "rice_pack", "cold_tkg", "tkg"]:
+		if inv.has(id):
+			main._give_stage4_model(id)
 
 
 func _restore_stage2_models(inv: Array) -> void:
@@ -480,6 +538,7 @@ func apply(d: Dictionary) -> void:
 		main.items_found[String(id)] = true
 	_restore_stage2_models(inv)
 	_restore_stage3_models(inv)
+	_restore_stage4_models(inv)
 	main.select_item(-1)
 	if d.get("door_open", false):
 		main.door_open = true
@@ -502,4 +561,5 @@ func apply(d: Dictionary) -> void:
 	if c.get("stairs_open", false) and not cel.stairs_open:
 		cel.reveal_stairs()
 	_stage3_apply(d.get("stage3", {}))
+	_stage4_apply(d.get("stage4", {}))
 	_loading = false

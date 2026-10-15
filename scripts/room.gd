@@ -30,6 +30,8 @@ const ElevatorCarScript := preload("res://scripts/elevator_car.gd")
 const EntranceScript := preload("res://scripts/entrance.gd")
 const FigureStickersScript := preload("res://scripts/figure_stickers.gd")
 const LiquorCellarScript := preload("res://scripts/liquor_cellar.gd")
+const JapaneseRoomScript := preload("res://scripts/japanese_room.gd")
+const Stage4ItemsRef := preload("res://scripts/stage4_items.gd")
 const SkyClockScript := preload("res://scripts/sky_clock.gd")
 const LightSwitchScript := preload("res://scripts/light_switch.gd")
 const BathDoorControlScript := preload("res://scripts/bath_door_control.gd")
@@ -99,6 +101,8 @@ var bath_light_cycles := 0     # 消してからつけ直した回数
 var bath_purple := false
 var _bulb_mat: StandardMaterial3D
 const PREVIEW_CAR_POS := Vector3(0.0, -80.0, 0.0)
+const WASHITSU_POS := Vector3(40.0, -80.0, 0.0)   # 隣の和室（ほかの場所から遠く離して置く。こたつの壁の穴から、暗転して移る）
+var washitsu: Node3D
 const ENTRANCE_POS := Vector3(-1.85, -13.6, -2.9)   # 外壁（z -1.3）にアーチ、突き当たり（z 6.4）が廊下のエレベーターの真下
 var corridor: CorridorScript
 var vent_cover: Node3D
@@ -120,7 +124,7 @@ const RISE_H := 2.2            # 上がる高さ（m）＝浴室の高さ。扉�
 const RISE_TIME := 8.0
 const BLACKOUT_AMBIENT := 0.01   # 停電のあとの環境光の倍率（真っ暗）
 const UNIT_EXCLUDE := ["WorldEnvironment", "SkyClock", "HallLight", "Apartment", "BathLightSwitch", "Exterior",
-		"FrontDoor", "Corridor", "AmbientSound", "Fishing", "Pedestal", "DoorDebris", "FuseHatch", "DoorwayBlocker", "ElevatorCar", "Entrance", "DoorKnob", "LiquorCellar"]
+		"FrontDoor", "Corridor", "AmbientSound", "Fishing", "Pedestal", "DoorDebris", "FuseHatch", "DoorwayBlocker", "ElevatorCar", "Entrance", "DoorKnob", "LiquorCellar", "JapaneseRoom", "PlacedLadder"]
 var risen := false
 var rising := false
 var rise_offset := 0.0         # いまの上昇量（m）。浴室と換気ダクトの座標にこれを足す
@@ -169,6 +173,10 @@ func _ready() -> void:
 	car.name = "ElevatorCar"
 	car.position = PREVIEW_CAR_POS
 	add_child(car)
+	washitsu = JapaneseRoomScript.new()
+	washitsu.name = "JapaneseRoom"
+	washitsu.position = WASHITSU_POS
+	add_child(washitsu)
 	var entrance := EntranceScript.new()
 	entrance.name = "Entrance"
 	entrance.position = ENTRANCE_POS
@@ -377,6 +385,26 @@ func _update_pedestal() -> void:
 	var bm := _pedestal.mesh as BoxMesh
 	bm.size = Vector3(ROOM_W + WALL_T * 2.0 - 0.04, rise_offset + 1.0, ROOM_D + WALL_T * 2.0 - 0.04)
 	_pedestal.position = Vector3(0, (rise_offset - 1.0) * 0.5, 0)
+
+
+## はしご：和室で拾ったはしごを、ホールから浮き上がった浴室へ立てかける（上り下りできる）。
+var ladder_node: Node3D
+var ladder_placed := false
+const LADDER_TOP := Vector3(0.0, 2.3, 1.31)
+
+
+func place_ladder() -> void:
+	if ladder_placed:
+		return
+	ladder_placed = true
+	ladder_node = Node3D.new()
+	ladder_node.name = "PlacedLadder"
+	ladder_node.position = Vector3(0.0, 0.0, 1.8)
+	ladder_node.rotation.x = deg_to_rad(-12.0)
+	add_child(ladder_node)
+	ladder_node.add_child(Stage4ItemsRef.ladder_model())
+	var a := MeshKit.interact_area(ladder_node, "PlacedLadderArea", "ladder_placed")
+	MeshKit.shape_box(a, Vector3(0.5, 2.3, 0.2), Vector3(0, 1.15, 0))
 
 
 ## お酒のセラー：せり上がった浴室の下の柱（ホール側の面）に、はめ込まれている。ただの飾り。射的でヒビだけ入り、九蓮宝燈を出すと割れる。

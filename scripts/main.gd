@@ -31,6 +31,8 @@ const TitleScript := preload("res://scripts/title_screen.gd")
 const CorridorScript := preload("res://scripts/corridor.gd")
 const CreditsData := preload("res://scripts/credits_data.gd")
 const Stage3Items := preload("res://scripts/stage3_items.gd")
+const Stage4Items := preload("res://scripts/stage4_items.gd")
+const JapaneseRoomScript := preload("res://scripts/japanese_room.gd")
 const BurningTorchScript := preload("res://scripts/burning_torch.gd")
 
 const MESSAGES := {
@@ -366,6 +368,18 @@ const ITEMS := {
 	"torch": {"name": "松明", "desc": "木の棒の先に、火がついている。部屋が暗くても、まわりだけは見える。"},
 	"door_knob": {"name": "壊れたドアノブ", "desc": "壊れたドアノブ。ホールの柱の、小さな扉の穴に合いそうだ。"},
 	"fuse": {"name": "ヒューズ", "desc": "小さなヒューズ。ブレーカーに差せそうだ。"},
+	"hand_mirror": {"name": "手かがみ", "desc": "金の縁の、丸い手かがみ。光を、ほかの場所へはね返せる。"},
+	"pickaxe": {"name": "大きなツルハシ", "desc": "宝石の中から出てきた、大きなツルハシ。壁を壊せそうだ。"},
+	"crystal": {"name": "結晶", "desc": "紫の小さな結晶。……筒の先につけたら、遠くが見えるかもしれない。"},
+	"bm_dog": {"name": "栞（犬）", "desc": "犬の影絵が描かれた栞。"},
+	"bm_monkey": {"name": "栞（猿）", "desc": "猿の影絵が描かれた栞。"},
+	"bm_pheasant": {"name": "栞（キジ）", "desc": "キジの影絵が描かれた栞。"},
+	"lighter": {"name": "ライター", "desc": "赤い使い捨てライター。ちゃんと火がつく。ごく小さな明かりになる。"},
+	"wood_ladder": {"name": "はしご", "desc": "古い木のはしご。浮き上がった浴室へ、立てかけられそうだ。"},
+	"photo_tkg": {"name": "写真『おふくろのTKG』", "desc": "『おふくろのTKG』と書かれた写真。裏に、レシピが書いてある：ご飯と卵で『冷めたTKG』を作り、電子レンジでチンする。"},
+	"rice_pack": {"name": "パックご飯", "desc": "温めるだけのパックご飯。……あたためなくても食べられるが、冷たい。"},
+	"cold_tkg": {"name": "冷めたTKG", "desc": "ご飯に卵をかけただけの、冷めたTKG。電子レンジでチンすると、ちゃんとした TKG になるらしい。"},
+	"tkg": {"name": "TKG", "desc": "おふくろの、TKG。湯気が立っている。……食べよう。"},
 	"yen100": {"name": "百円玉", "desc": "ぴかぴかの百円玉。自動販売機で使えそうだ。"},
 	"sinker": {"name": "鉛のおもり", "desc": "ずっしり重い鉛の塊。軽いものの上に載せれば、重しになる。"},
 	"lint": {"name": "毛だまり", "desc": "服についていた毛玉と綿ぼこり。ふわふわで軽い。"},
@@ -392,6 +406,8 @@ const ACTION_PROMPTS := {
 	"kotatsu_sit": "E：こたつに座る",
 	"closet_enter": "E：押し入れに入る",
 	"closet_exit": "E：押し入れから出る",
+	"ladder_up": "E：はしごで、浴室へ上る",
+	"ladder_down": "E：はしごで、ホールへ下りる",
 	"kotatsu_stand": "E：立つ",
 	"kotatsu_out": "E：こたつから出る",
 	"sleep": "E：ふとんで寝る",
@@ -476,6 +492,63 @@ const LIQUOR := {
 	"ornament": "手の込んだ置物。コルク銃で撃っても、びくともしなさそうだ。",
 	"broken": "お酒は20歳になってから。",
 }
+## 段階 4（隣の和室）の説明。
+const STAGE4 := {
+	"mirror_pickup": "手かがみを手に入れた。",
+	"gem_look": "大きな宝石。展示札には『触ると普通』とある。……ぼんやり、紫に光っている。",
+	"gem_look_mirror": "大きな宝石。手かがみで、何かの光を当てたら……？",
+	"gem_bright": "部屋が明るくて、反射が見えない。暗くしないと。",
+	"gem_no_light": "トイレの明かりが消えている。はね返す光がない。",
+	"gem_white": "光は白い。宝石は、反応しない。……青い光でないとだめらしい。",
+	"gem_far": "宝石が遠すぎる。もう少し近づいて、向きを合わせよう。",
+	"gem_break": "手かがみで青い光をはね返すと、宝石にひびが走った。……パリン。宝石が砕けた！",
+	"gem_after": "宝石の台座には、結晶が残り、足元には、大きなツルハシが転がっている。",
+	"pickaxe_pickup": "大きなツルハシを手に入れた。",
+	"crystal_pickup": "結晶を手に入れた。",
+	"wall_look": "こたつの中なのに、壁がある。ひびが入っていて、向こうから、かすかに畳のにおいがする。",
+	"wall_hard": "硬い。素手では、びくともしない。",
+	"wall_break": "ツルハシを振り下ろした。ガツン！ ……壁が崩れて、暗い穴が開いた。",
+	"wall_hole": "崩れた壁の向こうは、暗い。畳のにおいが濃くなった。",
+	"washitsu_in": "暗くて、質素な和室だ。……ここは、誰の家だろう。",
+	"back_in_kotatsu": "こたつの中へ戻った。",
+	"scroll_blotch": "掛け軸には、墨の模様が、バラバラに散っている。見る高さで、何かに見えそうだ。",
+	"scroll_aligned": "ぴったりの高さで見ると、墨が犬、猿、キジの影絵に揃った。上から、犬、猿、キジ。",
+	"scroll_dark": "掛け軸がある。暗くて、何も見えない。明かりがほしい。",
+	"heirloom_look": "漆の小さな箱。前に、細い差し込み口が三つある。栞のような物を差せそうだ。",
+	"heirloom_done": "箱は、もう開いている。",
+	"slot_ok": "カチリ。栞が差さった。（%d / 3）",
+	"slot_wrong": "栞は入らない。順番が、ちがうのかもしれない。掛け軸が、手がかりだ。",
+	"heirloom_open": "三つの栞がそろうと、箱の蓋が、静かに開いた。",
+	"photo_pickup": "写真が入っていた。『おふくろのTKG』。裏には、レシピが書いてある。",
+	"god_silent": "……神の声が、黙った。",
+	"hint_silent": "……なにも、聞こえない。",
+	"grandma": "おばあちゃんの写真。……どこかで、見たことのある笑顔だ。",
+	"kamidana": "神棚。小さな社に、ほこりが積もっていない。毎日、誰かが手を合わせていたのだ。",
+	"ranma_low": "高い所に、彫刻がある。もう少し背が高ければ、見えそうだ。",
+	"ranma_high": "欄間の彫刻。犬と、猿と、鳥が、並んでいる。……掛け軸と、同じ順だ。",
+	"town_map": "下南澤のミニチュア。コーポヨシミの 5 階の窓に、小さな灯りが一つだけ描いてある。",
+	"mouse_hole": "ねずみ穴。小さな穴の奥に、何かが転がっている気配がする。",
+	"ladder_pickup": "古い木のはしごを手に入れた。浮き上がった浴室へ、立てかけられそうだ。",
+	"coin_pickup": "暗い隅に、コインが落ちていた。UFOキャッチャーのコインだ。",
+	"coin_dark": "暗くて、よく見えない。何か、光る物が落ちている気がする。",
+	"lighter_pickup": "ブレーカーの箱の隅に、ライターが入っていた。",
+	"bookmark_found": "ページのあいだに、栞が挟まっていた。『%s』。",
+	"need_light": "暗くて、何も見えない。明かりがほしい。",
+	"ladder_placed": "はしごを、浮き上がった浴室へ立てかけた。上り下りできそうだ。（はしごを狙って E）",
+	"ladder_up": "はしごを上って、浴室へ戻った。",
+	"ladder_down": "はしごを下りて、ホールへ戻った。",
+	"rice_pickup": "パックご飯を手に入れた。……卵があれば、あれが作れそうだ。",
+	"need_egg": "ご飯に合わせる卵がいる。冷蔵庫から、卵を取ってこよう。",
+	"cold_tkg_made": "ご飯に卵をかけた。……冷めた TKG だ。これを、電子レンジでチンする。",
+	"microwave_start": "冷めた TKG を、電子レンジに入れた。……ブーン。",
+	"microwave_done": "チン！ ……おふくろの TKG が、できあがった。",
+	"tkg_eat": "いただきます。……うまい。なぜか、少しだけ、涙が出た。",
+}
+## 栞が挟まっている本（題名 → 栞の id）。順番は、掛け軸の影絵（犬 → 猿 → キジ）。
+const BOOKMARK_BOOKS := {"透明な隣人": "bm_dog", "影の標本室": "bm_monkey", "椅子の渡り鳥": "bm_pheasant"}
+const BOOKMARK_ORDER := ["bm_dog", "bm_monkey", "bm_pheasant"]
+const BOOKMARK_KIND := {"bm_dog": "dog", "bm_monkey": "monkey", "bm_pheasant": "pheasant"}
+const GEM_REACH := 2.4
 const VENDING_REACH := 1.49            # 自動販売機の最上段のボタンに届く目の高さ（150 cm）。最後の関門が身長
 const RIDE_STOPS := [4, 3, 2, 1]
 # 換気経路：入口で浴槽へ戻れる範囲（換気口の真上からの水平距離）、出口からベランダへ降りる経由点と着地候補
@@ -516,6 +589,12 @@ var region := ""                   # 今いる区画：bath / hall / room / duct
 var _last_region := ""
 var door_open := false
 var cleared := false
+var _mw_busy := false
+var god_silent := false            # 家宝の写真を取ると、神の声が黙る（エンディングの一言だけは出る）
+var washitsu_transit := false
+var _ambient_before := -1.0
+var _scroll_a := 0.0
+var _torch_base := 1.6
 var thrown_torch: Node3D           # ベランダに捨てた、燃える松明
 var _torch_light: OmniLight3D      # 松明を手に持ったときの明かり
 var _torch_t := 0.0
@@ -751,6 +830,7 @@ func _process(_delta: float) -> void:
 			progress.add_note("ko_line", "KO線", "右手の遠くに高架の線路。電車がゆっくり走っている。", "手がかり")
 	_update_lint(_delta)
 	_update_torch_light(_delta)
+	_update_scroll(_delta)
 	var carried: String = room.apartment.cellar.carrying_name
 	hud.set_carry("運んでいる：%s（冷蔵庫の中を狙って、左クリックで入れる）" % carried if not carried.is_empty() else "")
 	if not paused and not cleared:
@@ -1213,6 +1293,12 @@ func _close_reader() -> void:
 	reading = false
 	hud.hide_reader()
 	player.controls_enabled = true
+	# 特定の短編集には、栞が挟まっている（最後のページまで読んだとき）
+	if BOOKMARK_BOOKS.has(_reader_title) and _reader_page >= _reader_pages.size() - 1:
+		var bm: String = BOOKMARK_BOOKS[_reader_title]
+		if not inventory.has(bm) and not items_found.has(bm):
+			_give_stage4(bm)
+			hud.show_message(STAGE4["bookmark_found"] % ITEMS[bm].name, 5.0)
 
 
 # ---------------------------------------------------------------- 姿勢（座る・浴槽）
@@ -1257,6 +1343,8 @@ func _action_for(target: Object) -> String:
 		return "lean_out"
 	if id == "kotatsu" and player.pose == PlayerScript.Pose.WALK:
 		return "kotatsu_sit"
+	if id == "ladder_placed" and player.pose == PlayerScript.Pose.WALK:
+		return "ladder_down" if player.global_position.y > 1.2 else "ladder_up"
 	if (id == "fusuma" or id == "fusuma_r") and player.pose == PlayerScript.Pose.WALK:
 		return "closet_enter"
 	if id == "bed" and player.pose == PlayerScript.Pose.WALK:
@@ -1300,6 +1388,10 @@ func do_action() -> void:
 		"kotatsu_stand":
 			if not player.leave_fixed(KotatsuScript.SEATS[kotatsu_seat].exits):
 				hud.show_message(MESSAGES["no_way_out"])
+		"ladder_up":
+			_climb_ladder(true)
+		"ladder_down":
+			_climb_ladder(false)
 		"closet_enter":
 			_enter_closet()
 		"closet_exit":
@@ -1410,8 +1502,12 @@ func _prompt_for(target: Object) -> String:
 			return PROMPTS["dice_roll"]
 		"tv_remote":
 			return PROMPTS["tv_remote"]
-		"door_knob", "fuse":
+		"door_knob", "fuse", "hand_mirror", "pickaxe", "crystal", "ladder_prop", "washitsu_coin", "heirloom_photo", "lighter", "rice_pack":
 			return PROMPT_PICKUP
+		"kotatsu_hole":
+			return "左クリック：穴へ進む"
+		"washitsu_hole":
+			return "左クリック：穴から、こたつの中へ戻る"
 		"elevator":
 			return "左クリック：エレベーターに乗る"
 		"vending":
@@ -1517,6 +1613,76 @@ func _on_interact_requested(target: Object) -> void:
 			hud.show_message(LIQUOR["broken"] if room.cellar_broken else LIQUOR[id])
 		"ornament":
 			hud.show_message(LIQUOR[id])
+		"hand_mirror":
+			if inventory.has("hand_mirror") or items_found.has("hand_mirror"):
+				return
+			_give_stage4("hand_mirror")
+			room.mirror_cabinet.take_hand_mirror()
+			hud.show_message(STAGE4["mirror_pickup"])
+		"gem":
+			hud.show_message(STAGE4["gem_look_mirror"] if inventory.has("hand_mirror") else STAGE4["gem_look"])
+		"pickaxe":
+			if inventory.has("pickaxe") or room.apartment.pickaxe_taken:
+				return
+			_give_stage4("pickaxe")
+			room.apartment.take_pickaxe()
+			hud.show_message(STAGE4["pickaxe_pickup"])
+		"crystal":
+			if inventory.has("crystal") or room.apartment.crystal_taken:
+				return
+			_give_stage4("crystal")
+			room.apartment.take_crystal()
+			hud.show_message(STAGE4["crystal_pickup"])
+		"kotatsu_wall":
+			hud.show_message(STAGE4["wall_look"] if not inventory.has("pickaxe") else STAGE4["wall_hard"])
+		"kotatsu_hole":
+			_enter_washitsu()
+		"washitsu_hole":
+			_leave_washitsu()
+		"scroll":
+			_look_scroll()
+		"heirloom":
+			if room.washitsu.heirloom_open:
+				hud.show_message(STAGE4["heirloom_done"])
+			else:
+				hud.show_message(STAGE4["heirloom_look"] + "（%d / 3）" % room.washitsu.slots_filled)
+		"heirloom_photo":
+			_take_photo()
+		"grandma_photo":
+			hud.show_message(STAGE4["grandma"])
+		"kamidana":
+			hud.show_message(STAGE4["kamidana"])
+		"ranma":
+			hud.show_message(STAGE4["ranma_high"] if player.eye_height >= 1.65 else STAGE4["ranma_low"])
+		"town_map":
+			hud.show_message(STAGE4["town_map"])
+		"mouse_hole":
+			hud.show_message(STAGE4["mouse_hole"])
+		"ladder_prop":
+			if inventory.has("wood_ladder") or room.washitsu.ladder_taken:
+				return
+			_give_stage4("wood_ladder")
+			room.washitsu.take_ladder()
+			hud.show_message(STAGE4["ladder_pickup"])
+		"washitsu_coin":
+			if room.washitsu.coin_taken:
+				return
+			room.washitsu.take_coin()
+			add_coin(1)
+			progress.discover("washitsu_coin")
+			hud.show_message(STAGE4["coin_pickup"], 5.0)
+		"rice_pack":
+			if inventory.has("rice_pack") or room.apartment.kitchen.rice_taken:
+				return
+			_give_stage4("rice_pack")
+			room.apartment.kitchen.take_rice()
+			hud.show_message(STAGE4["rice_pickup"])
+		"lighter":
+			if inventory.has("lighter") or room.exterior.breaker.lighter_taken:
+				return
+			_give_stage4("lighter")
+			room.exterior.breaker.take_lighter()
+			hud.show_message(STAGE4["lighter_pickup"])
 		"door_knob":
 			if inventory.has("door_knob") or room.knob_taken:
 				return
@@ -1918,6 +2084,50 @@ func use_selected() -> void:
 		else:
 			hud.show_message(MESSAGES["cannot_use"])
 		return
+	if id == "wood_ladder" and (tid == "fuse_hatch" or tid == "ladder_placed" or tid == "liquor_cellar" or tid.begins_with("liquor_")):
+		if not room.risen or room.ladder_placed:
+			hud.show_message(MESSAGES["cannot_use"])
+			return
+		room.place_ladder()
+		remove_item("wood_ladder")
+		SfxScript.play("clunk")
+		hud.show_message(STAGE4["ladder_placed"], 5.0)
+		progress.discover("ladder_placed")
+		return
+	if id == "rice_pack":
+		var k = room.apartment.kitchen
+		if k.eggs_held <= 0:
+			hud.show_message(STAGE4["need_egg"])
+			return
+		k.eggs_held -= 1
+		remove_item("rice_pack")
+		SfxScript.play("plop")
+		_give_stage4("cold_tkg")
+		select_item(inventory.find("cold_tkg"))
+		hud.show_message(STAGE4["cold_tkg_made"], 5.0)
+		return
+	if id == "cold_tkg" and tid == "microwave":
+		_heat_tkg()
+		return
+	if id == "tkg":
+		remove_item("tkg")
+		SfxScript.play("pop")
+		hud.show_message(STAGE4["tkg_eat"], 6.0)
+		progress.discover("tkg_eaten")
+		return
+	if id == "hand_mirror" and tid == "gem":
+		_use_mirror_on_gem()
+		return
+	if id == "pickaxe" and tid == "kotatsu_wall":
+		room.apartment.kotatsu.break_wall()
+		SfxScript.play("crack")
+		SfxScript.play("thunk", 0.7)
+		hud.show_message(STAGE4["wall_break"], 5.0)
+		progress.discover("kotatsu_wall")
+		return
+	if BOOKMARK_KIND.has(id) and tid == "heirloom":
+		_insert_bookmark(id)
+		return
 	if id == "door_knob" and tid == "fuse_hatch":
 		if room.hatch_open:
 			hud.show_message(MESSAGES["cannot_use"])
@@ -2100,7 +2310,7 @@ func _crawl_out(d: Vector3) -> bool:
 
 
 const SPACES := {"bath": [0.32, 20000.0], "hall": [0.14, 20000.0], "room": [0.07, 20000.0], "corridor": [0.3, 20000.0],
-		"duct": [0.28, 5000.0], "balcony": [0.02, 20000.0], "car": [0.3, 12000.0], "lobby": [0.28, 20000.0], "alley": [0.03, 20000.0]}
+		"duct": [0.28, 5000.0], "balcony": [0.02, 20000.0], "car": [0.3, 12000.0], "washitsu": [0.12, 9000.0], "lobby": [0.28, 20000.0], "alley": [0.03, 20000.0]}
 var _space_key := ""
 
 
@@ -2128,6 +2338,8 @@ func _surface_at(p: Vector3) -> String:
 			return "tile"
 		"duct", "balcony", "car":
 			return "metal"
+		"washitsu":
+			return "wood"
 		"room":
 			var rug: Vector3 = SmallPropsScript.RUG_CENTER
 			var hs: Vector2 = SmallPropsScript.RUG_SIZE * 0.5
@@ -2142,7 +2354,7 @@ func _surface_at(p: Vector3) -> String:
 ## 足元の位置の区画。敷居など境目の上では空（直前の区画を保つ）。
 func _region_of(p: Vector3) -> String:
 	if p.y < -70.0:
-		return "car"
+		return "washitsu" if p.x > 20.0 else "car"
 	if p.y < -10.0:
 		# 1 階：廊下の真下の玄関ホール／路地（入口から自動販売機まで）
 		if p.x > -2.75 and p.x < -0.95 and p.z > -1.3:
@@ -2241,6 +2453,7 @@ func _use_vending() -> void:
 	await get_tree().create_timer(3.0 / ride_speed).timeout
 	hud.show_message(ENDING["vending_last"], 4.5)
 	await get_tree().create_timer(3.8 / ride_speed).timeout
+	hud.voice_silenced = false   # 神の声は黙っていても、エンディングの一言だけは出る
 	hud.show_message(ENDING["vending_voice"], 4.5, "voice")
 	await get_tree().create_timer(4.0 / ride_speed).timeout
 	_clear("true")
@@ -2250,6 +2463,210 @@ func _use_vending() -> void:
 func give_yen100() -> void:
 	_item_models["yen100"] = TowelRef.coin_model()
 	add_item("yen100")
+
+
+# ---------------------------------------------------------------- 段階 4：手かがみ・宝石・ツルハシ・こたつの壁・隣の和室
+
+func _give_stage4_model(id: String) -> void:
+	match id:
+		"hand_mirror":
+			_item_models[id] = Stage4Items.hand_mirror_model()
+		"pickaxe":
+			_item_models[id] = Stage4Items.pickaxe_model()
+		"crystal":
+			_item_models[id] = Stage4Items.crystal_model()
+		"bm_dog", "bm_monkey", "bm_pheasant":
+			_item_models[id] = Stage4Items.bookmark_model(BOOKMARK_KIND[id])
+		"lighter":
+			_item_models[id] = Stage4Items.lighter_model()
+		"rice_pack":
+			_item_models[id] = Stage4Items.rice_model()
+		"cold_tkg":
+			_item_models[id] = Stage4Items.tkg_model(false)
+		"tkg":
+			_item_models[id] = Stage4Items.tkg_model(true)
+		"wood_ladder":
+			_item_models[id] = Stage4Items.ladder_model()
+		"photo_tkg":
+			_item_models[id] = Stage4Items.photo_model()
+
+
+func _give_stage4(id: String) -> void:
+	_give_stage4_model(id)
+	add_item(id)
+	progress.discover(id)
+
+
+## 手かがみで、トイレの青い光を宝石へはね返す。部屋が暗く（停電）、トイレの電球が青くついているときだけ。近づいて、向きを合わせる（簡易判定）。
+func _use_mirror_on_gem() -> void:
+	var apt = room.apartment
+	if apt.gem_broken:
+		hud.show_message(MESSAGES["cannot_use"])
+		return
+	if room.power_on:
+		hud.show_message(STAGE4["gem_bright"])
+		return
+	if not room.bath_light_on:
+		hud.show_message(STAGE4["gem_no_light"])
+		return
+	if not room.bath_purple:
+		hud.show_message(STAGE4["gem_white"])
+		return
+	if player.global_position.distance_to(apt.gem_root.global_position) > GEM_REACH:
+		hud.show_message(STAGE4["gem_far"])
+		return
+	apt.break_gem()
+	SfxScript.play("chime", 1.2)
+	hud.show_message(STAGE4["gem_break"], 6.0)
+	progress.discover("gem")
+	await get_tree().create_timer(2.8).timeout
+	hud.show_message(STAGE4["gem_after"], 5.0)
+
+
+## 冷めた TKG を電子レンジでチンする（電気が必要）。
+func _heat_tkg() -> void:
+	if not room.power_on:
+		hud.show_message(POWER_DEAD["microwave"])
+		return
+	if _mw_busy:
+		return
+	_mw_busy = true
+	remove_item("cold_tkg")
+	hud.show_message(STAGE4["microwave_start"], 3.0)
+	SfxScript.play("buzz", 0.6, -8.0)
+	await get_tree().create_timer(3.2 / ride_speed).timeout
+	for i in 3:
+		SfxScript.play("beep", 1.1)
+		await get_tree().create_timer(0.35 / ride_speed).timeout
+	_give_stage4("tkg")
+	select_item(inventory.find("tkg"))
+	hud.show_message(STAGE4["microwave_done"], 5.0)
+	_mw_busy = false
+
+
+func _look_scroll() -> void:
+	if not (_torch_light and _torch_light.visible):
+		hud.show_message(STAGE4["scroll_dark"])
+		return
+	if absf(player.eye_height - JapaneseRoomScript.SCROLL_EYE) <= JapaneseRoomScript.SCROLL_TOLERANCE:
+		hud.show_message(STAGE4["scroll_aligned"], 6.0)
+		progress.discover("scroll_aligned")
+		progress.add_note("scroll_order", "掛け軸の影絵", "目の高さがぴったり 142 cm のとき、墨が影絵に揃う。上から、犬・猿・キジ。栞を差す順番だ。", "手がかり")
+	else:
+		hud.show_message(STAGE4["scroll_blotch"])
+
+
+## 掛け軸は、目の高さがぴったり（142 cm ±2.5cm）で、明かりを持って見ているときだけ、影絵が揃って見える。
+func _update_scroll(delta: float) -> void:
+	if region != "washitsu" or room.washitsu == null:
+		return
+	var aligned := absf(player.eye_height - JapaneseRoomScript.SCROLL_EYE) <= JapaneseRoomScript.SCROLL_TOLERANCE and _torch_light != null and _torch_light.visible
+	_scroll_a = move_toward(_scroll_a, 1.0 if aligned else 0.0, delta * 3.0)
+	room.washitsu.set_scroll_alignment(_scroll_a)
+
+
+func _insert_bookmark(id: String) -> void:
+	var w = room.washitsu
+	if w.heirloom_open:
+		hud.show_message(STAGE4["heirloom_done"])
+		return
+	if id != BOOKMARK_ORDER[w.slots_filled]:
+		SfxScript.play("buzz", 1.0, -6.0)
+		hud.show_message(STAGE4["slot_wrong"])
+		return
+	remove_item(id)
+	w.light_slot(w.slots_filled)
+	w.slots_filled += 1
+	SfxScript.play("click")
+	hud.show_message(STAGE4["slot_ok"] % w.slots_filled)
+	if w.slots_filled >= 3:
+		await get_tree().create_timer(1.2).timeout
+		w.open_heirloom()
+		SfxScript.play("chime")
+		hud.show_message(STAGE4["heirloom_open"], 5.0)
+		progress.discover("heirloom_open")
+
+
+func _take_photo() -> void:
+	var w = room.washitsu
+	if inventory.has("photo_tkg") or w.photo_taken:
+		return
+	w.take_photo()
+	_give_stage4("photo_tkg")
+	progress.add_note("tkg_recipe", "写真の裏のレシピ", "ご飯と卵で『冷めたTKG』を作る。それを電子レンジでチンする。", "手がかり")
+	hud.show_message(STAGE4["photo_pickup"], 6.0)
+	await get_tree().create_timer(4.5).timeout
+	god_silent = true
+	hud.voice_silenced = true
+	hud.show_message(STAGE4["god_silent"], 5.0)
+
+
+## こたつの中の穴から、隣の和室へ。暗転して移る。環境光を落として、真っ暗にする（明かりがほしい）。
+func _enter_washitsu() -> void:
+	if washitsu_transit or player.pose != PlayerScript.Pose.KOTATSU_IN:
+		return
+	washitsu_transit = true
+	player.controls_enabled = false
+	SfxScript.play("rustle")
+	await hud.fade_to(1.0, 0.6).finished
+	_ambient_before = room.sky_clock.ambient_scale
+	room.sky_clock.ambient_scale = 0.01
+	room.sky_clock.set_time(room.sky_clock.time)
+	room.apartment.kotatsu.set_solid(true)
+	player.global_position = room.WASHITSU_POS + JapaneseRoomScript.SPAWN
+	player.rotation.y = -PI * 0.5
+	player._pitch = 0.0
+	player.camera.rotation.x = 0.0
+	player.leave_crawl()
+	progress.set_chapter(3)   # 第4幕　隣の和室
+	progress.discover("washitsu")
+	await hud.fade_to(0.0, 0.8).finished
+	player.controls_enabled = true
+	washitsu_transit = false
+	hud.show_message(STAGE4["washitsu_in"], 5.0)
+
+
+func _leave_washitsu() -> void:
+	if washitsu_transit:
+		return
+	washitsu_transit = true
+	player.controls_enabled = false
+	SfxScript.play("rustle")
+	await hud.fade_to(1.0, 0.6).finished
+	if _ambient_before >= 0.0:
+		room.sky_clock.ambient_scale = _ambient_before
+		room.sky_clock.set_time(room.sky_clock.time)
+	_ambient_before = -1.0
+	room.apartment.kotatsu.set_solid(false)
+	var wall_world: Vector3 = room.apartment.kotatsu.global_position + KotatsuScript.WALL_LOCAL
+	player.global_position = Vector3(wall_world.x - 0.3, 0.0, wall_world.z)
+	player.move_to(PlayerScript.Pose.KOTATSU_IN, player.global_position, PI * 0.5, KotatsuScript.EYE_INSIDE, [], true, PlayerScript.KOTATSU_BODY_HEIGHT, PlayerScript.KOTATSU_BODY_RADIUS)
+	await hud.fade_to(0.0, 0.8).finished
+	player.controls_enabled = true
+	washitsu_transit = false
+	hud.show_message(STAGE4["back_in_kotatsu"], 4.0)
+
+
+## はしごの上り下り（浴室の入口 ⇔ ホール）。暗転して移る。
+func _climb_ladder(up: bool) -> void:
+	if washitsu_transit or not room.ladder_placed:
+		return
+	washitsu_transit = true
+	player.controls_enabled = false
+	SfxScript.play("rustle")
+	await hud.fade_to(1.0, 0.5).finished
+	if up:
+		player.global_position = Vector3(0.0, room.rise_offset + 0.05, 0.85)
+		player.rotation.y = 0.0
+	else:
+		player.global_position = Vector3(0.0, 0.05, 1.95)
+		player.rotation.y = PI   # ホールの奥（+z）を向く
+	player._pitch = 0.0
+	player.camera.rotation.x = 0.0
+	await hud.fade_to(0.0, 0.5).finished
+	player.controls_enabled = true
+	washitsu_transit = false
+	hud.show_message(STAGE4["ladder_up"] if up else STAGE4["ladder_down"], 3.0)
 
 
 # ---------------------------------------------------------------- 段階 3：松明・暗い部屋・ブレーカー
@@ -2311,7 +2728,9 @@ func _make_torch() -> void:
 
 ## 選んでいる物が松明なら、手元に明かりをつける（ゆらぐ）。
 func _refresh_torch_light() -> void:
-	var on := selected_item() == "torch"
+	var sel := selected_item()
+	var on := sel == "torch" or sel == "lighter"
+	_torch_base = 1.6 if sel == "torch" else 1.0
 	if on and _torch_light == null:
 		_torch_light = OmniLight3D.new()
 		_torch_light.name = "TorchLight"
@@ -2322,12 +2741,13 @@ func _refresh_torch_light() -> void:
 		player.camera.add_child(_torch_light)
 	if _torch_light:
 		_torch_light.visible = on
+		_torch_light.omni_range = 4.5 if sel == "torch" else 3.0
 
 
 func _update_torch_light(delta: float) -> void:
 	if _torch_light and _torch_light.visible:
 		_torch_t += delta
-		_torch_light.light_energy = 1.6 + sin(_torch_t * 15.0) * 0.18 + sin(_torch_t * 6.1) * 0.12
+		_torch_light.light_energy = _torch_base + sin(_torch_t * 15.0) * 0.18 + sin(_torch_t * 6.1) * 0.12
 
 
 ## 暗い部屋でカーテンを開けると、月明かりが差す。松明を持っていたら、神の声が「危ない」と言って、窓の外へ捨てる。
@@ -2358,7 +2778,6 @@ func _on_fuse_inserted() -> void:
 	room.set_power(true)
 	hud.show_message(STAGE3["breaker_on"], 6.0)
 	progress.discover("power_back")
-	progress.set_chapter(3)
 	if thrown_torch and is_instance_valid(thrown_torch):
 		thrown_torch.extinguish()
 		await get_tree().create_timer(1.2).timeout

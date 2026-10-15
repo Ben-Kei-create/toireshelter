@@ -28,6 +28,8 @@ const FRIDGE_FRONT := 1.78     # 冷蔵庫の前面（扉の外面）の z
 const COOK_TIME := 6.0         # 生から焼き上がりまで（秒）
 const BURN_TIME := 20.0        # 生から焦げるまで（秒）
 
+var rice_node: Node3D           # 台の上のパックご飯（拾える）。卵と合わせて「冷めたTKG」になる
+var rice_taken := false
 var eggs_held := 0             # 取り出して持っている卵
 var eggs_eaten := 0
 var flame_on := false
@@ -105,7 +107,29 @@ func _ready() -> void:
 	_build_stove_extras(stove_x, cz)
 	_build_fridge()
 	_build_microwave()
+	_build_rice()
 	MeshKit.auto_round = true
+
+
+## 台の上のパックご飯（コンロの右隣）。拾える。
+func _build_rice() -> void:
+	rice_node = Node3D.new()
+	rice_node.name = "RicePack"
+	rice_node.position = Vector3(X0 + WIDTH - 0.12, TOP, WALL_Z - 0.18)
+	add_child(rice_node)
+	var Stage4Items := preload("res://scripts/stage4_items.gd")
+	var m := Stage4Items.rice_model()
+	m.position = Vector3(0, 0.02, 0)
+	rice_node.add_child(m)
+	var area := MeshKit.interact_area(rice_node, "RiceArea", "rice_pack")
+	MeshKit.shape_box(area, Vector3(0.16, 0.08, 0.12), Vector3(0, 0.03, 0))
+
+
+func take_rice() -> void:
+	rice_taken = true
+	if rice_node:
+		rice_node.visible = false
+		(rice_node.get_node("RiceArea") as Area3D).collision_layer = 0
 
 
 ## 電子レンジ：吊り戸棚（流し側）の上。装飾と「調べる」だけ（加熱・扉の開閉はしない）。流し・コンロ・収納・冷蔵庫には触れない。

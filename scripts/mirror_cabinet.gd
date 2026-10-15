@@ -18,6 +18,7 @@ extends Node3D
 
 const MeshKit := preload("res://scripts/mesh_kit.gd")
 const CharacterScript := preload("res://scripts/character.gd")
+const Stage4Items := preload("res://scripts/stage4_items.gd")
 
 const WALL_X := 0.9                         # 壁面（部屋側）
 const BACK_X := 1.0                         # 壁の外側
@@ -42,6 +43,7 @@ var busy := false
 var door_pivot: Node3D
 var reflection: MeshInstance3D   # 鏡に映る主人公の顔（見る角度で向きが変わる）
 var reflection_view := ""
+var hand_mirror: Node3D          # 上の棚の手かがみ（拾える）。宝石の謎で使う
 var lever: Node3D                # 点検レバーの台
 var lever_arm: Node3D            # 引くと倒れる腕
 var lever_pulled := false
@@ -175,6 +177,23 @@ func _build_items() -> void:
 	lever.add_child(lever_arm)
 	MeshKit.cylinder(lever_arm, 0.004, 0.06, Vector3(0, 0.03, 0), MeshKit.mat("lever_rod", Color(0.7, 0.7, 0.72), 0.3, 0.8), "Rod")
 	MeshKit.sphere(lever_arm, 0.014, Vector3(0, 0.066, 0), MeshKit.mat("lever_knob", Color(0.85, 0.1, 0.08), 0.35))
+
+
+	# 上の棚：手かがみ（丸い鏡と柄。寝かせて置いてある）
+	hand_mirror = _item(items, "HandMirror", "hand_mirror", Vector3(x, SHELF_YS[1], 0.12), Vector3(0.09, 0.12, 0.14))
+	var hm := Stage4Items.hand_mirror_model()
+	hm.rotation = Vector3(0, 0, deg_to_rad(90.0))
+	hm.position = Vector3(0, 0.012, 0)
+	hand_mirror.add_child(hm)
+
+
+## 手かがみを拾った（見た目と判定を消す）。
+func take_hand_mirror() -> void:
+	if hand_mirror and is_instance_valid(hand_mirror):
+		hand_mirror.visible = false
+		var a := hand_mirror.get_node_or_null("HandMirrorArea") as Area3D
+		if a:
+			a.collision_layer = 0
 
 
 ## 円筒の容器の正面（-x）に、画像の比率のまま巻くラベル。r0/r1：下端・上端の半径、h：高さ、cy：中心の高さ。

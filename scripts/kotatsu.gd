@@ -111,7 +111,64 @@ func _ready() -> void:
 	body.set_meta("interact_id", "kotatsu")
 	add_child(body)
 	MeshKit.shape_box(body, Vector3(BLANKET - 0.26, 0.42, BLANKET - 0.26), Vector3(0, 0.21, 0))   # 布団より一回り小さい（脚が布団にめり込む程度。狭い通路を残すため）
+	_build_inner_wall()
 	MeshKit.auto_round = true
+
+
+## こたつの中を進んだ先の壁（東の側）。ツルハシで壊すと、隣の和室へ続く穴が開く（main.gd）。
+var wall_broken := false
+var _wall_node: Node3D
+var _hole_node: Node3D
+var _wall_body: StaticBody3D
+const WALL_LOCAL := Vector3(0.5, 0.0, -0.1)
+
+
+func _build_inner_wall() -> void:
+	_wall_node = Node3D.new()
+	_wall_node.name = "InnerWall"
+	_wall_node.position = WALL_LOCAL
+	add_child(_wall_node)
+	var plaster := MeshKit.mat("inner_wall", Color(0.62, 0.56, 0.46), 0.95)
+	MeshKit.box(_wall_node, Vector3(0.05, 0.38, 0.62), Vector3(0, 0.19, 0), plaster, "Plaster")
+	# ひび割れ（細い黒い線）
+	var crack := MeshKit.mat("inner_crack", Color(0.12, 0.1, 0.09), 1.0)
+	for c in [[0.0, 0.2, 0.25, 0.3], [0.05, 0.12, -0.2, 0.18], [-0.05, 0.28, 0.1, 0.2]]:
+		var seg := MeshKit.box(_wall_node, Vector3(0.006, 0.003, c[3]), Vector3(-0.027, c[1], c[0] if false else c[2] * 0.5), crack, "Crack")
+		seg.rotation.x = c[0]
+	_wall_body = StaticBody3D.new()
+	_wall_body.collision_layer = MeshKit.LAYER_WORLD
+	_wall_body.collision_mask = 0
+	_wall_node.add_child(_wall_body)
+	MeshKit.shape_box(_wall_body, Vector3(0.05, 0.38, 0.62), Vector3(0, 0.19, 0))
+	var a := MeshKit.interact_area(_wall_node, "InnerWallArea", "kotatsu_wall")
+	MeshKit.shape_box(a, Vector3(0.2, 0.4, 0.66), Vector3(-0.1, 0.2, 0))
+	# 穴（壊したあと）：暗い口と、床のがれき
+	_hole_node = Node3D.new()
+	_hole_node.name = "InnerHole"
+	_hole_node.position = WALL_LOCAL
+	_hole_node.visible = false
+	add_child(_hole_node)
+	MeshKit.box(_hole_node, Vector3(0.05, 0.3, 0.46), Vector3(0, 0.17, 0), MeshKit.mat("hole_dark", Color(0.01, 0.01, 0.01), 1.0), "Hole")
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 31
+	for i in 8:
+		var r := MeshKit.box(_hole_node, Vector3(rng.randf_range(0.03, 0.07), rng.randf_range(0.02, 0.05), rng.randf_range(0.03, 0.07)), Vector3(rng.randf_range(-0.2, -0.05), 0.02, rng.randf_range(-0.28, 0.28)), plaster, "Rubble")
+		r.rotation = Vector3(rng.randf_range(-1, 1), rng.randf_range(0, TAU), rng.randf_range(-1, 1))
+	var ha := MeshKit.interact_area(_hole_node, "InnerHoleArea", "kotatsu_hole")
+	ha.collision_layer = 0
+	MeshKit.shape_box(ha, Vector3(0.2, 0.34, 0.5), Vector3(-0.1, 0.17, 0))
+
+
+## ツルハシで壁を壊す。
+func break_wall(instant := false) -> void:
+	if wall_broken:
+		return
+	wall_broken = true
+	_wall_node.visible = false
+	_wall_body.collision_layer = 0
+	(_wall_node.get_node("InnerWallArea") as Area3D).collision_layer = 0
+	_hole_node.visible = true
+	(_hole_node.get_node("InnerHoleArea") as Area3D).collision_layer = MeshKit.LAYER_INTERACT
 
 
 ## 足元 p から一番近い座る場所の番号。
