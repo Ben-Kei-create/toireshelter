@@ -118,6 +118,28 @@ static func blank_card_model(dots: int, lit: bool) -> Node3D:
 	return n
 
 
+static func small_pickaxe_model() -> Node3D:
+	var n := Node3D.new()
+	var inner = preload("res://scripts/stage4_items.gd").pickaxe_model()
+	inner.scale = Vector3(0.45, 0.45, 0.45)
+	n.add_child(inner)
+	return n
+
+
+static func headphones_model() -> Node3D:
+	var n := Node3D.new()
+	var black := MeshKit.mat("hp_black", Color(0.08, 0.08, 0.1), 0.5)
+	var pad := MeshKit.mat("hp_pad", Color(0.55, 0.15, 0.15), 0.8)
+	for sx in [-1.0, 1.0]:
+		MeshKit.cylinder(n, 0.035, 0.022, Vector3(sx * 0.075, 0.0, 0.0), black, "Cup", -1.0, 16).rotation.z = deg_to_rad(90.0)
+		MeshKit.cylinder(n, 0.03, 0.01, Vector3(sx * 0.062, 0.0, 0.0), pad, "Pad", -1.0, 16).rotation.z = deg_to_rad(90.0)
+	for k in 9:   # 弓なりのヘッドバンド
+		var a := PI * (k + 0.5) / 9.0
+		var seg := MeshKit.box(n, Vector3(0.016, 0.034, 0.012), Vector3(cos(a) * 0.075, sin(a) * 0.075 + 0.02, 0.0), black, "Band")
+		seg.rotation.z = a
+	return n
+
+
 static func tp_core_model() -> Node3D:
 	var n := Node3D.new()
 	MeshKit.cylinder(n, 0.02, 0.105, Vector3.ZERO, MeshKit.mat("paper_core", Color(0.7, 0.6, 0.48), 0.9), "Core", -1.0, 16).rotation.x = deg_to_rad(90.0)

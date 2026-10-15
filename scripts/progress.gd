@@ -24,7 +24,7 @@ const DISCOVERIES := {
 	"driver": "ドライバー", "microwave": "電子レンジ", "calendar": "カレンダー",
 	"inspect_lever": "点検レバー", "vent_stretch": "背伸びで換気口へ", "ladder": "ボロボロのはしご", "lean_out": "手すりから乗り出す", "ko_line": "KO線", "unit_rise": "ゴゴゴ（浴室が上がった）", "wood_stick": "木の棒",
 	"ten_yen": "十円玉", "soap": "固形せっけん", "soap_placed": "せっけんを沈めた", "sink_lid": "洗面台のふた", "soap_dissolved": "せっけんが溶けた", "sinker": "鉛のおもり", "tub_lid": "浴槽のふた", "bath_ball": "入浴剤の玉",
-	"ball_dissolved": "玉が溶けた", "match_stick": "マッチ棒", "room_key": "部屋の鍵", "torch": "松明", "torch_thrown": "松明を捨てた", "window_unlocked": "窓の鍵を開けた", "door_knob": "壊れたドアノブ", "hatch_open": "小さな扉が開いた", "fuse": "ヒューズ", "breaker_open": "ブレーカーの蓋", "power_back": "部屋の電気", "chuuren": "九蓮宝燈", "hand_mirror": "手かがみ", "gem": "宝石が割れた", "pickaxe": "大きなツルハシ", "crystal": "結晶", "kotatsu_wall": "こたつの壁を壊した", "washitsu": "隣の和室", "scroll_aligned": "掛け軸の影絵", "bm_dog": "栞（犬）", "bm_monkey": "栞（猿）", "bm_pheasant": "栞（キジ）", "heirloom_open": "家宝が開いた", "photo_tkg": "写真『おふくろのTKG』", "lighter": "ライター", "wood_ladder": "はしご（和室）", "washitsu_coin": "和室のコイン", "rice_pack": "パックご飯", "cold_tkg": "冷めたTKG", "tkg": "TKG", "tkg_eaten": "TKGを食べた", "ladder_placed": "はしごを立てかけた", "star_figure": "射的の当たり", "shot_coin": "射的のコイン", "flashlight": "小さな懐中電灯", "magnifier": "虫眼鏡", "magnet_hook": "磁石付きの釣り針", "earplugs": "耳栓", "home_key": "家の鍵", "blowgun_part": "吹き矢の材料", "mahjong_tiles": "麻雀牌（東・中）", "front_door_unlock": "玄関の鍵を開けた", "bad_book": "悪口本", "bad_book_wet": "濡れた悪口本", "bad_book_flush": "悪口本を流した", "blank_card_0": "白紙のトランプ", "blank_card_1": "白紙のトランプ", "blank_card_2": "白紙のトランプ", "blank_card_3": "白紙のトランプ", "prize_list": "景品一覧表", "safe_open": "押入れの金庫が開いた", "phone_7305": "黒電話に 7305", "blowgun": "吹き矢", "blowgun_hit": "吹き矢が的に当たった", "dart_coin": "ベランダのコイン", "tp_core": "トイレットペーパーの芯", "tp_core2": "使い切った芯", "telescope": "望遠鏡", "telescope_look": "望遠鏡で天井の点をのぞいた", "medal": "メダル", "yen100": "百円玉", "dish_core": "小皿の芯", "feed_box_open": "餌箱の鍵が開いた", "feed_box": "水槽の餌箱", "aq_coin": "水槽のコイン", "closet_safe": "押入れの金庫", "curtain_digits": "カーテンの数字", "lint_washed": "毛だまり", "lint": "毛だまりを拾う", "mirror_paper": "鏡文字のメモ",
+	"ball_dissolved": "玉が溶けた", "match_stick": "マッチ棒", "room_key": "部屋の鍵", "torch": "松明", "torch_thrown": "松明を捨てた", "window_unlocked": "窓の鍵を開けた", "door_knob": "壊れたドアノブ", "hatch_open": "小さな扉が開いた", "fuse": "ヒューズ", "breaker_open": "ブレーカーの蓋", "power_back": "部屋の電気", "chuuren": "九蓮宝燈", "hand_mirror": "手かがみ", "gem": "宝石が割れた", "pickaxe": "大きなツルハシ", "crystal": "結晶", "kotatsu_wall": "こたつの壁を壊した", "washitsu": "隣の和室", "scroll_aligned": "掛け軸の影絵", "bm_dog": "栞（犬）", "bm_monkey": "栞（猿）", "bm_pheasant": "栞（キジ）", "heirloom_open": "家宝が開いた", "photo_tkg": "写真『おふくろのTKG』", "lighter": "ライター", "wood_ladder": "はしご（和室）", "washitsu_coin": "和室のコイン", "rice_pack": "パックご飯", "cold_tkg": "冷めたTKG", "tkg": "TKG", "tkg_eaten": "TKGを食べた", "ladder_placed": "はしごを立てかけた", "star_figure": "射的の当たり", "shot_coin": "射的のコイン", "flashlight": "小さな懐中電灯", "magnifier": "虫眼鏡", "magnet_hook": "磁石付きの釣り針", "earplugs": "耳栓", "home_key": "家の鍵", "blowgun_part": "吹き矢の材料", "mahjong_tiles": "麻雀牌（東・中）", "front_door_unlock": "玄関の鍵を開けた", "bad_book": "悪口本", "bad_book_wet": "濡れた悪口本", "bad_book_flush": "悪口本を流した", "blank_card_0": "白紙のトランプ", "blank_card_1": "白紙のトランプ", "blank_card_2": "白紙のトランプ", "blank_card_3": "白紙のトランプ", "prize_list": "景品一覧表", "safe_open": "押入れの金庫が開いた", "phone_7305": "黒電話に 7305", "small_pickaxe": "小さなツルハシ", "wall_w": "お隣の隔て板を壊した", "wall_e": "おばあちゃんの隔て板を壊した", "granny_chest": "釣りの道具箱", "headphones": "ヘッドホン", "placed_item": "置いた物", "blowgun": "吹き矢", "blowgun_hit": "吹き矢が的に当たった", "dart_coin": "ベランダのコイン", "tp_core": "トイレットペーパーの芯", "tp_core2": "使い切った芯", "telescope": "望遠鏡", "telescope_look": "望遠鏡で天井の点をのぞいた", "medal": "メダル", "yen100": "百円玉", "dish_core": "小皿の芯", "feed_box_open": "餌箱の鍵が開いた", "feed_box": "水槽の餌箱", "aq_coin": "水槽のコイン", "closet_safe": "押入れの金庫", "curtain_digits": "カーテンの数字", "lint_washed": "毛だまり", "lint": "毛だまりを拾う", "mirror_paper": "鏡文字のメモ",
 }
 
 ## 幕（章）の名前。いまの幕より先は、行くまで「？？？」と出す。
@@ -157,6 +157,20 @@ func _hints() -> Array:
 	var risen: bool = main.room.risen
 	var dark: bool = risen and not main.room.power_on
 	return [
+		{"id": "s6_medal", "ok": main.inventory.has("medal"), "text": "メダルは、つかみ取りに入れてみよう。電気がついているときに。"},
+		{"id": "s6_dart", "ok": main.inventory.has("blowgun") and not main.room.exterior.sign_hit, "text": "ベランダから、向かいの壁を狙おう。背伸びをすると、的が見える。"},
+		{"id": "s6_blowgun", "ok": main.inventory.has("blowgun_part") and not main.inventory.has("blowgun") and not main.room.exterior.sign_hit, "text": "吹き矢の材料。筒になる物と、矢羽根になる物があれば。"},
+		{"id": "s6_mj", "ok": main.inventory.has("mahjong_tiles") and not main.medal_given, "text": "東と中を持って、こたつの中で麻雀を。捨てるのは、いらない牌だ。"},
+		{"id": "s6_scope", "ok": main.inventory.has("crystal") and main.inventory.has("tp_core") and not main.inventory.has("telescope"), "text": "結晶と、紙の芯。……合わせたら、何か見えそうだ。"},
+		{"id": "s5_feed", "ok": main.inventory.has("paper") and not main.room.apartment.aquarium.feed_unlocked, "text": "鏡文字のメモは、鏡で読もう。水槽の餌箱の鍵かもしれない。"},
+		{"id": "s5_phone", "ok": discovered.has("curtain_digits") and not main.phone_coin_taken, "text": "カーテンに浮かんだ数字を、黒電話に。"},
+		{"id": "s5_safe", "ok": main.cards_taken.size() >= 4 and not main.room.apartment.closet.safe_open, "text": "カードは、点の多い順に。押入れの金庫へ。"},
+		{"id": "s5_cards", "ok": main.cards_taken.size() < 4 and main.room.risen, "text": "白いカード。トイレの青い光で、何か見えるかもしれない。部屋は暗いほうがいい。"},
+		{"id": "s5_book2", "ok": main.inventory.has("bad_book") and not main.room.toilet.clogged, "text": "黒い本は、水に流そう。トイレの蓋を開けて。"},
+		{"id": "s5_book", "ok": main.room.risen and not main.room.apartment.bad_book_taken, "text": "椅子の上に、黒い本がある。……水に流せないだろうか。"},
+		{"id": "s5_door", "ok": main.inventory.has("home_key") and main.room.front_door.locked, "text": "家の鍵は、玄関のドアのためのものだ。"},
+		{"id": "s5_prize", "ok": main.coin_count > 0 and main.room.apartment.ufo_catcher.taken < 8 and main.room.power_on, "text": "コインは、つかみ取りに入れよう。景品は、順番に出てくるらしい。"},
+		{"id": "s5_star", "ok": not main.shot_coin_taken and main.room.risen, "text": "棚のフィギュアの中に、星の印がついた子がいる。"},
 		{"id": "s4_mirror", "ok": dark and risen and main.inventory.has("hand_mirror") and not main.room.apartment.gem_broken, "text": "トイレの青い光を、手かがみで、宝石へ。部屋は暗いほうがいい。"},
 		{"id": "s4_wall", "ok": main.inventory.has("pickaxe") and not main.room.apartment.kotatsu.wall_broken, "text": "こたつの中を、ずっと奥まで進んでみよう。壁があった気がする。"},
 		{"id": "s4_scroll", "ok": main.region == "washitsu" and not discovered.has("scroll_aligned"), "text": "掛け軸は、ある高さで見ると、ちがうものになる気がする。"},
@@ -369,7 +383,7 @@ func _stage4_snapshot() -> Dictionary:
 		"wall_broken": apt.kotatsu.wall_broken,
 		"slots": w.slots_filled, "heirloom_open": w.heirloom_open, "photo_taken": w.photo_taken,
 		"ladder_taken": w.ladder_taken, "coin_taken": w.coin_taken,
-		"ladder_placed": room.ladder_placed, "bad_book_taken": apt.bad_book_taken, "cards_taken": main.cards_taken.duplicate(), "cards_in_safe": main.cards_in_safe.duplicate(), "safe_slots": apt.closet.safe_slots.duplicate(), "safe_open": apt.closet.safe_open, "safe_list_taken": main.safe_list_taken, "phone_coin_taken": main.phone_coin_taken, "medal_given": main.medal_given, "darts_used": main.darts_used, "sign_hit": room.exterior.sign_hit, "dart_coin_taken": room.exterior.dart_coin_taken, "tp_installed": room.supplies.has_paper or room.supplies.used_up, "tp_pulls": room.supplies.pulls, "tp_used_up": room.supplies.used_up, "tp_dish_taken": room.supplies.dish_core_taken, "tp_core2_taken": room.supplies.core2_taken, "memos_found": main.memos_found.duplicate(), "muttered": main.muttered.duplicate(), "mutter_i": main._mutter_idle_i, "feed_unlocked": apt.aquarium.feed_unlocked, "tank_coin_taken": apt.aquarium.coin_taken, "toilet_clogged": room.toilet.clogged, "ufo_taken": apt.ufo_catcher.taken, "front_unlocked": not room.front_door.locked, "shot_coin_taken": main.shot_coin_taken, "shot_coin_pos": [main.shot_coin_node.position.x, main.shot_coin_node.position.y, main.shot_coin_node.position.z] if main.shot_coin_node else [], "god_silent": main.god_silent, "lighter_taken": room.exterior.breaker.lighter_taken, "rice_taken": room.apartment.kitchen.rice_taken,
+		"ladder_placed": room.ladder_placed, "bad_book_taken": apt.bad_book_taken, "cards_taken": main.cards_taken.duplicate(), "cards_in_safe": main.cards_in_safe.duplicate(), "safe_slots": apt.closet.safe_slots.duplicate(), "safe_open": apt.closet.safe_open, "safe_list_taken": main.safe_list_taken, "phone_coin_taken": main.phone_coin_taken, "wall_hits": main.wall_hits.duplicate(), "part_open": room.exterior.part_open.duplicate(), "chest_small": main.chest_small_taken, "placed": main.placed_items.map(func(e): return [e.id, e.node.global_position.x, e.node.global_position.y, e.node.global_position.z, e.node.rotation.y]), "hp_taken": not apt.kotatsu.headphones_node.visible, "medal_given": main.medal_given, "darts_used": main.darts_used, "sign_hit": room.exterior.sign_hit, "dart_coin_taken": room.exterior.dart_coin_taken, "tp_installed": room.supplies.has_paper or room.supplies.used_up, "tp_pulls": room.supplies.pulls, "tp_used_up": room.supplies.used_up, "tp_dish_taken": room.supplies.dish_core_taken, "tp_core2_taken": room.supplies.core2_taken, "memos_found": main.memos_found.duplicate(), "muttered": main.muttered.duplicate(), "mutter_i": main._mutter_idle_i, "feed_unlocked": apt.aquarium.feed_unlocked, "tank_coin_taken": apt.aquarium.coin_taken, "toilet_clogged": room.toilet.clogged, "ufo_taken": apt.ufo_catcher.taken, "front_unlocked": not room.front_door.locked, "shot_coin_taken": main.shot_coin_taken, "shot_coin_pos": [main.shot_coin_node.position.x, main.shot_coin_node.position.y, main.shot_coin_node.position.z] if main.shot_coin_node else [], "god_silent": main.god_silent, "lighter_taken": room.exterior.breaker.lighter_taken, "rice_taken": room.apartment.kitchen.rice_taken,
 	}
 
 
@@ -402,6 +416,31 @@ func _stage4_apply(d: Dictionary) -> void:
 	main.safe_list_taken = bool(d.get("safe_list_taken", false))
 	main.phone_coin_taken = bool(d.get("phone_coin_taken", false))
 	main.medal_given = bool(d.get("medal_given", false))
+	var wh: Dictionary = d.get("wall_hits", {})
+	main.chest_small_taken = bool(d.get("chest_small", false))
+	var po: Dictionary = d.get("part_open", {})
+	for sd in ["w", "e"]:
+		main.wall_hits[sd] = int(wh.get(sd, 0))
+		if main.wall_hits[sd] > 0:
+			room.exterior.set_partition_damage(sd, minf(1.0, float(main.wall_hits[sd]) / 62.0))
+		if bool(po.get(sd, false)):
+			room.exterior.break_partition(sd, true)
+	if bool(d.get("hp_taken", false)):
+		apt.kotatsu.take_headphones()
+	var placed_ids: Array = []
+	for e in Array(d.get("placed", [])):
+		placed_ids.append(String(e[0]))
+	if not placed_ids.is_empty():
+		_restore_stage2_models(placed_ids)
+		_restore_stage3_models(placed_ids)
+		_restore_stage4_models(placed_ids)
+		for e in Array(d.get("placed", [])):
+			main._place_item(String(e[0]), Vector3(float(e[1]), float(e[2]), float(e[3])), float(e[4]))
+			main.items_found[String(e[0])] = true
+		for k in main._item_models.keys():
+			if not main.inventory.has(k):
+				(main._item_models[k] as Node).free()
+				main._item_models.erase(k)
 	main.darts_used = int(d.get("darts_used", 0))
 	room.exterior.sign_hit = bool(d.get("sign_hit", false))
 	room.exterior.dart_coin_taken = bool(d.get("dart_coin_taken", false))
@@ -446,7 +485,7 @@ func _stage4_apply(d: Dictionary) -> void:
 
 
 func _restore_stage4_models(inv: Array) -> void:
-	for id in ["hand_mirror", "pickaxe", "crystal", "bm_dog", "bm_monkey", "bm_pheasant", "lighter", "wood_ladder", "photo_tkg", "rice_pack", "cold_tkg", "tkg", "flashlight", "magnifier", "magnet_hook", "earplugs", "home_key", "blowgun_part", "mahjong_tiles", "bad_book", "bad_book_wet", "blowgun", "tp_core", "tp_core2", "telescope", "medal", "blank_card_0", "blank_card_1", "blank_card_2", "blank_card_3", "prize_list"]:
+	for id in ["hand_mirror", "pickaxe", "crystal", "bm_dog", "bm_monkey", "bm_pheasant", "lighter", "wood_ladder", "photo_tkg", "rice_pack", "cold_tkg", "tkg", "flashlight", "magnifier", "magnet_hook", "earplugs", "home_key", "blowgun_part", "mahjong_tiles", "bad_book", "bad_book_wet", "blowgun", "headphones", "small_pickaxe", "tp_core", "tp_core2", "telescope", "medal", "blank_card_0", "blank_card_1", "blank_card_2", "blank_card_3", "prize_list"]:
 		if inv.has(id):
 			main._give_stage4_model(id)
 

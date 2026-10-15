@@ -112,6 +112,7 @@ func _ready() -> void:
 	add_child(body)
 	MeshKit.shape_box(body, Vector3(BLANKET - 0.26, 0.42, BLANKET - 0.26), Vector3(0, 0.21, 0))   # 布団より一回り小さい（脚が布団にめり込む程度。狭い通路を残すため）
 	_build_inner_wall()
+	_build_headphones()
 	MeshKit.auto_round = true
 
 
@@ -121,6 +122,29 @@ var _wall_node: Node3D
 var _hole_node: Node3D
 var _wall_body: StaticBody3D
 const WALL_LOCAL := Vector3(0.5, 0.0, -0.1)
+const Stage5Items := preload("res://scripts/stage5_items.gd")
+var headphones_node: Node3D
+
+
+## こたつの中の床に落ちているヘッドホン（拾える）。
+func _build_headphones() -> void:
+	headphones_node = Node3D.new()
+	headphones_node.name = "Headphones"
+	headphones_node.position = Vector3(-0.22, 0.045, 0.2)
+	headphones_node.rotation = Vector3(deg_to_rad(80.0), 0.6, 0.0)
+	add_child(headphones_node)
+	headphones_node.add_child(Stage5Items.headphones_model())
+	var a := MeshKit.interact_area(headphones_node, "HeadphonesArea", "headphones", null)
+	MeshKit.shape_box(a, Vector3(0.24, 0.12, 0.2), Vector3(0, 0.04, 0))
+
+
+func take_headphones() -> void:
+	if headphones_node:
+		headphones_node.visible = false
+		var a := headphones_node.get_node_or_null("HeadphonesArea") as Area3D
+		if a:
+			a.collision_layer = 0
+
 
 
 func _build_inner_wall() -> void:

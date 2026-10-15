@@ -12,6 +12,7 @@ extends Node3D
 
 const MeshKit := preload("res://scripts/mesh_kit.gd")
 const BreakerScript := preload("res://scripts/breaker.gd")
+const Sfx := preload("res://scripts/sfx.gd")
 const TEX_DUCT := preload("res://assets/textures/surfaces/surface_07.png")
 const TEX_FACADE := preload("res://assets/textures/surfaces/surface_10.png")
 const STREET := "res://assets/textures/street/"
@@ -66,6 +67,12 @@ var darts: Array = []                  # 刺さった矢
 var sign_hit := false                  # 的に当てたことがある
 var dart_coin: Node3D                  # 的に当てて出たコイン（ベランダの床）
 var dart_coin_taken := false
+var part_nodes := {}                   # "w" / "e" → 隔て板（見た目）
+var part_shapes := {}                  # "w" / "e" → 隔て板の当たり判定
+var part_open := {"w": false, "e": false}   # 壊して、隣のベランダへ行けるようになった
+var part_cracks := {"w": [], "e": []}
+const PART_HITS := {"pickaxe": 62, "small_pickaxe": 1994}
+var chest_node: Node3D                 # おばあちゃんのベランダの道具箱
 var vending_machine: Node3D            # ベランダの真下の白い自動販売機（真のクリアの場所）
 var _ladder: Node3D
 var _ko_train: Node3D
@@ -145,6 +152,80 @@ func take_dart_coin() -> void:
 	if dart_coin:
 		dart_coin.queue_free()
 		dart_coin = null
+
+
+## 隔て板を叩いた回数に応じた見た目（ひびが増える）。
+func set_partition_damage(side: String, ratio: float) -> void:
+	var cr: Array = part_cracks[side]
+	for k in cr.size():
+		(cr[k] as Node3D).visible = ratio >= float(k + 1) / float(cr.size() + 1)
+
+
+## 隔て板が壊れた：板と判定が消え、隣のベランダ（背景だった所）に歩いて入れる。w＝お隣、e＝おばあちゃんの部屋（釣り竿の側）。
+func break_partition(side: String, instant := false) -> void:
+	if part_open[side]:
+		return
+	part_open[side] = true
+	var n: Node3D = part_nodes[side]
+	n.visible = false
+	var a := n.get_node_or_null("PartitionArea") as Area3D
+	if a:
+		a.collision_layer = 0
+	(part_shapes[side] as CollisionShape3D).disabled = true
+	_build_neighbor(side)
+	if not instant:
+		Sfx.play("crack", 0.7)
+		Sfx.play("rumble", 1.6, -8.0)
+
+
+func _build_neighbor(side: String) -> void:
+	var nb := StaticBody3D.new()
+	nb.name = "Neighbor_" + side
+	nb.collision_layer = MeshKit.LAYER_WORLD
+	nb.collision_mask = 0
+	add_child(nb)
+	var xa: float = -3.0 if side == "w" else BALCONY.end.x + 0.04
+	var xb: float = BALCONY.position.x - 0.04 if side == "w" else 7.0
+	var z0 := BALCONY.position.z
+	var z1 := FACADE_Z - FACADE_T
+	var cx := (xa + xb) * 0.5
+	var w := xb - xa
+	MeshKit.shape_box(nb, Vector3(w, 0.12, z1 - z0), Vector3(cx, -0.06, (z0 + z1) * 0.5))              # 床
+	MeshKit.shape_box(nb, Vector3(w, 2.6, 0.03), Vector3(cx, 1.3, z0 + 0.015))                            # 手すり（見えない壁）
+	MeshKit.shape_box(nb, Vector3(w, 2.6, 0.2), Vector3(cx, 1.3, z1 + 0.1))                               # 外壁
+	MeshKit.shape_box(nb, Vector3(0.1, 2.6, z1 - z0), Vector3(xa if side == "w" else xb, 1.3, (z0 + z1) * 0.5))   # 端
+	if side == "e":
+		_build_chest()
+	else:
+		_build_neighbor_window()
+
+
+## おばあちゃんのベランダの、釣りの道具箱（釣りで手に入る種類を、ぜんぶ並べて入れてある）。
+func _build_chest() -> void:
+	chest_node = Node3D.new()
+	chest_node.name = "GrannyChest"
+	chest_node.position = Vector3(5.3, 0.0, -1.7)
+	add_child(chest_node)
+	var wood := MeshKit.mat("chest_wood", Color(0.45, 0.3, 0.18), 0.8)
+	MeshKit.box(chest_node, Vector3(0.7, 0.32, 0.4), Vector3(0, 0.16, 0), wood, "Body")
+	MeshKit.box(chest_node, Vector3(0.72, 0.06, 0.42), Vector3(0, 0.35, 0), MeshKit.mat("chest_lid", Color(0.5, 0.34, 0.2), 0.8), "Lid")
+	MeshKit.box(chest_node, Vector3(0.06, 0.08, 0.02), Vector3(0, 0.3, 0.205), MeshKit.mat("chest_lock", Color(0.8, 0.7, 0.3), 0.3, 0.7), "Lock")
+	var a := MeshKit.interact_area(chest_node, "ChestArea", "granny_chest", null)
+	MeshKit.shape_box(a, Vector3(0.8, 0.5, 0.5), Vector3(0, 0.25, 0))
+
+
+## お隣のベランダの端：明かりのついた部屋の窓が、開いている。
+func _build_neighbor_window() -> void:
+	var win := Node3D.new()
+	win.name = "NeighborWindow"
+	win.position = Vector3(-2.2, 0.0, FACADE_Z - 0.02)
+	add_child(win)
+	var glow := MeshKit.mat("neighbor_glow", Color(1.0, 0.92, 0.75), 0.4)
+	glow.emission_enabled = true
+	glow.emission = Color(1.0, 0.85, 0.6)
+	glow.emission_energy_multiplier = 1.2
+	MeshKit.box(win, Vector3(1.2, 1.9, 0.03), Vector3(0, 0.95, 0), glow, "Open")
+	MeshKit.box(win, Vector3(1.3, 0.06, 0.05), Vector3(0, 1.93, 0), MeshKit.mat("frame_w", Color(0.4, 0.4, 0.42), 0.5), "Top")
 
 
 ## ベランダ（手すりから身を乗り出すところも含む）の内か。
@@ -456,8 +537,24 @@ func _build_balcony() -> void:
 	MeshKit.shape_box(body, Vector3(x1 - x0, 1.0, 0.03), Vector3((x0 + x1) * 0.5, 1.6, z0 + 0.015))
 	# 隔て板（両端）
 	var sep := MeshKit.mat("separator", Color(0.85, 0.85, 0.82), 0.7)
-	for x in [x0 - 0.02, x1 + 0.02]:
-		add.call(Vector3(0.04, 1.9, z1 - z0), Vector3(x, 0.95, (z0 + z1) * 0.5), sep)
+	for side in ["w", "e"]:
+		var sx: float = x0 - 0.02 if side == "w" else x1 + 0.02
+		var shape_before := body.get_child_count()
+		add.call(Vector3(0.04, 1.9, z1 - z0), Vector3(sx, 0.95, (z0 + z1) * 0.5), sep)
+		part_nodes[side] = b.get_child(b.get_child_count() - 1)
+		part_shapes[side] = body.get_child(shape_before)
+		(part_nodes[side] as Node3D).name = "Partition_" + side
+		# 叩く判定（ベランダの内側の面）
+		var inward := 1.0 if side == "w" else -1.0
+		var pa := MeshKit.interact_area(part_nodes[side], "PartitionArea", "balcony_wall_" + side, null)
+		MeshKit.shape_box(pa, Vector3(0.3, 1.7, z1 - z0 - 0.1), Vector3(inward * 0.17, 0.0, 0.0))
+		# ひび（叩くほど増える）
+		var crack_mat := MeshKit.mat("part_crack", Color(0.25, 0.22, 0.2), 1.0)
+		for k in 6:
+			var cb := MeshKit.box(part_nodes[side], Vector3(0.006, 0.05 + 0.04 * (k % 3), 0.22 + 0.06 * (k % 2)), Vector3(inward * 0.022, -0.6 + k * 0.22, -0.3 + (k * 0.37) - floorf(k * 0.37 / 0.6) * 0.6), crack_mat, "Crack%d" % k)
+			cb.rotation.x = 0.4 * (k - 3)
+			cb.visible = false
+			part_cracks[side].append(cb)
 	# 室外機（右端に寄せる）
 	# 室外機：狭いベランダらしく、吹出口を窓側（-x）へ向けて右端の隔て板の前に置く
 	var unit := Node3D.new()

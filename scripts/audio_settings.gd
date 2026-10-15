@@ -10,6 +10,7 @@ static var sfx := 1.0
 static var ambient := 1.0
 static var sfx_on := true
 static var ambient_on := true
+static var headphones := false   # ヘッドホンをつけている（こたつの中で拾う）：部屋の環境音が遠くなり、ヘッドホンの音が主になる
 static var earplugs := false   # 耳栓をつけている（つかみ取りの景品 4）：全体の音が小さくなり、環境音は特に小さくなる
 
 
@@ -40,6 +41,11 @@ static func set_space(reverb: float, cutoff: float) -> void:
 		(AudioServer.get_bus_effect(i, 1) as AudioEffectLowPassFilter).cutoff_hz = cutoff
 
 
+static func set_headphones(on: bool) -> void:
+	headphones = on
+	apply()
+
+
 static func set_earplugs(on: bool) -> void:
 	earplugs = on
 	apply()
@@ -49,7 +55,7 @@ static func apply() -> void:
 	ensure_buses()
 	_set_bus("Master", master * (0.5 if earplugs else 1.0), true)
 	_set_bus("SFX", sfx, sfx_on)
-	_set_bus("Ambient", ambient * (0.4 if earplugs else 1.0), ambient_on)
+	_set_bus("Ambient", ambient * (0.4 if earplugs else 1.0) * (0.15 if headphones else 1.0), ambient_on)
 
 
 static func _set_bus(bus: String, linear: float, enabled: bool) -> void:

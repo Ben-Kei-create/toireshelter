@@ -68,8 +68,13 @@ const STORY_CHANCE := 0.45
 const STORY_MAX_MISSES := 3
 const STORY_CATCHES := {
 	"match_stick": ["アイテム", "マッチ棒", "たった 1 本のマッチ。箱は、どこかで湿ってしまったらしい。", 0, "story", "match_stick"],
+	"wood_stick": ["アイテム", "木の棒", "ドアの枠の破片のような、まっすぐな木の棒。", 0, "story", "wood_stick"],
 	"room_key": ["アイテム", "部屋の鍵", "この部屋の窓の鍵。見覚えのあるキーホルダーが付いている。", 0, "story", "room_key"],
 }
+## まれに釣れる、小さなツルハシ（種類の数には入れない。一度釣れたら、もう出ない）
+const SMALL_PICKAXE := ["アイテム", "小さなツルハシ", "ちいさな、ちいさなツルハシ。壁を壊すには、気が遠くなりそうだ。", 0, "story", "small_pickaxe"]
+const SMALL_PICKAXE_CHANCE := 0.03
+var small_pickaxe_caught := false
 var state := "idle"            # idle / waiting / bite / reeling
 var caught := {}               # 名前 → 回数
 var last_text := ""
@@ -414,6 +419,9 @@ func _pick() -> Array:
 			if _story_misses > STORY_MAX_MISSES or _rng.randf() < STORY_CHANCE:
 				_story_misses = 0
 				return STORY_CATCHES[sid]
+	if not small_pickaxe_caught and _rng.randf() < SMALL_PICKAXE_CHANCE:
+		small_pickaxe_caught = true
+		return SMALL_PICKAXE
 	var kinds: Array = weights.keys()
 	var kt := 0
 	for k in kinds:

@@ -16,6 +16,7 @@ const ApartmentScript := preload("res://scripts/apartment.gd")
 const KotatsuScript := preload("res://scripts/kotatsu.gd")
 const SmallPropsScript := preload("res://scripts/small_props.gd")
 const FishingScript := preload("res://scripts/fishing.gd")
+const HeadphoneAudio := preload("res://scripts/headphone_audio.gd")
 const StoryData := preload("res://scripts/story_data.gd")
 const IntercomScript := preload("res://scripts/intercom.gd")
 const CorkGunScript := preload("res://scripts/cork_gun.gd")
@@ -396,6 +397,8 @@ const ITEMS := {
 	"telescope": {"name": "望遠鏡", "desc": "芯の先に、紫の結晶をはめた。のぞくと、遠くの小さな物が大きく見える。"},
 	"blowgun": {"name": "吹き矢", "desc": "芯の筒に、口金と吹き口をつけ、毛だまりで矢羽根を作った。矢は 100 本まで。ベランダから、向かいの的を狙えそうだ。"},
 	"medal": {"name": "メダル", "desc": "九蓮宝燈で、なぜか出てきたメダル。つかみ取りに入れられそうだ。"},
+	"small_pickaxe": {"name": "小さなツルハシ", "desc": "ちいさな、ちいさなツルハシ。壁を叩くと、ほんの少しだけ、削れる。……少しだけ。"},
+	"headphones": {"name": "ヘッドホン", "desc": "こたつの中に落ちていた、古いヘッドホン。手に持つと、耳につける。持ち物から外すと、聞こえなくなる。"},
 	"blank_card_0": {"name": "白紙のトランプ", "desc": "何も書かれていない、白いカード。普通の明かりの下では、ただの白紙だ。"},
 	"blank_card_1": {"name": "白紙のトランプ", "desc": "何も書かれていない、白いカード。普通の明かりの下では、ただの白紙だ。"},
 	"blank_card_2": {"name": "白紙のトランプ", "desc": "何も書かれていない、白いカード。普通の明かりの下では、ただの白紙だ。"},
@@ -448,7 +451,7 @@ const TUB_TARGETS := ["bathtub", "bath_plug", "bath_faucet", "tub_note"]   # 入
 
 ## 調べたときに鳴らす効果音（fixture のない対象）
 const INTERACT_SFX := {"guitar": "strum", "fridge": "thunk", "kitchen_stove": "click", "phone_mobile": "click", "kitchen_sink": "click", "cards": "page", "card_box": "click", "dice": "click", "cup": "click", "tissue": "rustle", "magazines": "page", "teddy": "rustle", "standee": "click", "toilet_slippers": "rustle", "shoes": "click", "clothes": "rustle", "bag": "rustle", "dumbbell": "clunk", "bottle": "click", "tv_remote": "beep", "rug": "rustle"}
-const CLEAR_TITLES := {"legit": "正規ルートで脱出", "shortcut": "裏技ルートで脱出", "true": "真のクリア"}
+const CLEAR_TITLES := {"legit": "正規ルートで脱出", "shortcut": "裏技ルートで脱出", "true": "真のクリア", "neighbor": "お隣さんの窓から脱出"}
 ## 百円で、ベランダの下の自動販売機の「炭酸リンゴジュース」を買う結末（シナリオ v3 の「二つの結末」）。
 ## 部屋を出たとき百円玉を持っていると、そこではクリアにならず、廊下のエレベーターで 1 階へ降りられる。
 const ENDING := {
@@ -622,6 +625,33 @@ const STAGE5 := {
 	"blowgun_hit": "ぷっ。……カッ！　的に当たった！　どこかで、コインが落ちる音がした。",
 	"blowgun_out": "矢は、もう 1 本もない。",
 	"dart_coin_get": "ベランダの床に、コインが落ちていた。ラストのコインだ。",
+	"magnifier_feed": "虫眼鏡で、餌箱の鍵を見た。ダイヤルのまわりに、小さな字。『ミラー』……鏡にうつして読む、ということだろうか。",
+	"magnifier_safe": "虫眼鏡で、金庫を見た。くぼみのふちに、小さな点が並んでいる。……8、6、4、2。大きいほうから、らしい。",
+	"magnifier_dot": "虫眼鏡で天井の点を見た。……まだ小さい。もっと遠くを見る道具が、いる。",
+	"wall_w_look": "隔て板だ。薄い。向こうは、お隣のベランダのようだ。",
+	"wall_e_look": "隔て板だ。薄い。向こうは、釣り竿の側……おばあちゃんの部屋のベランダのようだ。",
+	"wall_hit": "ガツン。",
+	"wall_q1": "板が、ミシッと鳴った。",
+	"wall_q2": "ひびが入ってきた。",
+	"wall_q3": "もう少しで、割れそうだ。",
+	"wall_w_break": "バキィッ！　隔て板が割れた。お隣のベランダが、つながった。",
+	"wall_e_break": "バキィッ！　隔て板が割れた。おばあちゃんの部屋のベランダが、つながった。",
+	"granny_balcony": "おばあちゃんのベランダだ。……ずいぶん、静かだ。奥に、大きな道具箱がある。",
+	"neighbor_balcony": "お隣のベランダだ。奥の窓が開いていて、部屋の明かりがもれている。",
+	"chest_open": "釣りの道具箱だ。ふたを開けると、釣りで手に入る物が、種類ごとに、ずらりと並んでいた。",
+	"chest_small": "箱の底に、小さなツルハシが 1 本あった。もらっていこう。",
+	"small_have": "また、小さなツルハシが釣れた。……もう、持っている。",
+	"hp_pick": "こたつの中に、ヘッドホンが落ちていた。誰かの物だろうか。",
+	"hp_on": "ヘッドホンを耳につけた。……ざあ、とノイズが鳴って、誰かの話し声が聞こえてくる。",
+	"hp_voice": "二人の声。くぐもっていて、何を話しているのか、聞き取れない。……片方は、自分の声に似ている気がする。",
+	"hp_bgm": "話し声が途切れて、ゆっくりした、不思議な音楽が流れはじめた。聞いたことが、ある気がする。",
+	"hp_off": "ヘッドホンを外した。音が、遠くなった。",
+	"hp_loading": "ヘッドホンをつけた。……ざあ、とノイズだけが鳴っている。",
+	"drop_ok": "%s を、そこに置いた。",
+	"drop_none": "置く物を、手に持とう。（1〜8 かホイール）",
+	"drop_no": "それは、置けない。",
+	"drop_here": "ここには、置けない。",
+	"placed_pick": "%s を、拾った。",
 	"card_pick": "白いカードが落ちていた。何も書かれていない。……まだ、あと何枚かありそうだ。",
 	"safe_look": "押入れの隅に、小さな金庫がある。上に、カードを置くくぼみが 4 つ並んでいる。",
 	"safe_place": "カードをくぼみに置いた。かちっ。",
@@ -687,6 +717,15 @@ var _mutter_idle_i := 0
 var _reader_after: Callable
 var phone_coin_taken := false
 var medal_given := false
+var wall_hits := {"w": 0, "e": 0}   # 隔て板を叩いた回数（大きなツルハシ 62 回、小さなツルハシ 1994 回で割れる）
+var _wall_hold := 0.0
+var _neighbor_seen := false
+var _granny_seen := false
+var chest_small_taken := false
+var _hp_audio := HeadphoneAudio.new()
+var _hp_player: AudioStreamPlayer
+var _hp_on := false
+var placed_items: Array = []        # 置いた持ち物 {id, node}
 const DARTS_MAX := 100
 var darts_used := 0
 var cards_in_safe: Array = []      # 金庫に置いたカード（番号）。順番を間違えると戻る
@@ -955,6 +994,10 @@ func _process(_delta: float) -> void:
 		room.sky_clock.set_time(maxf(play_time, 620.0) if room.risen or room.rising else play_time)
 	if not paused and room.exterior.blowgun_sign:
 		room.exterior.set_blowgun_sign_visible(player.eye_height >= ExteriorScript.SIGN_MIN_EYE and ExteriorScript.in_balcony(player.global_position))
+	_update_wall_hold(_delta)
+	_check_neighbor_escape()
+	if _hp_on and _hp_player and not _hp_player.playing and _hp_audio.ready():
+		_start_headphones()
 	room.apartment.record_player.holding = selected_item() == "record_disc"
 	if mj_playing:
 		hud.set_prompt("")
@@ -1129,6 +1172,9 @@ func _unhandled_input(event: InputEvent) -> void:
 			return
 		if event.is_action_pressed("inspect_item"):
 			toggle_zoom()
+			return
+		if event.is_action_pressed("drop_item"):
+			_drop_selected()
 			return
 		if event is InputEventMouseButton and event.pressed and inventory.size() > 0:
 			var mb := event as InputEventMouseButton
@@ -1704,8 +1750,10 @@ func _prompt_for(target: Object) -> String:
 			return PROMPTS["dice_roll"]
 		"tv_remote":
 			return PROMPTS["tv_remote"]
-		"door_knob", "fuse", "hand_mirror", "pickaxe", "crystal", "ladder_prop", "washitsu_coin", "heirloom_photo", "lighter", "rice_pack", "shot_coin", "bad_book", "card_pick_0", "card_pick_1", "card_pick_2", "card_pick_3", "aq_coin", "dish_core", "dart_coin":
+		"door_knob", "fuse", "hand_mirror", "pickaxe", "crystal", "ladder_prop", "washitsu_coin", "heirloom_photo", "lighter", "rice_pack", "shot_coin", "bad_book", "card_pick_0", "card_pick_1", "card_pick_2", "card_pick_3", "aq_coin", "dish_core", "dart_coin", "headphones", "placed_item":
 			return PROMPT_PICKUP
+		"balcony_wall_w", "balcony_wall_e", "granny_chest":
+			return PROMPT_EXAMINE
 		"feed_box":
 			return PROMPT_EXAMINE
 		"closet_safe":
@@ -1982,6 +2030,19 @@ func _on_interact_requested(target: Object) -> void:
 			add_coin(1)
 			SfxScript.play("chime")
 			hud.show_message(STAGE5["dart_coin_get"], 5.0)
+		"balcony_wall_w", "balcony_wall_e":
+			hud.show_message(STAGE5["wall_%s_look" % id.right(1)], 5.0)
+		"granny_chest":
+			_open_chest()
+		"headphones":
+			if inventory.has("headphones") or items_found.has("headphones"):
+				return
+			room.apartment.kotatsu.take_headphones()
+			_give_stage5("headphones")
+			_hp_audio.generate_async()
+			hud.show_message(STAGE5["hp_pick"], 5.0)
+		"placed_item":
+			_pickup_placed(target)
 		"dish_core":
 			if room.supplies.dish_core_taken:
 				return
@@ -2281,6 +2342,7 @@ func select_item(i: int) -> void:
 	if hud.is_zoom_open():
 		_show_zoom()
 	_refresh_torch_light()
+	_refresh_headphones()
 
 
 ## UFOコインを n 枚ふやす（持ち物には1つの欄に「×枚数」でまとめる）。
@@ -2415,6 +2477,16 @@ func use_selected() -> void:
 	if id == "blowgun":
 		_shoot_blowgun()
 		return
+	if id == "magnifier":
+		if tid == "feed_box":
+			hud.show_message(STAGE5["magnifier_feed"], 7.0)
+		elif tid == "closet_safe":
+			hud.show_message(STAGE5["magnifier_safe"], 6.0)
+		elif tid == "ceiling_dot":
+			hud.show_message(STAGE5["magnifier_dot"], 6.0)
+		else:
+			hud.show_message(STAGE5["magnifier_use"])
+		return
 	if id == "telescope":
 		if tid == "ceiling_dot":
 			hud.show_message(STAGE5["ceiling_look"], 6.0)
@@ -2450,9 +2522,6 @@ func use_selected() -> void:
 		SfxScript.play("rustle")
 		hud.show_message(STAGE5["earplugs_on"] if earplugs_on else STAGE5["earplugs_off"])
 		return
-	if id == "magnifier":
-		hud.show_message(STAGE5["magnifier_use"])
-		return
 	if id == "rice_pack":
 		var k = room.apartment.kitchen
 		if k.eggs_held <= 0:
@@ -2476,6 +2545,9 @@ func use_selected() -> void:
 		return
 	if id == "hand_mirror" and tid == "gem":
 		_use_mirror_on_gem()
+		return
+	if (id == "pickaxe" or id == "small_pickaxe") and tid.begins_with("balcony_wall_"):
+		_hit_partition(id, tid.right(1))
 		return
 	if id == "pickaxe" and tid == "kotatsu_wall":
 		room.apartment.kotatsu.break_wall()
@@ -2899,6 +2971,10 @@ func _give_stage4_model(id: String) -> void:
 			_item_models[id] = Stage5Items.mahjong_tiles_model()
 		"blowgun":
 			_item_models[id] = Stage5Items.blowgun_model()
+		"small_pickaxe":
+			_item_models[id] = Stage5Items.small_pickaxe_model()
+		"headphones":
+			_item_models[id] = Stage5Items.headphones_model()
 		"tp_core", "tp_core2":
 			_item_models[id] = Stage5Items.tp_core_model()
 		"telescope":
@@ -3082,6 +3158,130 @@ func _shoot_blowgun() -> void:
 			hud.show_message(STAGE5["blowgun_none"], 3.0)
 
 
+# ---------------------------------------------------------------- ヘッドホン・物を置く
+
+## 手に持った物がヘッドホンなら、つけて音が流れる（はじめは話し声、そのあと BGM がくり返す）。持ち物から外すと止まる。
+func _refresh_headphones() -> void:
+	var on := selected_item() == "headphones" and not cleared
+	if on == _hp_on:
+		return
+	_hp_on = on
+	AudioSettingsScript.set_headphones(on)
+	if on:
+		if _hp_player == null:
+			_hp_player = AudioStreamPlayer.new()
+			_hp_player.name = "HeadphoneSound"
+			_hp_player.bus = "Master"
+			_hp_player.volume_db = -4.0
+			add_child(_hp_player)
+		if _hp_audio.ready():
+			_start_headphones()
+		else:
+			hud.show_message(STAGE5["hp_loading"], 4.0)
+			_hp_audio.generate_async()
+	else:
+		if _hp_player:
+			_hp_player.stop()
+		hud.show_message(STAGE5["hp_off"], 2.5)
+
+
+func _start_headphones() -> void:
+	_hp_player.stream = _hp_audio.stream
+	_hp_player.play()
+	hud.show_message(STAGE5["hp_on"], 5.0)
+	progress.discover("headphones")
+	var token := Time.get_ticks_msec()
+	_hp_token = token
+	await get_tree().create_timer(5.5).timeout
+	if _hp_on and _hp_token == token:
+		hud.show_message(STAGE5["hp_voice"], 6.0)
+	await get_tree().create_timer(HeadphoneAudio.VOICE_SEC - 5.5).timeout
+	if _hp_on and _hp_token == token:
+		hud.show_message(STAGE5["hp_bgm"], 6.0)
+
+
+var _hp_token := 0
+const PLACE_REACH := 2.4
+
+
+## G：手に持った物を、狙った先に置く。置いた物は、あとで拾える。
+func _drop_selected() -> void:
+	if paused or cleared or reading or gaming or mj_playing or peeping:
+		return
+	var id := selected_item()
+	if id.is_empty():
+		hud.show_message(STAGE5["drop_none"])
+		return
+	if id == "ufo_coin" or not (player.pose in [PlayerScript.Pose.WALK, PlayerScript.Pose.CROUCH, PlayerScript.Pose.SEATED, PlayerScript.Pose.KOTATSU_SEAT, PlayerScript.Pose.KOTATSU_IN]):
+		hud.show_message(STAGE5["drop_no"])
+		return
+	var space := get_viewport().world_3d.direct_space_state
+	var from: Vector3 = player.camera.global_position
+	var dir: Vector3 = -player.camera.global_basis.z
+	var q := PhysicsRayQueryParameters3D.create(from, from + dir * PLACE_REACH, MeshKit.LAYER_WORLD)
+	var hit := space.intersect_ray(q)
+	var p: Vector3 = hit.position + hit.normal * 0.03 if not hit.is_empty() else from + dir * 1.0
+	# その真下の面（床・机・棚の上）へ落とす
+	var down := PhysicsRayQueryParameters3D.create(p + Vector3(0, 0.1, 0), p - Vector3(0, 3.0, 0), MeshKit.LAYER_WORLD)
+	var floor_hit := space.intersect_ray(down)
+	if floor_hit.is_empty():
+		hud.show_message(STAGE5["drop_here"])
+		return
+	p = floor_hit.position
+	_place_item(id, p, randf() * TAU)
+	var nm := item_name(id)
+	remove_item(id)
+	SfxScript.play("thunk", 1.3, -6.0)
+	hud.show_message(STAGE5["drop_ok"] % nm, 3.0)
+	progress.save()
+
+
+## 床や机に置かれた持ち物を作る（置いたときと、保存からの復元の両方）。
+func _place_item(id: String, pos: Vector3, yaw: float, model: Node3D = null) -> void:
+	var holder := Node3D.new()
+	holder.name = "Placed_%s_%d" % [id, placed_items.size()]
+	holder.set_meta("item_id", id)
+	add_child(holder)
+	holder.global_position = pos
+	holder.rotation.y = yaw
+	var src: Node3D = model if model != null else _item_models.get(id)
+	var m: Node3D
+	if src != null:
+		m = src.duplicate()
+	else:
+		m = MeshKit.sphere(holder, 0.04, Vector3.ZERO, MeshKit.mat("placed_generic", Color(0.7, 0.7, 0.72), 0.7))
+		m.get_parent().remove_child(m)
+	holder.add_child(m)
+	m.position = Vector3(0, 0.05, 0)
+	var a := MeshKit.interact_area(holder, "PlacedArea", "placed_item", null)
+	MeshKit.shape_box(a, Vector3(0.22, 0.16, 0.22), Vector3(0, 0.07, 0))
+	placed_items.append({"id": id, "node": holder})
+
+
+func _pickup_placed(target: Object) -> void:
+	var holder: Node3D = (target as Node).get_parent() as Node3D
+	if holder == null or not holder.has_meta("item_id"):
+		return
+	var id: String = holder.get_meta("item_id")
+	if inventory.has(id):
+		hud.show_message(MESSAGES["cannot_use"])
+		return
+	var model: Node3D = null
+	for c in holder.get_children():
+		if c is Node3D and not (c is Area3D):
+			model = c
+			break
+	if model:
+		_item_models[id] = model.duplicate()
+	for i in placed_items.size():
+		if placed_items[i].node == holder:
+			placed_items.remove_at(i)
+			break
+	holder.queue_free()
+	add_item(id)
+	hud.show_message(STAGE5["placed_pick"] % item_name(id), 3.0)
+
+
 ## メダルを、つかみ取りに入れる：百円玉に変わる（電気が必要）。
 func _use_medal(tid: String) -> void:
 	if tid != "ufo_catcher" or not room.power_on:
@@ -3095,6 +3295,82 @@ func _use_medal(tid: String) -> void:
 	SfxScript.play("chime")
 	hud.show_message(STAGE5["medal_yen"], 6.0)
 	progress.discover("yen100")
+
+
+## ベランダの隔て板をツルハシで叩く：大きなツルハシは 62 回、小さなツルハシは 1994 回で割れる。長押しでくり返し叩ける。
+func _hit_partition(tool_id: String, side: String) -> void:
+	var ext = room.exterior
+	if ext.part_open[side]:
+		return
+	var need: int = ext.PART_HITS[tool_id]
+	wall_hits[side] += 1
+	var ratio := float(wall_hits[side]) / float(need)
+	SfxScript.play("thunk", 0.7 + randf() * 0.2, -3.0)
+	ext.set_partition_damage(side, ratio)
+	if wall_hits[side] == 1:
+		hud.show_message(STAGE5["wall_hit"], 1.5)
+	elif wall_hits[side] == int(need * 0.25):
+		hud.show_message(STAGE5["wall_q1"], 3.0)
+	elif wall_hits[side] == int(need * 0.5):
+		hud.show_message(STAGE5["wall_q2"], 3.0)
+	elif wall_hits[side] == int(need * 0.8):
+		hud.show_message(STAGE5["wall_q3"], 3.0)
+	if wall_hits[side] >= need:
+		ext.break_partition(side)
+		hud.show_message(STAGE5["wall_%s_break" % side], 6.0)
+		progress.discover("wall_" + side)
+		progress.save()
+
+
+## 長押しで、隔て板を叩きつづける。
+func _update_wall_hold(delta: float) -> void:
+	var sel := selected_item()
+	if not (sel == "pickaxe" or sel == "small_pickaxe") or not Input.is_action_pressed("use_item") or paused or cleared or reading:
+		_wall_hold = 0.0
+		return
+	var t := player.get_focused(true)
+	var tid := String(t.get_meta("interact_id", "")) if t else ""
+	if not tid.begins_with("balcony_wall_"):
+		_wall_hold = 0.0
+		return
+	_wall_hold += delta
+	if _wall_hold >= 0.4:
+		_wall_hold -= 0.12 if sel == "pickaxe" else 0.025
+		_hit_partition(sel, tid.right(1))
+
+
+## おばあちゃんの道具箱：釣りで手に入る種類が、ぜんぶ並んでいる。底に小さなツルハシ。
+func _open_chest() -> void:
+	progress.discover("granny_chest")
+	hud.show_message(STAGE5["chest_open"], 5.0)
+	var by := {"ゴミ": [], "お宝": [], "アイテム": []}
+	for c in FishingScript.CATCHES:
+		by[c[0]].append(c[1])
+	var pages := []
+	for k in ["ゴミ", "お宝", "アイテム"]:
+		var names: Array = by[k]
+		for i in range(0, names.size(), 6):
+			pages.append("%s（%d 種類のうち）\n\n%s" % [k, names.size(), "\n".join(names.slice(i, i + 6))])
+	_open_reader("釣りの道具箱", pages, null, Color(0.45, 0.3, 0.18))
+	if not chest_small_taken and not inventory.has("small_pickaxe") and not items_found.has("small_pickaxe"):
+		chest_small_taken = true
+		_reader_after = func() -> void:
+			_give_stage5("small_pickaxe")
+			hud.show_message(STAGE5["chest_small"], 5.0)
+
+
+## お隣のベランダの奥まで行く：窓から部屋へ入って、脱出。
+func _check_neighbor_escape() -> void:
+	var ext = room.exterior
+	var x: float = player.global_position.x
+	if ext.part_open["w"] and not _neighbor_seen and x < 1.0:
+		_neighbor_seen = true
+		hud.show_message(STAGE5["neighbor_balcony"], 5.0)
+	if ext.part_open["e"] and not _granny_seen and x > 4.0:
+		_granny_seen = true
+		hud.show_message(STAGE5["granny_balcony"], 5.0)
+	if ext.part_open["w"] and x < -1.6 and player.global_position.y > -0.5 and not cleared:
+		_clear("neighbor")
 
 
 ## 悪口本を、トイレ（浮き上がった浴室）の便器に流す：本が流れて、便器が詰まる。濡れた本が浮かび、コインが 1 枚こぼれる（5 枚目）。
@@ -3312,10 +3588,27 @@ func _story_catch_next() -> String:
 	for id in ["match_stick", "room_key"]:
 		if not items_found.has(id) and not inventory.has(id):
 			return id
+	# 救済：松明を捨ててしまったあと、材料が世界から消えているときだけ、また釣れる（詰み防止）
+	if thrown_torch != null and not inventory.has("torch") and not power_restored:
+		for id in ["match_stick", "wood_stick"]:
+			if not inventory.has(id):
+				return id
 	return ""
 
 
 func _on_story_caught(id: String) -> void:
+	if id == "small_pickaxe":
+		if inventory.has(id) or items_found.has(id):
+			hud.show_message(STAGE5["small_have"], 4.0)
+			return
+		_give_stage5(id)
+		hud.show_message("釣れたのは、ちいさな、ちいさなツルハシだった。……壁を叩けば、削れるのだろうか。", 6.0)
+		return
+	if id == "wood_stick":
+		_item_models[id] = _wood_stick_model()
+		add_item(id)
+		hud.show_message("釣れたのは、木の棒だった。ちょうど、松明の柄になりそうだ。", 6.0)
+		return
 	_give_stage3(id)
 	hud.show_message(STAGE3["match_caught"] if id == "match_stick" else STAGE3["key_caught"], 6.0)
 
@@ -3670,6 +3963,7 @@ func _setup_input_map() -> void:
 	_add_key_action("item_7", [KEY_7])
 	_add_key_action("item_8", [KEY_8])
 	_add_key_action("inspect_item", [KEY_Q])
+	_add_key_action("drop_item", [KEY_G])
 	if not InputMap.has_action("interact"):
 		InputMap.add_action("interact")
 		var click := InputEventMouseButton.new()

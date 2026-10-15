@@ -841,7 +841,7 @@ func _build_settings(menu: Control) -> void:
 	_fit_settings()
 	var help := _make_label(20, HORIZONTAL_ALIGNMENT_LEFT)
 	help.name = "Controls"
-	help.text = "操作説明\n移動：W A S D（矢印キーも可）　　視点：マウス\n調べる・使う：左クリック　　座る・入る・立つ：E\nしゃがむ：C　　持ち物を使う：F　　選ぶ：1〜8・ホイール　　拡大：Q　　メッセージの履歴：H\n推理ノート（手がかり・パスワード・幕の目次）：N　　目の高さを変える：[ と ]\n釣り：釣り竿を拾い、ベランダの手すりを狙ってクリック。浮きが跳ねたらもう一度\nテレビゲーム中：W／A／S／D で操作、E でやめる\n設定を開く・閉じる：Esc"
+	help.text = "操作説明\n移動：W A S D（矢印キーも可）　　視点：マウス\n調べる・使う：左クリック　　座る・入る・立つ：E\nしゃがむ：C　　持ち物を使う：F　　選ぶ：1〜8・ホイール　　拡大：Q　　置く：G　　メッセージの履歴：H\n推理ノート（手がかり・パスワード・幕の目次）：N　　目の高さを変える：[ と ]\n釣り：釣り竿を拾い、ベランダの手すりを狙ってクリック。浮きが跳ねたらもう一度\nテレビゲーム中：W／A／S／D で操作、E でやめる\n設定を開く・閉じる：Esc"
 	box.add_child(help)
 	_catch_label = _make_label(18, HORIZONTAL_ALIGNMENT_LEFT)
 	_catch_label.name = "CatchLabel"
