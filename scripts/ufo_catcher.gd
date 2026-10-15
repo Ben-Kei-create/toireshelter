@@ -222,6 +222,7 @@ func _play(index: int, win: bool) -> void:
 	aim = Vector2(clampf(aim.x, -0.19, 0.19), clampf(aim.y, -0.19, 0.19))
 	var top := Vector3(aim.x, CLAW_TOP_Y, aim.y)
 	var tw := create_tween()
+	tw.set_speed_scale(1.0 if plays <= 1 else 2.2)   # 2 回目からは、速く
 	tw.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 	tw.tween_property(claw, "position", top, 1.1)
 	tw.tween_method(_set_cable, 0.06, CLAW_TOP_Y - CLAW_DOWN_Y, 0.8)

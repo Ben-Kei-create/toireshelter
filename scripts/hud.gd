@@ -34,6 +34,7 @@ var _slot_panels: Array[PanelContainer] = []
 var _zoom: Control
 var _zoom_viewport: SubViewport
 var _zoom_pivot: Node3D
+var _zoom_manual := false
 var _zoom_name: Label
 var _zoom_desc: Label
 var _reader: Control
@@ -230,7 +231,13 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	if _zoom.visible:
-		_zoom_pivot.rotation.y += delta * 0.8
+		# 拡大した物：A／D（左右）で、手で回せる。回しはじめたら、自動で回るのは止まる
+		var manual := Input.get_axis("move_left", "move_right")
+		if absf(manual) > 0.1:
+			_zoom_manual = true
+			_zoom_pivot.rotation.y -= manual * delta * 2.6
+		elif not _zoom_manual:
+			_zoom_pivot.rotation.y += delta * 0.8
 	if _type_pos < _type_total:
 		_type_pos = minf(_type_pos + delta * TYPE_SPEED, float(_type_total))
 		_message_label.visible_characters = int(_type_pos)
@@ -442,6 +449,7 @@ func show_item_zoom(model: Node3D, item_name: String, desc: String) -> void:
 		return
 	var m := model.duplicate()
 	_zoom_pivot.add_child(m)
+	_zoom_manual = false
 	m.position = Vector3.ZERO
 	m.rotation = Vector3.ZERO
 	_zoom_name.text = item_name

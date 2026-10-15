@@ -733,6 +733,7 @@ var _mutter_idle_i := 0
 var _reader_after: Callable
 var phone_coin_taken := false
 var medal_given := false
+var _ride_base := 1.0              # 演出を飛ばす前の、演出の速さ
 var guide := ControlsGuide.new()   # 操作の案内（覚えた操作・案内した操作）
 var _tip_cooldown := 0.0
 var _action_cache := ""
@@ -1144,6 +1145,10 @@ func _unhandled_input(event: InputEvent) -> void:
 		if event.is_action_pressed("pause") or event.is_action_pressed("action"):
 			get_viewport().set_input_as_handled()
 			_stop_game()
+		return
+	# 購入・エレベーターの演出は、クリック・E・A で飛ばせる（速く進める）
+	if (vending_busy or riding) and not cleared and (event.is_action_pressed("interact") or event.is_action_pressed("action")):
+		ride_speed = maxf(ride_speed, 10.0)
 		return
 	if coding:
 		if event is InputEventJoypadButton and event.pressed:
@@ -2967,6 +2972,7 @@ func _ride_elevator() -> void:
 	if riding or cleared:
 		return
 	riding = true
+	_ride_base = ride_speed
 	player.controls_enabled = false
 	SfxScript.play("click")
 	hud.show_message(ENDING["elevator_ride"], 3.0)
@@ -2998,6 +3004,7 @@ func _ride_elevator() -> void:
 	await hud.fade_to(0.0, 0.9 / ride_speed).finished
 	player.controls_enabled = true
 	riding = false
+	ride_speed = _ride_base
 
 
 ## 自動販売機（ベランダの真下）：身長が足りないと最上段のボタンに届かない。百円玉で炭酸リンゴジュースを買って飲むと、真のクリア。
@@ -3013,6 +3020,7 @@ func _use_vending() -> void:
 	if vending_busy:
 		return
 	vending_busy = true   # 演出の途中で保存されても、百円玉はまだ手元にある（最初からやり直せる）
+	_ride_base = ride_speed
 	txn_begin()
 	player.controls_enabled = false
 	progress.discover("vending")
@@ -3029,6 +3037,7 @@ func _use_vending() -> void:
 	hud.voice_silenced = false   # 神の声は黙っていても、エンディングの一言だけは出る
 	hud.show_message(ENDING["vending_voice"], 4.5, "voice")
 	await get_tree().create_timer(4.0 / ride_speed).timeout
+	ride_speed = _ride_base
 	vending_done = true
 	vending_busy = false
 	remove_item("yen100")
@@ -3220,8 +3229,8 @@ func hiding_in_closet() -> bool:
 
 
 ## 独り言：脱出には関係しない、胸のざわつく一言。
-func _mutter(text: String) -> void:
-	if paused or cleared or reading or hud._message_time_left > 0.5:
+func _mutter(text: String, force := false) -> void:
+	if paused or cleared or reading or (hud._message_time_left > 0.5 and not force):
 		return   # 読んでいる最中の文章は、さえぎらない
 	hud.show_message(text, 5.5)
 
@@ -3260,11 +3269,11 @@ func _maybe_find_memo(id: String) -> void:
 	var n := memos_found.size()
 	_reader_after = func() -> void:
 		if n == 3:
-			_mutter("（また、メモだ。……誰が、こんなものを）")
+			_mutter("（また、メモだ。……誰が、こんなものを）", true)
 		elif n == 6:
-			_mutter("（全部、同じ人の字だ。……見覚えが、ある気がする）")
+			_mutter("（全部、同じ人の字だ。……見覚えが、ある気がする）", true)
 		elif n == 10:
-			_mutter("（十枚目。……「ごめんね」って、誰に言っているんだ）")
+			_mutter("（十枚目。……「ごめんね」って、誰に言っているんだ）", true)
 
 
 func _read_diary(pages: Array, id: String, title: String, note_text: String) -> void:
@@ -3272,10 +3281,10 @@ func _read_diary(pages: Array, id: String, title: String, note_text: String) -> 
 	_open_reader(title, pages, null, Color(0.78, 0.7, 0.55))
 	if id == "diary_grandma":
 		_reader_after = func() -> void:
-			_mutter("（……あのインターホンは、おばあちゃんだったのか）")
+			_mutter("（……あのインターホンは、おばあちゃんだったのか）", true)
 	else:
 		_reader_after = func() -> void:
-			_mutter("（コタニ……？　書いた覚えが、ない。誰なんだ、この人は）")
+			_mutter("（コタニ……？　書いた覚えが、ない。誰なんだ、この人は）", true)
 
 
 ## 吹き矢を撃つ：ベランダで、向かいの壁の的へ。目の高さが 160 cm 未満だと、的が庇に隠れて見えない。

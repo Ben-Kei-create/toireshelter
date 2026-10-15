@@ -58,6 +58,7 @@ func _run() -> void:
 	# --- ヒント
 	pr.hints_shown.clear()
 	pr.discovered.clear()
+	main.region = "room"   # 自室に出てから、床のヒントが出る
 	check(pr.force_hint() and pr.hints_shown.has("floor"), "最初のヒントは「床の一部が…」")
 	check(hud._message_label.text.begins_with("『そういえば、床の一部が"), "神の声で出る")
 	var seq := []

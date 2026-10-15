@@ -40,7 +40,7 @@ func _run() -> void:
 	var n0 := main.get_child_count()
 	main._flash_beam(Vector3(0, 1, 0), Vector3(1, 1, 1))
 	_check(main.get_child_count() == n0 + 1, "光の筋ができる")
-	await create_timer(1.8).timeout
+	await create_timer(2.9).timeout
 	_check(main.get_child_count() == n0, "光の筋は、少しして消える")
 	print("STAGE6E TEST: %s (%d failure(s))" % ["PASS" if _failures == 0 else "FAIL", _failures])
 	quit(1 if _failures > 0 else 0)

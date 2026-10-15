@@ -49,6 +49,42 @@ func _run() -> void:
 	main.player.global_position = Vector3(-1.0, 0.0, -1.7)
 	main._check_neighbor_escape()
 	_check(main.hud._message_label.text == main.STAGE5["neighbor_window"] and not main.cleared, "お隣の窓の手前で、予告が出る（まだ終わらない）")
+	# 演出を飛ばす（クリック・E・A）
+	var m2 := InputEventAction.new()
+	m2.action = "interact"
+	m2.pressed = true
+	main.ride_speed = 1.0
+	main._ride_base = 1.0
+	main.riding = true
+	main._unhandled_input(m2)
+	_check(main.ride_speed >= 10.0, "エレベーター・購入の演出は、クリックで飛ばせる（速く進む）")
+	main.riding = false
+	main.ride_speed = 1.0
+	# 拡大した物を、手で回す
+	main.hud._zoom.visible = true
+	main.hud._zoom_manual = false
+	main.hud._zoom_pivot.rotation.y = 0.0
+	Input.action_press("move_right")
+	main.hud._process(0.1)
+	Input.action_release("move_right")
+	var r1: float = main.hud._zoom_pivot.rotation.y
+	main.hud._process(0.5)
+	_check(main.hud._zoom_manual and r1 < 0.0 and is_equal_approx(main.hud._zoom_pivot.rotation.y, r1), "拡大した物は、A／D で手で回せて、回したあとは自動では回らない")
+	# クレーンは 2 回目から速い
+	var ufo = main.room.apartment.ufo_catcher
+	main.coin_count = 3
+	main.add_item("ufo_coin")
+	ufo.interact("ufo_catcher")
+	var t1 := 0.0
+	while ufo.busy and t1 < 20.0:
+		await physics_frame
+		t1 += 1.0 / 60.0
+	ufo.interact("ufo_catcher")
+	var t2 := 0.0
+	while ufo.busy and t2 < 20.0:
+		await physics_frame
+		t2 += 1.0 / 60.0
+	_check(t2 < t1 * 0.7, "クレーンは、2 回目から速い（%.1f 秒 → %.1f 秒）" % [t1, t2])
 	print("POLISH TEST: %s (%d failure(s))" % ["PASS" if _failures == 0 else "FAIL", _failures])
 	quit(1 if _failures > 0 else 0)
 
