@@ -26,7 +26,7 @@ func _run() -> void:
 		print("TOIRE_SAVE_TEST=1 を付けて実行してください")
 		quit(2)
 		return
-	DirAccess.remove_absolute(ProjectSettings.globalize_path("user://save.json"))
+	DirAccess.remove_absolute(ProjectSettings.globalize_path("user://save_test.json"))
 	var main := await _fresh()
 	var hud = main.hud
 	var pr = main.progress
@@ -123,13 +123,13 @@ func _run() -> void:
 	pr.enabled = true
 	main.room.apartment.cellar.stored.clear()
 	# 壊れた保存は無視して、はじめから
-	var f := FileAccess.open("user://save.json", FileAccess.WRITE)
+	var f := FileAccess.open("user://save_test.json", FileAccess.WRITE)
 	f.store_string("{こわれた")
 	f.close()
 	main = await _fresh()
 	check(main.inventory.is_empty() and not main.progress.discovered.has("stairs"), "壊れた保存は無視して、はじめからになる")
 	main.progress.delete_save()
 	main.progress.enabled = false
-	DirAccess.remove_absolute(ProjectSettings.globalize_path("user://save.json"))
+	DirAccess.remove_absolute(ProjectSettings.globalize_path("user://save_test.json"))
 	print("failures: %d" % failures)
 	quit(1 if failures > 0 else 0)

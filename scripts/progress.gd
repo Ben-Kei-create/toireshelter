@@ -8,7 +8,8 @@ extends Node
 ## セーブ：user://save.json。持ち物・拾った物・床下の食べ物・階段・レコード・調べた物・発見・出したヒント・プレイ時間だけ。
 ##         一時停止・終了・発見・食べ物を入れたとき・持ち物が増えたときに書く。起動時に自動で続きから。ヘッドレス（テスト）と撮影では動かさない。
 
-const SAVE_PATH := "user://save.json"
+## 保存先。テスト用の環境（TOIRE_SAVE_TEST=1）では別ファイルにして、プレイヤーの本物の保存を上書きしない
+var SAVE_PATH := "user://save_test.json" if OS.get_environment("TOIRE_SAVE_TEST") == "1" else "user://save.json"
 const VERSION := 1
 const HINT_LIMIT := 5                 # 神の声にきける回数（設定から。使うほどクリアのランクが下がる）
 const IDLE_TIME := 55.0
@@ -40,7 +41,7 @@ const RANK_TABLE := [["SSS", 90], ["S", 120], ["A+", 150], ["A", 180], ["B+", 21
 var main: Node
 var auto_idle := false           # 何もしないまま時間が過ぎると、勝手に独り言を出すか（ヒントは設定からきく方式のため、ふだんはオフ）
 var hints_used := 0              # 出したヒントの数（きいた分・自動の分。「焦らなくていい」は数えない）
-var enabled := true
+var enabled := DisplayServer.get_name() != "headless" or OS.get_environment("TOIRE_SAVE_TEST") == "1"   # ヘッドレスのテストでは、保存しない（本物の保存を壊さない）
 var hints_on := true
 var discovered := {}
 var hints_shown := {}
@@ -519,8 +520,16 @@ func _stage2_apply(d: Dictionary) -> void:
 		room.take_paper()
 
 
+var save_deferred := false   # 取引（購入・交換・景品）の最中に保存を頼まれた：終わってから保存する
+
+
 func save() -> void:
-	if not enabled or _loading or main == null or not main.is_node_ready():
+	if _loading or main == null or not main.is_node_ready():
+		return
+	if main.txn > 0:
+		save_deferred = true   # 途中の状態（物が減って、まだ報酬がない）を保存しない
+		return
+	if not enabled:
 		return
 	var f := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
 	if f:

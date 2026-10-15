@@ -28,6 +28,7 @@ var _message_panel: PanelContainer
 var _prompt_label: Label
 var _message_label: Label
 var _inventory_bar: HBoxContainer
+var inv_off := 0                    # 所持品欄の先頭に出している物の番号（9 個以上のとき）
 var _slot_labels: Array[Label] = []
 var _slot_panels: Array[PanelContainer] = []
 var _zoom: Control
@@ -285,15 +286,30 @@ func set_prompt(text: String) -> void:
 ## 所持品欄を更新する。names：持っている物の名前（最大6つ、順に 1〜6 キー）、selected：選択中の番号（なければ -1）。
 func set_inventory(names: Array, selected: int) -> void:
 	var new_count := names.size()
-	if new_count > _last_item_count and new_count <= _slot_panels.size() and is_inside_tree():
-		_pulse_slot(new_count - 1)   # 新しく持ち物に加わった欄（いちばん後ろ）を、ちょっと光らせる。拾っただけでは手に持たない
+	var slots := _slot_panels.size()
+	# 9 個以上のときは、8 枠の「窓」をずらして、選んでいる物がいつも見えるようにする
+	if selected >= inv_off + slots:
+		inv_off = selected - slots + 1
+	elif selected >= 0 and selected < inv_off:
+		inv_off = selected
+	if new_count > _last_item_count and new_count > slots:
+		inv_off = new_count - slots
+	inv_off = clampi(inv_off, 0, maxi(0, new_count - slots))
+	if new_count > _last_item_count and new_count - 1 - inv_off < slots and is_inside_tree():
+		_pulse_slot(new_count - 1 - inv_off)   # 新しく持ち物に加わった欄（いちばん後ろ）を、ちょっと光らせる。拾っただけでは手に持たない
 	_last_item_count = new_count
 	for i in _slot_labels.size():
-		var has := i < names.size()
-		_slot_labels[i].text = "%d  %s" % [i + 1, names[i] if has else "―"]
+		var gi := i + inv_off
+		var has := gi < names.size()
+		var more := ""
+		if i == 0 and inv_off > 0:
+			more = "◀"
+		elif i == slots - 1 and new_count > inv_off + slots:
+			more = "▶"
+		_slot_labels[i].text = "%s%d  %s" % [more, gi + 1, names[gi] if has else "―"]
 		_slot_labels[i].modulate = Color(1, 1, 1, 1.0 if has else 0.45)
 		var style := _slot_panels[i].get_theme_stylebox("panel") as StyleBoxFlat
-		var on := has and i == selected
+		var on := has and gi == selected
 		style.bg_color = Color(0.0, 0.0, 0.0, 0.72 if on else 0.45)
 		style.border_color = Color(1.0, 0.86, 0.55) if on else Color(1, 1, 1, 0.0)
 		style.set_border_width_all(2 if on else 0)
@@ -344,6 +360,7 @@ func is_log_open() -> bool:
 var _notebook: PanelContainer
 var _notebook_chapters: Label
 var _notebook_body: Label
+var _notebook_scroll: ScrollContainer
 
 
 func _build_notebook() -> void:
@@ -375,13 +392,18 @@ func _build_notebook() -> void:
 	var sep := HSeparator.new()
 	sep.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	box.add_child(sep)
+	_notebook_scroll = ScrollContainer.new()
+	_notebook_scroll.name = "Scroll"
+	_notebook_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_notebook_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_notebook_scroll.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	box.add_child(_notebook_scroll)
 	_notebook_body = _make_label(19, HORIZONTAL_ALIGNMENT_LEFT)
 	_notebook_body.name = "Body"
 	_notebook_body.autowrap_mode = TextServer.AUTOWRAP_ARBITRARY
 	_notebook_body.vertical_alignment = VERTICAL_ALIGNMENT_TOP
-	_notebook_body.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	_notebook_body.clip_text = true
-	box.add_child(_notebook_body)
+	_notebook_body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_notebook_scroll.add_child(_notebook_body)
 	_notebook.visible = false
 
 
@@ -390,6 +412,17 @@ func toggle_notebook(chapters: String, body: String) -> void:
 	if _notebook.visible:
 		_notebook_chapters.text = chapters
 		_notebook_body.text = body
+		_notebook_scroll.scroll_vertical = 0
+
+
+## ノートの本文をスクロールする（ホイール・上下キー・スティック）。dy はピクセル。
+func notebook_scroll(dy: float) -> void:
+	if _notebook_scroll:
+		_notebook_scroll.scroll_vertical = maxi(0, _notebook_scroll.scroll_vertical + int(dy))
+
+
+func notebook_scroll_max() -> int:
+	return int(_notebook_body.size.y - _notebook_scroll.size.y) if _notebook_scroll else 0
 
 
 func close_notebook() -> void:

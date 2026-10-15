@@ -718,6 +718,9 @@ var _mutter_idle_i := 0
 var _reader_after: Callable
 var phone_coin_taken := false
 var medal_given := false
+var txn := 0                       # 取引の最中（購入・メダル交換・クレーン）。この間は、保存を後回しにして、置く・捨てるも止める
+var _ufo_txn := false
+var _prize_pending := false
 var _duct_heard := false
 var vending_busy := false
 var wall_hits := {"w": 0, "e": 0}   # 隔て板を叩いた回数（大きなツルハシ 62 回、小さなツルハシ 1994 回で割れる）
@@ -998,6 +1001,9 @@ func _process(_delta: float) -> void:
 	if not paused and room.exterior.blowgun_sign:
 		room.exterior.set_blowgun_sign_visible(player.eye_height >= ExteriorScript.SIGN_MIN_EYE and ExteriorScript.in_balcony(player.global_position))
 	_update_wall_hold(_delta)
+	if _ufo_txn and not room.apartment.ufo_catcher.busy and not _prize_pending:
+		_ufo_txn = false
+		txn_end()
 	room.washitsu.set_mouse_hole_visible(player.eye_height <= room.washitsu.MOUSE_EYE_MAX)
 	_update_duct_sound()
 	_check_neighbor_escape()
@@ -1066,12 +1072,21 @@ func _unhandled_input(event: InputEvent) -> void:
 	if hud.is_notebook_open():
 		if event.is_action_pressed("pause") or event.is_action_pressed("notebook"):
 			get_viewport().set_input_as_handled()
-			hud.close_notebook()
+			_close_notebook()
+		elif event is InputEventMouseButton and event.pressed and (event as InputEventMouseButton).button_index == MOUSE_BUTTON_WHEEL_DOWN:
+			hud.notebook_scroll(60.0)
+		elif event is InputEventMouseButton and event.pressed and (event as InputEventMouseButton).button_index == MOUSE_BUTTON_WHEEL_UP:
+			hud.notebook_scroll(-60.0)
+		elif event.is_action_pressed("move_back", true):
+			hud.notebook_scroll(40.0)
+		elif event.is_action_pressed("move_forward", true):
+			hud.notebook_scroll(-40.0)
 		return
 	var free_to_use := not paused and not cleared and not mj_playing and not reading and not gaming and not peeping
 	if event.is_action_pressed("notebook") and free_to_use and not hud.is_log_open():
 		get_viewport().set_input_as_handled()
 		hud.toggle_notebook(progress.chapter_lines(), progress.notes_text())
+		player.controls_enabled = false   # 読んでいる間は、体が動かない
 		return
 	# 目の高さ（[ と ]）。設定を開かずに、いつでも変えられる
 	if free_to_use and (event.is_action_pressed("eye_down") or event.is_action_pressed("eye_up")):
@@ -1152,28 +1167,28 @@ func _unhandled_input(event: InputEvent) -> void:
 			use_selected()
 			return
 		if event.is_action_pressed("item_1"):
-			select_item(0)
+			select_item(hud.inv_off + 0)
 			return
 		if event.is_action_pressed("item_2"):
-			select_item(1)
+			select_item(hud.inv_off + 1)
 			return
 		if event.is_action_pressed("item_3"):
-			select_item(2)
+			select_item(hud.inv_off + 2)
 			return
 		if event.is_action_pressed("item_4"):
-			select_item(3)
+			select_item(hud.inv_off + 3)
 			return
 		if event.is_action_pressed("item_5"):
-			select_item(4)
+			select_item(hud.inv_off + 4)
 			return
 		if event.is_action_pressed("item_6"):
-			select_item(5)
+			select_item(hud.inv_off + 5)
 			return
 		if event.is_action_pressed("item_7"):
-			select_item(6)
+			select_item(hud.inv_off + 6)
 			return
 		if event.is_action_pressed("item_8"):
-			select_item(7)
+			select_item(hud.inv_off + 7)
 			return
 		if event.is_action_pressed("inspect_item"):
 			toggle_zoom()
@@ -2362,9 +2377,23 @@ func add_coin(n := 1) -> void:
 
 
 ## クレーンゲームで1枚使う。なければ false。
+func txn_begin() -> void:
+	txn += 1
+
+
+func txn_end() -> void:
+	txn = maxi(0, txn - 1)
+	if txn == 0 and progress.save_deferred:
+		progress.save_deferred = false
+		progress.save()
+
+
 func spend_coin() -> bool:
 	if coin_count <= 0:
 		return false
+	if not _ufo_txn:
+		_ufo_txn = true
+		txn_begin()
 	coin_count -= 1
 	if coin_count == 0:
 		remove_item("ufo_coin")
@@ -2881,6 +2910,7 @@ func _use_vending() -> void:
 	if vending_busy:
 		return
 	vending_busy = true   # 演出の途中で保存されても、百円玉はまだ手元にある（最初からやり直せる）
+	txn_begin()
 	player.controls_enabled = false
 	progress.discover("vending")
 	SfxScript.play("click")
@@ -2899,6 +2929,7 @@ func _use_vending() -> void:
 	vending_done = true
 	vending_busy = false
 	remove_item("yen100")
+	txn_end()
 	_clear("true")
 
 
@@ -2913,7 +2944,9 @@ func _on_prize_won(index: int) -> void:
 	if index < 0 or index >= PRIZES.size():
 		return
 	var id: String = PRIZES[index]
+	_prize_pending = true
 	await get_tree().create_timer(1.0).timeout
+	_prize_pending = false
 	if id == "rice_pack" and (inventory.has(id) or items_found.has(id)):
 		return
 	_give_stage5(id)
@@ -3219,7 +3252,7 @@ const PLACE_REACH := 2.4
 
 ## G：手に持った物を、狙った先に置く。置いた物は、あとで拾える。
 func _drop_selected() -> void:
-	if paused or cleared or reading or gaming or mj_playing or peeping:
+	if paused or cleared or reading or gaming or mj_playing or peeping or txn > 0 or riding:
 		return
 	var id := selected_item()
 	if id.is_empty():
@@ -3300,11 +3333,13 @@ func _use_medal(tid: String) -> void:
 	if tid != "ufo_catcher" or not room.power_on:
 		hud.show_message(MESSAGES["cannot_use"])
 		return
-	remove_item("medal")
+	txn_begin()   # メダルは、百円玉に変わるまで手元に残る（途中で保存されない）
 	hud.show_message(STAGE5["medal_use"], 3.0)
 	SfxScript.play("click")
 	await get_tree().create_timer(2.4 / ride_speed).timeout
+	remove_item("medal")
 	give_yen100()
+	txn_end()
 	SfxScript.play("chime")
 	hud.show_message(STAGE5["medal_yen"], 6.0)
 	progress.discover("yen100")
@@ -3875,9 +3910,17 @@ func _on_hint_requested() -> void:
 	progress.ask_hint()
 
 
+func _close_notebook() -> void:
+	hud.close_notebook()
+	if not paused and not cleared and not reading:
+		player.controls_enabled = true
+
+
 func _pause() -> void:
 	hud.set_hint_ask_ui(progress.hints_left(), progress.hints_on, progress.HINT_LIMIT)
-	hud.close_notebook()
+	if hud.is_notebook_open():
+		hud.close_notebook()
+		player.controls_enabled = true
 	progress.save()
 	hud.set_stats(_stats_text())
 	hud.show_item_zoom(null, "", "")
