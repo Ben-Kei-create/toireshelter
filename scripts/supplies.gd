@@ -56,6 +56,12 @@ var cover_open := false
 var has_paper := false
 var holder_busy := false
 var spare_roll_taken := false
+const PULL_MAX := 5
+var pulls := 0                          # 新しいロールから紙を引いた回数（PULL_MAX で使い切る）
+var used_up := false                    # ロールを使い切って、芯だけが残った
+var dish_core_taken := false            # 小皿の芯（望遠鏡用）を取った
+var core2_taken := false                # ホルダーの芯（吹き矢用）を取った
+var _dish_area: Area3D
 var cover_pivot: Node3D
 var _holder_roll: Node3D
 var _holder_core: Node3D
@@ -121,6 +127,9 @@ func _build_dish() -> void:
 	_dish_core = MeshKit.cylinder(dish, 0.02, 0.105, Vector3(0, 0.012 + 0.02, 0), MeshKit.mat("paper_core", Color(0.7, 0.6, 0.48), 0.9), "Core", -1.0, 16)
 	_dish_core.rotation.x = deg_to_rad(90.0)
 	_dish_core.visible = false
+	_dish_area = MeshKit.interact_area(dish, "DishCoreArea", "dish_core", null)
+	MeshKit.shape_box(_dish_area, Vector3(0.14, 0.06, 0.07), Vector3(0, 0.035, 0))
+	_dish_area.collision_layer = 0
 
 
 ## カバーを開ける／閉める。
@@ -151,12 +160,59 @@ func install_roll() -> String:
 	tween.tween_property(_holder_core, "position:x", ROLL_X + 0.08, INSTALL_TIME * 0.4)
 	tween.tween_callback(func() -> void:
 		_holder_core.visible = false
-		_dish_core.visible = true
+		_dish_core.visible = not dish_core_taken
+		if not dish_core_taken:
+			_dish_area.collision_layer = MeshKit.LAYER_INTERACT
 		_holder_roll.visible = true
 		_holder_roll.scale = Vector3(0.3, 0.3, 0.3))
 	tween.tween_property(_holder_roll, "scale", Vector3.ONE, INSTALL_TIME * 0.6)
 	tween.tween_callback(func() -> void: holder_busy = false)
 	return "ok"
+
+
+## 新しいロールから紙を引く。"first"（最初の 1 回）／"pull"／"out"（使い切った）／"core"（残った芯を取った）／""（何もない）。
+func pull_paper() -> String:
+	if used_up and not core2_taken:
+		core2_taken = true
+		_holder_core.visible = false
+		return "core"
+	if not has_paper or holder_busy:
+		return ""
+	pulls += 1
+	if pulls >= PULL_MAX:
+		has_paper = false
+		used_up = true
+		_holder_roll.visible = false
+		_holder_core.position.x = ROLL_X
+		_holder_core.visible = true
+		return "out"
+	return "first" if pulls == 1 else "pull"
+
+
+## 小皿の芯を取る（見た目と判定を消す）。
+func take_dish_core() -> void:
+	dish_core_taken = true
+	_dish_core.visible = false
+	_dish_area.collision_layer = 0
+
+
+## 保存からの復元：ロールの状態を、演出なしで合わせる。
+func restore_paper(installed: bool, n_pulls: int, is_used_up: bool, dish_taken: bool, c2_taken: bool) -> void:
+	dish_core_taken = dish_taken
+	core2_taken = c2_taken
+	if not installed:
+		return
+	_holder_core.visible = false
+	has_paper = not is_used_up
+	pulls = n_pulls
+	used_up = is_used_up
+	_holder_roll.visible = not is_used_up
+	_holder_roll.scale = Vector3.ONE
+	if is_used_up and not c2_taken:
+		_holder_core.position.x = ROLL_X
+		_holder_core.visible = true
+	_dish_core.visible = not dish_taken
+	_dish_area.collision_layer = 0 if dish_taken else MeshKit.LAYER_INTERACT
 
 
 ## 棚の予備ロールを取る（見た目と照準判定を消す）。

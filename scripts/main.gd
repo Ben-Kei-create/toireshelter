@@ -390,6 +390,11 @@ const ITEMS := {
 	"blowgun_part": {"name": "吹き矢の材料", "desc": "細い筒の吹き口と口金。トイレットペーパーの芯と、何かの羽根があれば、吹き矢になりそうだ。"},
 	"mahjong_tiles": {"name": "麻雀牌（東・中）", "desc": "麻雀牌が 2 枚。『東』と『中』。"},
 	"bad_book": {"name": "悪口本", "desc": "表紙も中身も、真っ黒に塗りつぶされた本。何が書いてあるのか、読めない。……水に流したら、どうなるだろう。"},
+	"tp_core": {"name": "トイレットペーパーの芯", "desc": "ホルダーから外した、紙の芯。筒になっている。"},
+	"tp_core2": {"name": "使い切った芯", "desc": "予備ロールを使い切って残った芯。筒になっている。"},
+	"telescope": {"name": "望遠鏡", "desc": "芯の先に、紫の結晶をはめた。のぞくと、遠くの小さな物が大きく見える。"},
+	"blowgun": {"name": "吹き矢", "desc": "芯の筒に、口金と吹き口をつけ、毛だまりで矢羽根を作った。矢は 100 本まで。ベランダから、向かいの的を狙えそうだ。"},
+	"medal": {"name": "メダル", "desc": "九蓮宝燈で、なぜか出てきたメダル。つかみ取りに入れられそうだ。"},
 	"blank_card_0": {"name": "白紙のトランプ", "desc": "何も書かれていない、白いカード。普通の明かりの下では、ただの白紙だ。"},
 	"blank_card_1": {"name": "白紙のトランプ", "desc": "何も書かれていない、白いカード。普通の明かりの下では、ただの白紙だ。"},
 	"blank_card_2": {"name": "白紙のトランプ", "desc": "何も書かれていない、白いカード。普通の明かりの下では、ただの白紙だ。"},
@@ -596,6 +601,25 @@ const STAGE5 := {
 	"feed_wrong": "ダイヤルを合わせてみたが、開かない。",
 	"feed_opened": "餌箱は開いている。中は空だ。",
 	"aq_coin_msg": "水槽の底の砂の上に、コインが沈んでいる。手を入れて、拾った。",
+	"dish_core_pick": "小皿の芯を取った。トイレットペーパーの芯だ。",
+	"paper_pull": "紙を引いた。くるくる……。まだ、ある。",
+	"paper_out": "ガラガラガラ……。紙が、なくなった。芯だけが残った。",
+	"paper_core2": "使い切った芯を取った。",
+	"telescope_make": "芯の先に、結晶をはめた。……望遠鏡ができた。",
+	"telescope_far": "のぞいてみた。遠くが、少しだけ大きく見えた。",
+	"ceiling_dot": "天井に、小さな点がある。布団に寝ていたら、気になったかもしれない。……肉眼では、よく見えない。",
+	"ceiling_look": "望遠鏡で、天井の点をのぞいた。点は、小さな文字だった。『九蓮宝燈』。",
+	"medal_get": "九蓮宝燈……！　なぜか、メダルがこぼれ出た。",
+	"medal_use": "メダルを入れた。ガシャン、ガシャン……",
+	"medal_yen": "取り出し口から、百円玉が転がり出てきた。メダルが、百円玉に変わった。",
+	"blowgun_make": "筒に口金と吹き口をつけ、毛だまりを矢羽根にした。……吹き矢ができた。",
+	"blowgun_need_balcony": "吹き矢は、ベランダから使おう。",
+	"blowgun_hidden": "向かいの壁に、的があるような気がする。庇が邪魔でよく見えない。……背伸びをすれば、見えるだろうか。（目の高さを上げる：]）",
+	"blowgun_none": "ぷっ。……矢は、壁まで届かず、下へ落ちていった。",
+	"blowgun_miss": "ぷっ。矢が、向かいの壁に刺さった。（のこり %d 本）",
+	"blowgun_hit": "ぷっ。……カッ！　的に当たった！　どこかで、コインが落ちる音がした。",
+	"blowgun_out": "矢は、もう 1 本もない。",
+	"dart_coin_get": "ベランダの床に、コインが落ちていた。ラストのコインだ。",
 	"card_pick": "白いカードが落ちていた。何も書かれていない。……まだ、あと何枚かありそうだ。",
 	"safe_look": "押入れの隅に、小さな金庫がある。上に、カードを置くくぼみが 4 つ並んでいる。",
 	"safe_place": "カードをくぼみに置いた。かちっ。",
@@ -660,6 +684,9 @@ var _mutter_next := 150.0          # 次の独り言を出す遊んだ時間（�
 var _mutter_idle_i := 0
 var _reader_after: Callable
 var phone_coin_taken := false
+var medal_given := false
+const DARTS_MAX := 100
+var darts_used := 0
 var cards_in_safe: Array = []      # 金庫に置いたカード（番号）。順番を間違えると戻る
 var cards_taken: Array = []        # 拾ったカード（番号）
 var god_silent := false            # 家宝の写真を取ると、神の声が黙る（エンディングの一言だけは出る）
@@ -924,6 +951,8 @@ func _process(_delta: float) -> void:
 	if not paused and not cleared:
 		play_time += _delta
 		room.sky_clock.set_time(maxf(play_time, 620.0) if room.risen or room.rising else play_time)
+	if not paused and room.exterior.blowgun_sign:
+		room.exterior.set_blowgun_sign_visible(player.eye_height >= ExteriorScript.SIGN_MIN_EYE and ExteriorScript.in_balcony(player.global_position))
 	room.apartment.record_player.holding = selected_item() == "record_disc"
 	if mj_playing:
 		hud.set_prompt("")
@@ -1346,6 +1375,7 @@ func _start_mahjong() -> void:
 	player.controls_enabled = false
 	if mahjong == null:
 		mahjong = MahjongGame.new()
+	mahjong.puzzle = inventory.has("mahjong_tiles")
 	mahjong.start()
 	mj_cursor = 13 if mahjong.state == "playing" else 0
 	SfxScript.play("click")
@@ -1672,7 +1702,7 @@ func _prompt_for(target: Object) -> String:
 			return PROMPTS["dice_roll"]
 		"tv_remote":
 			return PROMPTS["tv_remote"]
-		"door_knob", "fuse", "hand_mirror", "pickaxe", "crystal", "ladder_prop", "washitsu_coin", "heirloom_photo", "lighter", "rice_pack", "shot_coin", "bad_book", "card_pick_0", "card_pick_1", "card_pick_2", "card_pick_3", "aq_coin":
+		"door_knob", "fuse", "hand_mirror", "pickaxe", "crystal", "ladder_prop", "washitsu_coin", "heirloom_photo", "lighter", "rice_pack", "shot_coin", "bad_book", "card_pick_0", "card_pick_1", "card_pick_2", "card_pick_3", "aq_coin", "dish_core", "dart_coin":
 			return PROMPT_PICKUP
 		"feed_box":
 			return PROMPT_EXAMINE
@@ -1716,6 +1746,23 @@ func _on_interact_requested(target: Object) -> void:
 		return
 	var id := String(target.get_meta("interact_id", ""))
 	var fixture: Object = target.get_meta("fixture") if target.has_meta("fixture") else null
+	if id == "paper_holder":
+		match room.supplies.pull_paper():
+			"first":
+				hud.show_message(MESSAGES["paper_holder"])
+				return
+			"pull":
+				SfxScript.play("rustle")
+				hud.show_message(STAGE5["paper_pull"])
+				return
+			"out":
+				SfxScript.play("rustle")
+				hud.show_message(STAGE5["paper_out"], 5.0)
+				return
+			"core":
+				_give_stage5("tp_core2")
+				hud.show_message(STAGE5["paper_core2"], 4.0)
+				return
 	if not id.is_empty():
 		examined[id] = true
 		progress.note_activity()
@@ -1923,6 +1970,21 @@ func _on_interact_requested(target: Object) -> void:
 			_read_diary(StoryData.MY_DIARY, "diary_mine", "自分の日記", "自分の字で、見覚えのない「コタニ」という人のことが書いてある。最後は、破りとられている。")
 		"diary_grandma":
 			_read_diary(StoryData.GRANDMA_DIARY, "diary_grandma", "おばあちゃんの日記", "おばあちゃんは、出ていくことを決めた。理由は書いていない。最後に、顔を合わせたかったらしい。")
+		"dart_coin":
+			if room.exterior.dart_coin_taken:
+				return
+			room.exterior.take_dart_coin()
+			add_coin(1)
+			SfxScript.play("chime")
+			hud.show_message(STAGE5["dart_coin_get"], 5.0)
+		"dish_core":
+			if room.supplies.dish_core_taken:
+				return
+			room.supplies.take_dish_core()
+			_give_stage5("tp_core")
+			hud.show_message(STAGE5["dish_core_pick"], 4.0)
+		"ceiling_dot":
+			hud.show_message(STAGE5["ceiling_dot"], 5.0)
 		"closet_safe":
 			if room.apartment.closet.safe_open:
 				hud.show_message(STAGE5["safe_empty"] if safe_list_taken else STAGE5["safe_open"])
@@ -2327,6 +2389,36 @@ func use_selected() -> void:
 		return
 	if id.begins_with("blank_card_"):
 		_place_card(id, tid)
+		return
+	if (id == "crystal" and inventory.has("tp_core")) or (id == "tp_core" and inventory.has("crystal")):
+		remove_item("crystal")
+		remove_item("tp_core")
+		_give_stage5("telescope")
+		hud.show_message(STAGE5["telescope_make"], 5.0)
+		SfxScript.play("chime", 1.2)
+		return
+	if id in ["blowgun_part", "tp_core2", "lint"] and inventory.has("blowgun_part") and inventory.has("tp_core2") and inventory.has("lint"):
+		for part in ["blowgun_part", "tp_core2", "lint"]:
+			remove_item(part)
+		_give_stage5("blowgun")
+		has_lint = false
+		hud.show_message(STAGE5["blowgun_make"], 5.0)
+		SfxScript.play("chime", 1.2)
+		return
+	if id == "blowgun":
+		_shoot_blowgun()
+		return
+	if id == "telescope":
+		if tid == "ceiling_dot":
+			hud.show_message(STAGE5["ceiling_look"], 6.0)
+			progress.discover("telescope_look")
+			await get_tree().create_timer(3.0).timeout
+			_open_reader("天井の点", ["小さな文字が、びっしりと…………いや、一言だけ。", "『九蓮宝燈』", "こたつの中の、ひとり麻雀のことだろうか。"], null, Color(0.1, 0.1, 0.12))
+		else:
+			hud.show_message(STAGE5["telescope_far"])
+		return
+	if id == "medal":
+		_use_medal(tid)
 		return
 	if id == "prize_list":
 		_open_reader("景品一覧表", ["つかみ取り　景品一覧", "1　懐中電灯\n2　虫眼鏡\n3　磁石つきの釣り針\n4　耳栓", "5　ごはん\n6　家の鍵\n7　吹き矢の部品\n8　詰め麻雀", "※景品は、この順番で出ます。"], null, Color(0.9, 0.85, 0.7))
@@ -2798,6 +2890,14 @@ func _give_stage4_model(id: String) -> void:
 			_item_models[id] = Stage5Items.blowgun_part_model()
 		"mahjong_tiles":
 			_item_models[id] = Stage5Items.mahjong_tiles_model()
+		"blowgun":
+			_item_models[id] = Stage5Items.blowgun_model()
+		"tp_core", "tp_core2":
+			_item_models[id] = Stage5Items.tp_core_model()
+		"telescope":
+			_item_models[id] = Stage5Items.telescope_model()
+		"medal":
+			_item_models[id] = Stage5Items.medal_model()
 		"blank_card_0", "blank_card_1", "blank_card_2", "blank_card_3":
 			_item_models[id] = Stage5Items.blank_card_model(0, false)
 		"prize_list":
@@ -2942,6 +3042,52 @@ func _read_diary(pages: Array, id: String, title: String, note_text: String) -> 
 	else:
 		_reader_after = func() -> void:
 			_mutter("（コタニ……？　書いた覚えが、ない。誰なんだ、この人は）")
+
+
+## 吹き矢を撃つ：ベランダで、向かいの壁の的へ。目の高さが 160 cm 未満だと、的が庇に隠れて見えない。
+func _shoot_blowgun() -> void:
+	if not ExteriorScript.in_balcony(player.global_position):
+		hud.show_message(STAGE5["blowgun_need_balcony"])
+		return
+	if darts_used >= DARTS_MAX:
+		hud.show_message(STAGE5["blowgun_out"])
+		return
+	var ext = room.exterior
+	var sign_ok: bool = player.eye_height >= ExteriorScript.SIGN_MIN_EYE
+	ext.set_blowgun_sign_visible(sign_ok)
+	if not sign_ok and not ext.sign_hit:
+		hud.show_message(STAGE5["blowgun_hidden"], 6.0)
+	SfxScript.play("pop", 1.4)
+	var dir: Vector3 = -player.camera.global_basis.z
+	var r: String = ext.shoot_dart(player.camera.global_position, dir)
+	darts_used += 1
+	match r:
+		"hit":
+			hud.show_message(STAGE5["blowgun_hit"], 5.0)
+			progress.discover("blowgun_hit")
+			await get_tree().create_timer(1.6 / ride_speed).timeout
+			ext.drop_dart_coin()
+			SfxScript.play("chime", 0.8)
+		"miss":
+			if sign_ok or ext.sign_hit:
+				hud.show_message(STAGE5["blowgun_miss"] % (DARTS_MAX - darts_used), 3.0)
+		_:
+			hud.show_message(STAGE5["blowgun_none"], 3.0)
+
+
+## メダルを、つかみ取りに入れる：百円玉に変わる（電気が必要）。
+func _use_medal(tid: String) -> void:
+	if tid != "ufo_catcher" or not room.power_on:
+		hud.show_message(MESSAGES["cannot_use"])
+		return
+	remove_item("medal")
+	hud.show_message(STAGE5["medal_use"], 3.0)
+	SfxScript.play("click")
+	await get_tree().create_timer(2.4 / ride_speed).timeout
+	give_yen100()
+	SfxScript.play("chime")
+	hud.show_message(STAGE5["medal_yen"], 6.0)
+	progress.discover("yen100")
 
 
 ## 悪口本を、トイレ（浮き上がった浴室）の便器に流す：本が流れて、便器が詰まる。濡れた本が浮かび、コインが 1 枚こぼれる（5 枚目）。
@@ -3251,7 +3397,15 @@ func _on_fuse_inserted() -> void:
 
 ## 九蓮宝燈を出したら、ホールのお酒のセラーのガラスが割れる。割れても、出るのは「お酒は20歳になってから。」だけ（謎解きには関わらない）。
 func _check_chuuren() -> void:
-	if mahjong == null or mahjong.state != "won" or not mahjong.yaku.has("九蓮宝燈") or room.cellar_broken:
+	if mahjong == null or mahjong.state != "won" or not mahjong.yaku.has("九蓮宝燈"):
+		return
+	if not medal_given:
+		medal_given = true
+		_give_stage5("medal")
+		progress.discover("chuuren")
+		hud.show_message(STAGE5["medal_get"], 5.0)
+		SfxScript.play("chime")
+	if room.cellar_broken:
 		return
 	room.break_wine_cellar()
 	progress.discover("chuuren")

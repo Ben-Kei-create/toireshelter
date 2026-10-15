@@ -118,6 +118,39 @@ static func blank_card_model(dots: int, lit: bool) -> Node3D:
 	return n
 
 
+static func tp_core_model() -> Node3D:
+	var n := Node3D.new()
+	MeshKit.cylinder(n, 0.02, 0.105, Vector3.ZERO, MeshKit.mat("paper_core", Color(0.7, 0.6, 0.48), 0.9), "Core", -1.0, 16).rotation.x = deg_to_rad(90.0)
+	return n
+
+
+static func telescope_model() -> Node3D:
+	var n := Node3D.new()
+	var core := MeshKit.cylinder(n, 0.02, 0.105, Vector3.ZERO, MeshKit.mat("paper_core", Color(0.7, 0.6, 0.48), 0.9), "Tube", -1.0, 16)
+	core.rotation.x = deg_to_rad(90.0)
+	var m := MeshKit.mat("crystal", Color(0.55, 0.4, 0.95, 0.72), 0.1, 0.1)
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	m.emission_enabled = true
+	m.emission = Color(0.45, 0.3, 0.9)
+	m.emission_energy_multiplier = 0.6
+	MeshKit.cylinder(n, 0.019, 0.012, Vector3(0, 0, -0.055), m, "Lens", -1.0, 16).rotation.x = deg_to_rad(90.0)
+	return n
+
+
+static func blowgun_model() -> Node3D:
+	var n := Node3D.new()
+	MeshKit.cylinder(n, 0.02, 0.105, Vector3.ZERO, MeshKit.mat("paper_core", Color(0.7, 0.6, 0.48), 0.9), "Tube", -1.0, 16).rotation.x = deg_to_rad(90.0)
+	MeshKit.cylinder(n, 0.016, 0.03, Vector3(0, 0, 0.07), MeshKit.mat("blowgun_mouth", Color(0.9, 0.9, 0.92), 0.4, 0.6), "Mouth", -1.0, 12).rotation.x = deg_to_rad(90.0)
+	return n
+
+
+static func medal_model() -> Node3D:
+	var n := Node3D.new()
+	var m := MeshKit.mat("medal_gold", Color(0.9, 0.75, 0.25), 0.3, 0.7)
+	MeshKit.cylinder(n, 0.03, 0.005, Vector3.ZERO, m, "Medal", -1.0, 24).rotation.x = deg_to_rad(90.0)
+	return n
+
+
 static func prize_list_model() -> Node3D:
 	var n := Node3D.new()
 	MeshKit.box(n, Vector3(0.12, 0.17, 0.003), Vector3.ZERO, MeshKit.mat("prize_paper", Color(0.93, 0.9, 0.78), 0.9), "Paper")

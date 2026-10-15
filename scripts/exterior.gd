@@ -52,12 +52,20 @@ const ENTRANCE_X := -1.85                       # 1 階の入口（アーチ）�
 const ENTRANCE_HALF := 0.75                     # アーチの口の半幅
 const ENTRANCE_H := 2.9                         # 入口の穴の高さ（アーチの頂点より上）
 const VENDING_POS := Vector3(2.6, GROUND_Y, FACADE_Z - FACADE_T - 0.36)   # ベランダ（x 1.3〜3.7）の真下の、白い自動販売機
+const SIGN_POS := Vector3(2.4, 1.85, OPPOSITE_Z + 0.05)   # 吹き矢の的の中心
+const SIGN_R := 0.42
+const SIGN_MIN_EYE := 1.6
 const POLE_POS := Vector3(0.45, 0.0, -2.55)
 
 var _rng := RandomNumberGenerator.new()
 var facade_dy := 0.0                   # 外壁の出口の穴が、もとの高さからどれだけ上にあるか
 var ladder_down := false               # ボロボロのはしごを、ダクトの出口から下ろした
 var breaker: Node3D                    # ベランダのブレーカー（breaker.gd）。ヒューズを差すと、部屋の電気がつく
+var blowgun_sign: Node3D               # 向かいの壁の吹き矢の的（目の高さ 160 cm 以上でないと庇に隠れて見えない）
+var darts: Array = []                  # 刺さった矢
+var sign_hit := false                  # 的に当てたことがある
+var dart_coin: Node3D                  # 的に当てて出たコイン（ベランダの床）
+var dart_coin_taken := false
 var vending_machine: Node3D            # ベランダの真下の白い自動販売機（真のクリアの場所）
 var _ladder: Node3D
 var _ko_train: Node3D
@@ -74,7 +82,69 @@ func _ready() -> void:
 	_build_balcony()
 	_build_opposite()
 	_build_street()
+	_build_blowgun_sign()
 	_build_lights()
+
+
+## 向かいの壁の吹き矢の的（赤白の輪）。目の高さが低いと庇に隠れて見えない。
+func _build_blowgun_sign() -> void:
+	blowgun_sign = Node3D.new()
+	blowgun_sign.name = "BlowgunSign"
+	blowgun_sign.position = SIGN_POS
+	add_child(blowgun_sign)
+	var cols := [Color(0.85, 0.12, 0.1), Color(0.96, 0.95, 0.9), Color(0.85, 0.12, 0.1), Color(0.96, 0.95, 0.9), Color(0.1, 0.1, 0.12)]
+	for k in cols.size():
+		var m := MeshKit.mat("sign_ring_%d" % k, cols[k], 0.6)
+		var c := MeshKit.cylinder(blowgun_sign, SIGN_R * (1.0 - k * 0.2), 0.02 + k * 0.004, Vector3.ZERO, m, "Ring%d" % k, -1.0, 28)
+		c.rotation.x = deg_to_rad(90.0)
+	set_blowgun_sign_visible(false)
+
+
+func set_blowgun_sign_visible(on: bool) -> void:
+	if blowgun_sign:
+		blowgun_sign.visible = on
+
+
+## 吹き矢を撃つ：向かいの壁に刺さる。的に当たれば "hit"、壁に刺されば "miss"、壁に届かなければ "none"。
+func shoot_dart(origin: Vector3, dir: Vector3) -> String:
+	if dir.z > -0.05:
+		return "none"
+	var t := (OPPOSITE_Z - origin.z) / dir.z
+	if t <= 0.0 or t > 12.0:
+		return "none"
+	var p := origin + dir * t
+	if p.x < -4.0 or p.x > 8.0 or p.y < -2.0 or p.y > 8.0:
+		return "none"
+	var d := MeshKit.cylinder(self, 0.004, 0.12, p + Vector3(0, 0, 0.05), MeshKit.mat("dart", Color(0.2, 0.2, 0.22), 0.6), "Dart", -1.0, 6)
+	d.rotation.x = deg_to_rad(90.0)
+	MeshKit.cylinder(d, 0.009, 0.03, Vector3(0, -0.05, 0), MeshKit.mat("dart_feather", Color(0.95, 0.93, 0.88), 0.95), "Feather", -1.0, 6)
+	darts.append(d)
+	if blowgun_sign and blowgun_sign.visible and Vector2(p.x - SIGN_POS.x, p.y - SIGN_POS.y).length() <= SIGN_R:
+		sign_hit = true
+		return "hit"
+	return "miss"
+
+
+## 当たりのコインが、ベランダの床に落ちて出る（手すりのそば）。
+func drop_dart_coin() -> void:
+	if dart_coin != null or dart_coin_taken:
+		return
+	dart_coin = Node3D.new()
+	dart_coin.name = "DartCoin"
+	dart_coin.position = Vector3(2.5, 0.012, -1.85)
+	add_child(dart_coin)
+	var cm := preload("res://scripts/fishing.gd").coin_model()
+	cm.rotation.x = deg_to_rad(-90.0)
+	dart_coin.add_child(cm)
+	var a := MeshKit.interact_area(dart_coin, "DartCoinArea", "dart_coin", null)
+	MeshKit.shape_box(a, Vector3(0.12, 0.08, 0.12), Vector3(0, 0.03, 0))
+
+
+func take_dart_coin() -> void:
+	dart_coin_taken = true
+	if dart_coin:
+		dart_coin.queue_free()
+		dart_coin = null
 
 
 ## ベランダ（手すりから身を乗り出すところも含む）の内か。

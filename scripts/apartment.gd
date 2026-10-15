@@ -736,6 +736,14 @@ func _build_desk_and_chair() -> void:
 		for dz in [-0.16, 0.16]:
 			MeshKit.box(chair, Vector3(0.03, 0.45, 0.03), Vector3(cx + dx, 0.225, -0.55 + dz), wood)
 	MeshKit.shape_box(_body, Vector3(0.38, 0.85, 0.38), Vector3(cx, 0.425, -0.55))
+	# 布団の上の天井：小さな点（望遠鏡で覗くと、字が見える）
+	var cdot := Node3D.new()
+	cdot.name = "CeilingDot"
+	cdot.position = Vector3(2.85, ROOM.end.y - 0.004, ROOM.end.z - 0.42)
+	add_child(cdot)
+	MeshKit.box(cdot, Vector3(0.012, 0.002, 0.012), Vector3.ZERO, MeshKit.mat("ceiling_dot", Color(0.12, 0.1, 0.1), 0.9), "Dot")
+	var cda := MeshKit.interact_area(cdot, "CeilingDotArea", "ceiling_dot", null)
+	MeshKit.shape_box(cda, Vector3(0.14, 0.1, 0.14), Vector3(0, -0.04, 0))
 	# 机の上の日記（自分の字。コタニという知らない名前）
 	var dn := Node3D.new()
 	dn.name = "DiaryMine"

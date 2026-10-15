@@ -87,7 +87,7 @@ func _run() -> void:
 	main.hud._message_label.text = ""
 	main._on_interact_requested(cel.get_node("LiquorArea3"))
 	_check(main.hud._message_label.text == "お酒は20歳になってから。", "割れたあとは、瓶を調べても同じ")
-	_check(main.inventory.has("cork_gun") and main.inventory.size() == 1, "割れても、取れる物は何もない")
+	_check(main.inventory.has("cork_gun") and main.inventory == ["cork_gun", "medal"], "割れても、瓶から取れる物は何もない（出るのは九蓮宝燈のメダルだけ）")
 	# 保存と復元
 	var snap: Dictionary = JSON.parse_string(JSON.stringify(main.progress.snapshot()))
 	var st: Dictionary = snap.get("stage3", {})

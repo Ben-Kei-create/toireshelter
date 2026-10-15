@@ -19,6 +19,7 @@ var points := 0
 var total_points := 0        # 続けて遊んだ累計
 var games := 0
 var wins := 0
+var puzzle := false          # 詰め麻雀：配牌と山が決まっている（東・中が手に入ったあと）。三手で九蓮宝燈
 var _rng := RandomNumberGenerator.new()
 
 
@@ -49,6 +50,9 @@ static func tile_name(k: int) -> String:
 
 
 func start() -> void:
+	if puzzle:
+		_start_puzzle()
+		return
 	wall = []
 	for k in KINDS:
 		for c in 4:
@@ -60,6 +64,24 @@ func start() -> void:
 		wall[j] = t
 	hand = wall.slice(0, 13)
 	hand.sort()
+	wall_pos = 13
+	discards = []
+	yaku = []
+	points = 0
+	draws = 0
+	games += 1
+	state = "playing"
+	_draw()
+
+
+## 詰め麻雀：手牌は 一一一二三四 六七八九九 ＋ 東・中。引く牌は 五萬 → 九萬 → 二萬。東と中を順に捨てれば、九蓮宝燈（解は一通り）。
+func _start_puzzle() -> void:
+	hand = [0, 0, 0, 1, 2, 3, 5, 6, 7, 8, 8, 27, 33]
+	hand.sort()
+	wall = hand.duplicate()
+	wall += [4, 8, 1]
+	for i in 70:
+		wall.append([28, 29, 30, 31, 32][i % 5])   # そのあとは、役にならない牌ばかり
 	wall_pos = 13
 	discards = []
 	yaku = []
