@@ -95,7 +95,7 @@ func _run() -> void:
 
 	main._on_eye_height_changed(1.5)   # 設定ファイルを元の高さに戻す（ほかのテストに影響させない）
 	# 神の声モード（表示の名前）
-	_check(hud._hints_check.text.begins_with("神の声モード"), "設定の項目名は「神の声モード」")
+	_check(hud._hints_check.text.begins_with("ヒント"), "設定の項目名は「ヒント」（簡素化）")
 	print("NOTEBOOK TEST: %s (%d failure(s))" % ["PASS" if _failures == 0 else "FAIL", _failures])
 	quit(1 if _failures > 0 else 0)
 

@@ -50,7 +50,7 @@ func _run() -> void:
 	var again := 0
 	for i in 12:
 		var pk: Array = main.fishing._pick()
-		if pk.size() > 4 and pk[4] == "story":
+		if pk.size() > 4 and pk[4] == "story" and pk[5] != "small_pickaxe":   # 小さなツルハシは、別（まれに釣れる）
 			again += 1
 	_check(again == 0, "取れた物は、二度と釣れない（お話の物の重複なし）")
 

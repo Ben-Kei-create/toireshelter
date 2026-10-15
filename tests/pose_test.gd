@@ -233,8 +233,8 @@ func _run() -> void:
 	var wall_c: Color = room.WALL_COLOR
 	_check(light.light_color.r > light.light_color.b + 0.15 and light.light_energy < 0.85 and env.tonemap_mode != Environment.TONE_MAPPER_LINEAR,
 			"照明は電球色で、変更前より弱く、白飛びを抑えるトーンマッピングあり")
-	_check(floor_c.get_luminance() < wall_c.get_luminance() and floor_c.s < wall_c.s and floor_c.get_luminance() > 0.45,
-			"床は淡いグレージュ（壁より少し暗く、彩度が低い）")
+	_check(wall_c.r > wall_c.g * 3.0 and wall_c.r > wall_c.b * 3.0 and room.BLACK_LACQUER.get_luminance() < 0.05,
+			"トイレは、深紅の壁と黒い漆（宮殿の配色）")
 
 	# ================================================================ 開いた扉・外した蓋・水面が視点と照準を遮らないか
 	# ここまででタンクの蓋は開いて壁際に置かれている。鏡の扉も開け、浴槽と洗面台を満水にする
