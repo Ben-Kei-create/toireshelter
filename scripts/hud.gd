@@ -437,6 +437,15 @@ func show_reader(title: String, body: String, cover: Texture2D, tint: Color, pag
 	_reader.visible = true
 
 
+## 数字・文字の入力画面（読む画面を流用）。shown は入力ずみの文字。
+func show_code(title: String, prompt: String, shown: String, max_len: int) -> void:
+	var cells := ""
+	for i in max_len:
+		cells += (shown[i] if i < shown.length() else "＿") + " "
+	show_reader(title, "%s\n\n　%s" % [prompt, cells.strip_edges()], null, Color(0.12, 0.12, 0.12), 0, 1)
+	_reader_foot.text = "キーボードで入力　／　Enter：決定　／　Backspace：消す　／　Esc：やめる"
+
+
 func hide_reader() -> void:
 	_reader.visible = false
 

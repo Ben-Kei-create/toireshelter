@@ -389,6 +389,11 @@ const ITEMS := {
 	"blowgun_part": {"name": "吹き矢の材料", "desc": "細い筒の吹き口と口金。トイレットペーパーの芯と、何かの羽根があれば、吹き矢になりそうだ。"},
 	"mahjong_tiles": {"name": "麻雀牌（東・中）", "desc": "麻雀牌が 2 枚。『東』と『中』。"},
 	"bad_book": {"name": "悪口本", "desc": "表紙も中身も、真っ黒に塗りつぶされた本。何が書いてあるのか、読めない。……水に流したら、どうなるだろう。"},
+	"blank_card_0": {"name": "白紙のトランプ", "desc": "何も書かれていない、白いカード。普通の明かりの下では、ただの白紙だ。"},
+	"blank_card_1": {"name": "白紙のトランプ", "desc": "何も書かれていない、白いカード。普通の明かりの下では、ただの白紙だ。"},
+	"blank_card_2": {"name": "白紙のトランプ", "desc": "何も書かれていない、白いカード。普通の明かりの下では、ただの白紙だ。"},
+	"blank_card_3": {"name": "白紙のトランプ", "desc": "何も書かれていない、白いカード。普通の明かりの下では、ただの白紙だ。"},
+	"prize_list": {"name": "景品一覧表", "desc": "つかみ取りの景品の一覧表。順番が書いてある。"},
 	"bad_book_wet": {"name": "濡れた悪口本", "desc": "水に濡れて、黒が落ちた本。最後のページに『悪いことは、水に流そう。』と書いてある。"},
 	"yen100": {"name": "百円玉", "desc": "ぴかぴかの百円玉。自動販売機で使えそうだ。"},
 	"sinker": {"name": "鉛のおもり", "desc": "ずっしり重い鉛の塊。軽いものの上に載せれば、重しになる。"},
@@ -583,9 +588,24 @@ const STAGE5 := {
 	"flush_book": "本を便器に落として、レバーを引いた。ゴボゴボゴボ……。",
 	"clog": "ごぼっ。……詰まった。水位が、じわじわ上がってくる。もう、流れない。",
 	"book_back": "水の底から、本が浮かんできた。黒が落ちて、文字が読める。ページのあいだから、コインが 1 枚、こぼれ落ちた。",
+	"phone_coin": "「7・3・0・5」。……ジー、カチャッ。『ただいま、お取り込み中です』。ガチャン。受話器の下の返却口から、コインが落ちてきた。",
+	"phone_empty": "「7・3・0・5」。『ただいま、お取り込み中です』。……返却口は、もう空っぽだ。",
+	"feed_look": "水槽のフタの上に、赤い餌箱がある。5 つのダイヤルの鍵がかかっている。文字のダイヤルのようだ。",
+	"feed_open": "かちっ。餌箱が開いた。中から、コインが 1 枚、水槽の底へ、ちゃぽん、と沈んでいった。",
+	"feed_wrong": "ダイヤルを合わせてみたが、開かない。",
+	"feed_opened": "餌箱は開いている。中は空だ。",
+	"aq_coin_msg": "水槽の底の砂の上に、コインが沈んでいる。手を入れて、拾った。",
+	"card_pick": "白いカードが落ちていた。何も書かれていない。……まだ、あと何枚かありそうだ。",
+	"safe_look": "押入れの隅に、小さな金庫がある。上に、カードを置くくぼみが 4 つ並んでいる。",
+	"safe_place": "カードをくぼみに置いた。かちっ。",
+	"safe_wrong": "ぶーっ。カードがはね返された。置く順番が違うらしい。",
+	"safe_open": "かちゃん。金庫が開いた。中に、景品の一覧表が入っていた。",
+	"safe_empty": "金庫は開いている。もう、何もない。",
+	"safe_need4": "くぼみは 4 つ。カードは、4 枚そろえたい。",
 	"toilet_clogged": "つまっていて、流れない。水があふれそうだ。（ほかの設備は、使える）",
 }
 ## つかみ取りの景品（固定順）。コイン 1 枚で、1 つずつ出る。
+const CARD_DOTS := [2, 4, 6, 8]
 const PRIZES := ["flashlight", "magnifier", "magnet_hook", "earplugs", "rice_pack", "home_key", "blowgun_part", "mahjong_tiles"]
 const VENDING_REACH := 1.49            # 自動販売機の最上段のボタンに届く目の高さ（150 cm）。最後の関門が身長
 const RIDE_STOPS := [4, 3, 2, 1]
@@ -632,6 +652,10 @@ var earplugs_on := false
 var _flash_light: SpotLight3D
 var shot_coin_node: Node3D
 var shot_coin_taken := false
+var safe_list_taken := false
+var phone_coin_taken := false
+var cards_in_safe: Array = []      # 金庫に置いたカード（番号）。順番を間違えると戻る
+var cards_taken: Array = []        # 拾ったカード（番号）
 var god_silent := false            # 家宝の写真を取ると、神の声が黙る（エンディングの一言だけは出る）
 var washitsu_transit := false
 var _ambient_before := -1.0
@@ -651,6 +675,13 @@ var paused := false
 var play_time := 0.0               # 一時停止中を除くプレイ時間（秒）。空模様に使う
 var kotatsu_seat := 0              # 座っている（入っている）こたつの座布団（KotatsuScript.SEATS の番号）
 var peeping := false               # のぞき穴の画面が開いている
+var coding := false                # 数字・文字の入力画面が開いている
+var _code_buf := ""
+var _code_len := 4
+var _code_digits := true
+var _code_title := ""
+var _code_prompt := ""
+var _code_cb: Callable
 var reading := false               # 本を読む画面が開いている
 const TISSUE_SHEETS := 12
 var coin_count := 0                # 持っている UFOコインの枚数
@@ -984,6 +1015,24 @@ func _unhandled_input(event: InputEvent) -> void:
 			get_viewport().set_input_as_handled()
 			_stop_game()
 		return
+	if coding:
+		if event is InputEventKey and event.pressed and not event.echo:
+			var ke := event as InputEventKey
+			get_viewport().set_input_as_handled()
+			if ke.keycode == KEY_ESCAPE:
+				_close_code(false)
+			elif ke.keycode == KEY_ENTER or ke.keycode == KEY_KP_ENTER:
+				_close_code(true)
+			elif ke.keycode == KEY_BACKSPACE:
+				_code_buf = _code_buf.substr(0, maxi(0, _code_buf.length() - 1))
+				_refresh_code()
+			elif ke.unicode > 31 and _code_buf.length() < _code_len:
+				var ch := char(ke.unicode)
+				if (_code_digits and ch >= "0" and ch <= "9") or (not _code_digits and ch.to_upper() >= "A" and ch.to_upper() <= "Z"):
+					_code_buf += ch.to_upper()
+					SfxScript.play("click", 1.2)
+					_refresh_code()
+		return
 	if reading:
 		# 本を読んでいる間：左クリックで次のページ（最後は閉じる）、Esc で閉じる。ほかの操作は受け付けない
 		if Engine.get_process_frames() == _reader_opened_frame:
@@ -1161,9 +1210,39 @@ var phone_index := 0
 const PHONE_CALLS := ["117", "177", "110", "119", "home", "0000"]
 
 
+func _try_feed_lock(word: String) -> void:
+	var aq = room.apartment.aquarium
+	if word == aq.LOCK_WORD:
+		aq.unlock_feed_box()
+		progress.discover("feed_box_open")
+		hud.show_message(STAGE5["feed_open"], 6.0)
+	else:
+		SfxScript.play("buzz", 0.8)
+		hud.show_message(STAGE5["feed_wrong"])
+
+
 func _phone_dial() -> void:
-	var which: String = PHONE_CALLS[phone_index % PHONE_CALLS.size()]
-	phone_index += 1
+	_open_code("黒電話", "ダイヤルを回す。番号を入力してください。", 4, true, _phone_number)
+
+
+func _phone_number(num: String) -> void:
+	var which := num
+	if num == room.shower_curtain.DIGITS:
+		SfxScript.play("ring")
+		progress.discover("phone_7305")
+		if phone_coin_taken:
+			hud.show_message(STAGE5["phone_empty"], 5.0)
+			return
+		phone_coin_taken = true
+		hud.show_message(STAGE5["phone_coin"], 6.0)
+		await get_tree().create_timer(1.5 / ride_speed).timeout
+		add_coin(1)
+		SfxScript.play("chime")
+		return
+	if not (num in PHONE_CALLS):
+		which = "0000" if num != "0000" else which
+		if num.length() < 3:
+			which = "0000"
 	match which:
 		"117":
 			var t: Dictionary = Time.get_datetime_dict_from_system()
@@ -1327,6 +1406,36 @@ func _open_reader(title: String, pages: Array, cover: Texture2D, tint: Color) ->
 	_reader_opened_frame = Engine.get_process_frames()
 	player.controls_enabled = false
 	_show_reader_page()
+
+
+## 入力画面を開く。決定（Enter）で cb(入力文字列) を呼ぶ。
+func _open_code(title: String, prompt: String, length: int, digits: bool, cb: Callable) -> void:
+	if reading or coding or paused or cleared:
+		return
+	coding = true
+	reading = true
+	_code_title = title
+	_code_prompt = prompt
+	_code_len = length
+	_code_digits = digits
+	_code_cb = cb
+	_code_buf = ""
+	_reader_opened_frame = Engine.get_process_frames()
+	player.controls_enabled = false
+	_refresh_code()
+
+
+func _refresh_code() -> void:
+	hud.show_code(_code_title, _code_prompt, _code_buf, _code_len)
+
+
+func _close_code(submit: bool) -> void:
+	coding = false
+	reading = false
+	hud.hide_reader()
+	player.controls_enabled = true
+	if submit and not _code_buf.is_empty():
+		_code_cb.call(_code_buf)
 
 
 func _show_reader_page() -> void:
@@ -1546,8 +1655,12 @@ func _prompt_for(target: Object) -> String:
 			return PROMPTS["dice_roll"]
 		"tv_remote":
 			return PROMPTS["tv_remote"]
-		"door_knob", "fuse", "hand_mirror", "pickaxe", "crystal", "ladder_prop", "washitsu_coin", "heirloom_photo", "lighter", "rice_pack", "shot_coin", "bad_book":
+		"door_knob", "fuse", "hand_mirror", "pickaxe", "crystal", "ladder_prop", "washitsu_coin", "heirloom_photo", "lighter", "rice_pack", "shot_coin", "bad_book", "card_pick_0", "card_pick_1", "card_pick_2", "card_pick_3", "aq_coin":
 			return PROMPT_PICKUP
+		"feed_box":
+			return PROMPT_EXAMINE
+		"closet_safe":
+			return PROMPT_EXAMINE
 		"kotatsu_hole":
 			return "左クリック：穴へ進む"
 		"washitsu_hole":
@@ -1764,6 +1877,35 @@ func _on_interact_requested(target: Object) -> void:
 			room.apartment.record_player.take_display()
 			add_item("record_disc")
 			hud.show_message(MESSAGES["record_disc"])
+		"card_pick_0", "card_pick_1", "card_pick_2", "card_pick_3":
+			var ck := int(id.substr(10))
+			if ck in cards_taken:
+				return
+			cards_taken.append(ck)
+			_give_stage5("blank_card_%d" % ck)
+			(target.get_parent() as Node3D).visible = false
+			(target as Area3D).collision_layer = 0
+			hud.show_message(STAGE5["card_pick"], 5.0)
+		"feed_box":
+			var aq = room.apartment.aquarium
+			if aq.feed_unlocked:
+				hud.show_message(STAGE5["feed_opened"])
+			else:
+				hud.show_message(STAGE5["feed_look"], 5.0)
+				_open_code("餌箱の鍵", "5 文字のアルファベットを合わせる。", 5, false, _try_feed_lock)
+		"aq_coin":
+			var aq2 = room.apartment.aquarium
+			if aq2.coin_taken:
+				return
+			aq2.take_coin()
+			add_coin(1)
+			SfxScript.play("chime")
+			hud.show_message(STAGE5["aq_coin_msg"], 5.0)
+		"closet_safe":
+			if room.apartment.closet.safe_open:
+				hud.show_message(STAGE5["safe_empty"] if safe_list_taken else STAGE5["safe_open"])
+			else:
+				hud.show_message(STAGE5["safe_look"])
 		"bad_book":
 			if inventory.has("bad_book") or inventory.has("bad_book_wet") or room.apartment.bad_book_taken:
 				return
@@ -2099,7 +2241,14 @@ func _show_zoom() -> void:
 		hud.show_item_zoom(null, "", "")
 		return
 	var desc: String = "空の容器。ゆずの香りだけ残っている。" if id == "bath_powder" and powder_used else ITEMS[id]["desc"]
-	hud.show_item_zoom(_item_models.get(id), item_name(id), desc)
+	var model = _item_models.get(id)
+	if id.begins_with("blank_card_"):
+		# 暗い部屋で、トイレの青い光の下だけ、点の数が光って見える
+		if not room.power_on and room.bath_light_on and room.bath_purple:
+			var k := int(id.substr(11))
+			model = Stage5Items.blank_card_model(CARD_DOTS[k], true)
+			desc = "青い光の下で、点が光って見える。点の数：%d。" % CARD_DOTS[k]
+	hud.show_item_zoom(model, item_name(id), desc)
 
 
 ## F の案内（照準の対象に選んだ物が使えるときだけ）。
@@ -2153,6 +2302,12 @@ func use_selected() -> void:
 		SfxScript.play("clunk")
 		hud.show_message(STAGE4["ladder_placed"], 5.0)
 		progress.discover("ladder_placed")
+		return
+	if id.begins_with("blank_card_"):
+		_place_card(id, tid)
+		return
+	if id == "prize_list":
+		_open_reader("景品一覧表", ["つかみ取り　景品一覧", "1　懐中電灯\n2　虫眼鏡\n3　磁石つきの釣り針\n4　耳栓", "5　ごはん\n6　家の鍵\n7　吹き矢の部品\n8　詰め麻雀", "※景品は、この順番で出ます。"], null, Color(0.9, 0.85, 0.7))
 		return
 	if id == "bad_book":
 		_flush_book(tid)
@@ -2618,6 +2773,10 @@ func _give_stage4_model(id: String) -> void:
 			_item_models[id] = Stage5Items.blowgun_part_model()
 		"mahjong_tiles":
 			_item_models[id] = Stage5Items.mahjong_tiles_model()
+		"blank_card_0", "blank_card_1", "blank_card_2", "blank_card_3":
+			_item_models[id] = Stage5Items.blank_card_model(0, false)
+		"prize_list":
+			_item_models[id] = Stage5Items.prize_list_model()
 		"bad_book":
 			_item_models[id] = Stage5Items.bad_book_model(false)
 		"bad_book_wet":
@@ -2664,6 +2823,35 @@ func _use_mirror_on_gem() -> void:
 	progress.discover("gem")
 	await get_tree().create_timer(2.8).timeout
 	hud.show_message(STAGE4["gem_after"], 5.0)
+
+
+## 白紙のトランプを金庫に置く：点の多い順（8→6→4→2）。順番が違えば、置いた分もはね返る。
+func _place_card(id: String, tid: String) -> void:
+	var c = room.apartment.closet
+	if tid != "closet_safe" or c.safe_open:
+		hud.show_message(MESSAGES["cannot_use"])
+		return
+	var k := int(id.substr(11))
+	var dots: int = CARD_DOTS[k]
+	if c.place_card(dots):
+		remove_item(id)
+		cards_in_safe.append(k)
+		SfxScript.play("chime", 0.7)
+		hud.show_message(STAGE5["safe_place"] if not c.safe_open else STAGE5["safe_open"], 4.0)
+		if c.safe_open:
+			progress.discover("safe_open")
+			await get_tree().create_timer(1.2 / ride_speed).timeout
+			if not inventory.has("prize_list"):
+				_give_stage5("prize_list")
+				safe_list_taken = true
+	else:
+		# 置いた分もはね返る：置いてあったカードは、持ち物に戻る
+		for kk in 4:
+			var cid := "blank_card_%d" % kk
+			if kk in cards_in_safe and not inventory.has(cid):
+				_give_stage5(cid)
+		cards_in_safe.clear()
+		hud.show_message(STAGE5["safe_wrong"], 4.0)
 
 
 ## 悪口本を、トイレ（浮き上がった浴室）の便器に流す：本が流れて、便器が詰まる。濡れた本が浮かび、コインが 1 枚こぼれる（5 枚目）。

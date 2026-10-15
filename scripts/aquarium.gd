@@ -17,6 +17,8 @@ const STAND_H := 0.7
 const WATER_TOP := 1.06
 const WATER_BOTTOM := 0.78
 const FEED_TIME := 10.0
+const FishingRef := preload("res://scripts/fishing.gd")
+const LOCK_WORD := "FLUSH"
 
 ## 魚の泳ぐ範囲（水槽の中の座標）。メダカは手前（+z）のガラスのそば、アロワナは水面近くの上の層
 const MEDAKA_ZONE := AABB(Vector3(-0.33, 0.80, 0.03), Vector3(0.66, 0.17, 0.07))
@@ -24,6 +26,10 @@ const AROWANA_ZONE := AABB(Vector3(-0.16, 0.96, -0.04), Vector3(0.32, 0.06, 0.07
 
 var fish: Array = []          # {node, tail, zone, speed, turn, target, vel, phase, kind}
 var feed_left := 0.0
+var feed_unlocked := false     # 餌箱の鍵（文字）が開いた
+var coin_node: Node3D          # 水槽の底に沈んだコイン
+var coin_taken := false
+var _feed_lid: Node3D
 var _flakes: Array = []       # {node, vy}
 var _bubbles: Array = []
 var _plants: Array = []
@@ -39,6 +45,7 @@ func _ready() -> void:
 	_build_stand_and_tank()
 	_build_decor()
 	_build_fish()
+	_build_feed_box()
 	var body := StaticBody3D.new()
 	body.name = "Collision"
 	body.collision_layer = MeshKit.LAYER_WORLD
@@ -246,6 +253,53 @@ func _swim(f: Dictionary, dt: float) -> void:
 		node.rotation.z = lerp_angle(node.rotation.z, clampf(v.y / maxf(speed, 0.01), -1.0, 1.0) * 0.35, clampf(4.0 * dt, 0.0, 1.0))
 	var amp := 0.5 if f.kind == "medaka" else 0.3
 	(f.tail as Node3D).rotation.y = sin(_t * (14.0 if f.kind == "medaka" else 5.0) * (0.6 + v.length() / maxf(f.speed, 0.01) * 0.4) + f.phase) * amp
+
+
+## 水槽のフタの上の餌箱（文字の鍵つき）。
+func _build_feed_box() -> void:
+	var box := Node3D.new()
+	box.name = "FeedBox"
+	box.position = Vector3(0.27, STAND_H + 0.02 + 0.4 + 0.02, 0.02)
+	add_child(box)
+	MeshKit.box(box, Vector3(0.1, 0.05, 0.07), Vector3(0, 0.025, 0), MeshKit.mat("feedbox_body", Color(0.8, 0.25, 0.2), 0.6), "Body")
+	_feed_lid = Node3D.new()
+	_feed_lid.position = Vector3(0, 0.05, -0.035)
+	box.add_child(_feed_lid)
+	MeshKit.box(_feed_lid, Vector3(0.1, 0.008, 0.07), Vector3(0, 0.004, 0.035), MeshKit.mat("feedbox_lid", Color(0.9, 0.9, 0.85), 0.6), "Lid")
+	var brass := MeshKit.mat("feedbox_lock", Color(0.8, 0.65, 0.25), 0.3)
+	brass.metallic = 0.7
+	for k in 5:
+		MeshKit.cylinder(box, 0.006, 0.006, Vector3(-0.036 + k * 0.018, 0.052, 0.04), brass, "LockDial%d" % k, -1.0, 10)
+	var a := MeshKit.interact_area(box, "FeedBoxArea", "feed_box", null)
+	MeshKit.shape_box(a, Vector3(0.12, 0.08, 0.09), Vector3(0, 0.04, 0))
+
+
+## 餌箱が開く：フタが持ち上がり、中のコインが水槽の底へ沈んでいる。
+func unlock_feed_box(instant := false) -> void:
+	feed_unlocked = true
+	var ang := deg_to_rad(-70.0)
+	if instant:
+		_feed_lid.rotation.x = ang
+	else:
+		Sfx.play("chime", 1.1)
+		create_tween().tween_property(_feed_lid, "rotation:x", ang, 0.6).set_trans(Tween.TRANS_SINE)
+	if not coin_taken and coin_node == null:
+		coin_node = Node3D.new()
+		coin_node.name = "TankCoin"
+		coin_node.position = Vector3(0.12, STAND_H + 0.02 + 0.045 + 0.003, 0.03)
+		add_child(coin_node)
+		var cm := FishingRef.coin_model()
+		cm.rotation.x = deg_to_rad(-90.0)
+		coin_node.add_child(cm)
+		var ca := MeshKit.interact_area(coin_node, "TankCoinArea", "aq_coin", null)
+		MeshKit.shape_box(ca, Vector3(0.08, 0.06, 0.08), Vector3(0, 0.02, 0))
+
+
+func take_coin() -> void:
+	coin_taken = true
+	if coin_node:
+		coin_node.queue_free()
+		coin_node = null
 
 
 # ---------------------------------------------------------------- 調べる（fixture）

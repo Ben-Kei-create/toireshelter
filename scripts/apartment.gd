@@ -746,6 +746,16 @@ func _build_desk_and_chair() -> void:
 	bm.rotation.x = deg_to_rad(90.0)
 	bm.position = Vector3(0, 0.018, 0)
 	bad_book_node.add_child(bm)
+	var cc := Node3D.new()
+	cc.name = "ChairCard"
+	cc.position = Vector3(cx + 0.1, 0.472, -0.5)
+	cc.rotation.y = 1.2
+	add_child(cc)
+	var ccm := Stage5Items.blank_card_model(0, false)
+	ccm.rotation.x = deg_to_rad(-90.0)
+	cc.add_child(ccm)
+	var cca := MeshKit.interact_area(cc, "CardArea", "card_pick_3", null)
+	MeshKit.shape_box(cca, Vector3(0.1, 0.06, 0.12), Vector3(0, 0.02, 0))
 	var ba := MeshKit.interact_area(bad_book_node, "BadBookArea", "bad_book")
 	MeshKit.shape_box(ba, Vector3(0.2, 0.08, 0.26), Vector3(0, 0.03, 0))
 
@@ -788,6 +798,13 @@ func _build_ornaments() -> void:
 	var floor_set := [[6, 0.32, 1.95, -1.06], [7, 0.3, 3.3, -1.06], [8, 0.26, 3.55, -0.7]]
 	for f in floor_set:
 		FigureArt.ornament(root, FigureArt.ORNAMENTS[int(f[0])], float(f[1]), Vector3(float(f[2]), 0.0, float(f[3])), _rng.randf_range(-0.5, 0.5))
+
+
+func hide_card(k: int) -> void:
+	if k == 3 and has_node("ChairCard"):
+		var n := get_node("ChairCard") as Node3D
+		n.visible = false
+		(n.get_node("CardArea") as Area3D).collision_layer = 0
 
 
 func take_bad_book() -> void:

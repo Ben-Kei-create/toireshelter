@@ -47,13 +47,14 @@ func _run() -> void:
 	check(c.get_node("Item_cellar_can_0").collision_layer == 0, "もう一度開けても、運んだ物の判定は戻らない")
 	# --- 黒電話
 	var calls := []
-	for i in 6:
-		main._phone_dial()
+	for num in ["117", "177", "110", "119", "0000"]:
+		main._phone_number(num)
 		calls.append(main.hud._message_label.text)
 	check(calls[0].contains("1・1・7") and calls[0].contains("秒を、お知らせします"), "117：いまの時刻を読み上げる")
-	check(calls[1].contains("天気") and calls[2].contains("1・1・0") and calls[3].contains("1・1・9") and calls[4].contains("自宅") and calls[5].contains("使われておりません"), "177・110・119・自宅・でたらめ の順に回る")
+	check(calls[1].contains("天気") and calls[2].contains("1・1・0") and calls[3].contains("1・1・9") and calls[4].contains("使われておりません"), "177・110・119・でたらめ の番号ごとに変わる")
 	main._phone_dial()
-	check(main.hud._message_label.text.contains("1・1・7"), "6つ回すと最初に戻る")
+	check(main.coding and main.reading, "黒電話を使うと、番号の入力画面が開く")
+	main._close_code(false)
 	check(not main.INTERACT_SFX.has("phone_black"), "黒電話の音は番号ごとに鳴らす")
 	# --- ゲームソフト5本
 	var game = apt.tv_game

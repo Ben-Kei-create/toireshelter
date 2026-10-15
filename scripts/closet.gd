@@ -11,6 +11,7 @@ extends Node3D
 
 const MeshKit := preload("res://scripts/mesh_kit.gd")
 const Sfx := preload("res://scripts/sfx.gd")
+const Stage5Items := preload("res://scripts/stage5_items.gd")
 const UfoCatcherScript := preload("res://scripts/ufo_catcher.gd")
 
 const CENTER := Vector3(4.7, 0.0, -0.8)
@@ -31,6 +32,12 @@ var futon_visible: bool:   # 左の仕切り（ふとん）が開いている
 	get:
 		return state == "futon"
 var busy := false
+var safe_node: Node3D
+var safe_door: Node3D
+var safe_open := false
+var safe_slots: Array = []        # 置いたカードの点の数（順に）
+var _safe_markers: Array = []
+const SAFE_ORDER := [8, 6, 4, 2]  # 点の多い順に置く
 var ufo: Node3D
 var mahjong_box: Node3D
 var _panels: Array = []
@@ -76,6 +83,20 @@ func _ready() -> void:
 	add_child(mahjong_box)
 	var ma := MeshKit.interact_area(mahjong_box, "MahjongArea", "mahjong", null)
 	MeshKit.shape_box(ma, Vector3(0.3, 0.14, 0.2), Vector3(0, 0.05, 0))
+	# 白紙のトランプ（3 枚）：棚の手前・座布団の上・床。もう 1 枚は椅子の上
+	var card_spots := [Vector3(-0.2, 1.0125 + 0.002, 0.3), Vector3(-0.36, FLOOR_T + 0.3 + 0.002, 0.1), Vector3(-0.1, FLOOR_T + 0.002, 0.3)]
+	for k in 3:
+		var cn := Node3D.new()
+		cn.name = "Card%d" % k
+		cn.position = card_spots[k]
+		cn.rotation.y = 0.5 + k * 1.1
+		add_child(cn)
+		var cm := Stage5Items.blank_card_model(0, false)
+		cm.rotation.x = deg_to_rad(-90.0)
+		cn.add_child(cm)
+		var ca := MeshKit.interact_area(cn, "CardArea", "card_pick_%d" % k, null)
+		MeshKit.shape_box(ca, Vector3(0.1, 0.06, 0.12), Vector3(0, 0.02, 0))
+	_build_safe()
 	# 右の仕切り：クレーンゲーム（向きは部屋側 +z）
 	ufo = UfoCatcherScript.new()
 	ufo.name = "UfoCatcher"
@@ -182,6 +203,71 @@ func set_state(new_state: String, seconds := 0.8) -> Tween:
 		busy = false
 		_place_areas())
 	return tw
+
+
+## 押入れの金庫（左の仕切りの奥の隅）。上面に、カードを置くくぼみが 4 つ。
+func _build_safe() -> void:
+	safe_node = Node3D.new()
+	safe_node.name = "Safe"
+	safe_node.position = Vector3(-0.64, FLOOR_T, -0.3)
+	add_child(safe_node)
+	var body := MeshKit.mat("safe_body", Color(0.22, 0.24, 0.26), 0.45)
+	body.metallic = 0.6
+	MeshKit.box(safe_node, Vector3(0.2, 0.4, 0.2), Vector3(0, 0.2, 0), body, "SafeBody")
+	var recess := MeshKit.mat("safe_recess", Color(0.08, 0.08, 0.09), 0.9)
+	for k in 4:
+		MeshKit.box(safe_node, Vector3(0.036, 0.004, 0.05), Vector3(-0.066 + k * 0.044, 0.401, 0), recess, "Recess%d" % k)
+	safe_door = Node3D.new()
+	safe_door.name = "SafeDoor"
+	safe_door.position = Vector3(-0.09, 0.2, 0.1)
+	safe_node.add_child(safe_door)
+	MeshKit.box(safe_door, Vector3(0.18, 0.36, 0.012), Vector3(0.09, 0, 0.006), MeshKit.mat("safe_door", Color(0.3, 0.32, 0.34), 0.4), "Door")
+	MeshKit.cylinder(safe_door, 0.03, 0.01, Vector3(0.09, 0, 0.016), MeshKit.mat("safe_dial", Color(0.75, 0.7, 0.5), 0.3), "Dial", -1.0, 16).rotation.x = deg_to_rad(90.0)
+	var sa := MeshKit.interact_area(safe_node, "SafeArea", "closet_safe", null)
+	MeshKit.shape_box(sa, Vector3(0.24, 0.44, 0.26), Vector3(0, 0.2, 0.03))
+
+
+## 金庫のくぼみにカードを置く。順番が違えば全部はね返る（false）。4 枚そろうと開く。
+func place_card(dots: int) -> bool:
+	var want: int = SAFE_ORDER[safe_slots.size()]
+	if dots != want:
+		reset_safe()
+		return false
+	safe_slots.append(dots)
+	_add_marker(safe_slots.size() - 1)
+	if safe_slots.size() >= SAFE_ORDER.size():
+		open_safe()
+	return true
+
+
+func _add_marker(k: int) -> void:
+	var m := MeshKit.box(safe_node, Vector3(0.034, 0.006, 0.048), Vector3(-0.066 + k * 0.044, 0.405, 0), MeshKit.mat("blank_card", Color(0.96, 0.95, 0.92), 0.7), "Placed%d" % k)
+	_safe_markers.append(m)
+
+
+func reset_safe() -> void:
+	safe_slots.clear()
+	for m in _safe_markers:
+		(m as Node).queue_free()
+	_safe_markers.clear()
+
+
+func open_safe(instant := false) -> void:
+	safe_open = true
+	if instant:
+		safe_door.rotation.y = deg_to_rad(-110.0)
+		return
+	Sfx.play("chime", 0.9)
+	create_tween().tween_property(safe_door, "rotation:y", deg_to_rad(-110.0), 1.0).set_trans(Tween.TRANS_SINE)
+
+
+func hide_card(k: int) -> void:
+	var n := get_node_or_null("Card%d" % k) as Node3D
+	if n:
+		n.visible = false
+		var a := n.get_node_or_null("CardArea") as Area3D
+		if a:
+			a.collision_layer = 0
 
 
 func take_mahjong() -> void:
