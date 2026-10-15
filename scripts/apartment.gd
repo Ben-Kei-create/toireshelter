@@ -16,6 +16,7 @@ const KotatsuScript := preload("res://scripts/kotatsu.gd")
 const HallFusumaScript := preload("res://scripts/hall_fusuma.gd")
 const FigureArt := preload("res://scripts/figure_art.gd")
 const Stage4Items := preload("res://scripts/stage4_items.gd")
+const WoodGrain := preload("res://scripts/wood_grain.gd")
 const AirconScript := preload("res://scripts/aircon.gd")
 const FanScript := preload("res://scripts/fan.gd")
 const UfoCatcherScript := preload("res://scripts/ufo_catcher.gd")
@@ -287,8 +288,9 @@ func _build_room_shell() -> void:
 	MeshKit.auto_round = false   # 外殻は角を丸めない（合わせ目に溝が出ないように）
 	# 自室の壁紙。模様が強くなりすぎないよう小さめ（横 0.3m）で繰り返す
 	var wall := MeshKit.tiled_mat("room_wallpaper", MeshKit.faded_texture(TEX_WALLPAPER, 0.4), 0.3, Color.WHITE, 0.9)
-	var floor_m := MeshKit.mat("room_floor", Color(0.55, 0.42, 0.3), 0.7)
-	var ceil_m := MeshKit.mat("ceiling", Color(0.95, 0.95, 0.95))
+	# 床はフローリング、天井は板張り：雑な木目の線を入れてある（wood_grain.gd）
+	var floor_m := MeshKit.tiled_mat("room_floor_grain", WoodGrain.floor_texture(), 1.2, Color.WHITE, 0.7)
+	var ceil_m := MeshKit.tiled_mat("ceiling_grain", WoodGrain.ceiling_texture(), 1.2, Color.WHITE, 0.9)
 	var x0 := ROOM.position.x
 	var x1 := ROOM.end.x
 	var z0 := ROOM.position.z
@@ -1041,9 +1043,40 @@ func _build_bed() -> void:
 	MeshKit.box(root, Vector3(0.35, 0.1, 0.55), Vector3(3.4, 0.29, z1 - 0.42), MeshKit.mat("pillow", Color(0.9, 0.9, 0.92), 0.95))
 	MeshKit.box(root, Vector3(0.9, 0.05, 0.78), Vector3(2.55, 0.265, z1 - 0.42), MeshKit.mat("blanket", Color(0.45, 0.55, 0.65), 0.95))
 	MeshKit.shape_box(_body, Vector3(1.5, 0.3, 0.8), Vector3(2.85, 0.15, z1 - 0.42))
+	_wrinkle_futon(root, z1 - 0.42)
 	MeshKit.image_quad(root, MeshKit.prop_tex("sticker_card_2"), Vector2(0.2, 0.2 * 485.0 / 508.0), Vector3(3.25, 0.62, z1 - 0.0015), Vector3.FORWARD, "StickerCard", false, 0.4)   # 留守番天使（枕の上の壁）
 	var bed_area := MeshKit.interact_area(root, "BedArea", "bed")
 	MeshKit.shape_box(bed_area, Vector3(1.5, 0.12, 0.8), Vector3(2.85, 0.36, z1 - 0.42))
+
+
+## 布団と毛布の上面に、雑なシワ（細く盛り上がった筋と、影の筋）をいくつか足す。見た目だけ。
+func _wrinkle_futon(root: Node3D, cz: float) -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 88
+	var light := MeshKit.mat("wrinkle_light", Color(0.88, 0.86, 0.8), 0.95)
+	var dark := MeshKit.mat("wrinkle_dark", Color(0.66, 0.64, 0.6), 0.95)
+	var blanket_dark := MeshKit.mat("wrinkle_blanket_dark", Color(0.33, 0.42, 0.52), 0.95)
+	var blanket_light := MeshKit.mat("wrinkle_blanket_light", Color(0.55, 0.65, 0.75), 0.95)
+	# 敷き布団（上面 y 0.24、x 2.125〜3.575、z cz ± 0.375）。枕（x 3.225〜3.575）と毛布（x 2.1〜3.0）をよけた所にも入れる
+	for i in 14:
+		var len := rng.randf_range(0.12, 0.34)
+		var x := rng.randf_range(2.2, 3.5)
+		var z := cz + rng.randf_range(-0.33, 0.33)
+		var m: Material = light if i % 2 == 0 else dark
+		var r := MeshKit.box(root, Vector3(len, 0.004, 0.012), Vector3(x, 0.2425, z), m, "Wrinkle")
+		r.rotation.y = rng.randf_range(-0.7, 0.7)
+	# 毛布（上面 y 0.29）：ふくらみの筋と谷の筋
+	for i in 12:
+		var len := rng.randf_range(0.14, 0.4)
+		var x := rng.randf_range(2.15, 2.95)
+		var z := cz + rng.randf_range(-0.34, 0.34)
+		var m: Material = blanket_light if i % 2 == 0 else blanket_dark
+		var r := MeshKit.box(root, Vector3(len, 0.005, 0.014), Vector3(x, 0.2925, z), m, "BlanketWrinkle")
+		r.rotation.y = rng.randf_range(-0.9, 0.9)
+	# 枕：くぼみの筋を 2 本
+	for k in 2:
+		var r2 := MeshKit.box(root, Vector3(0.22, 0.004, 0.01), Vector3(3.4, 0.3425, cz + (k - 0.5) * 0.18), dark, "PillowWrinkle")
+		r2.rotation.y = rng.randf_range(-0.3, 0.3)
 
 
 # ---------------------------------------------------------------- 岩石の標本（机の上の小さなトレー）
