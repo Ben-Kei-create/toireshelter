@@ -61,49 +61,73 @@ func _run() -> void:
 	check(game.MODES.size() == 5 and game.MODES[4] == "nodisc", "ソフトは5本（4本遊べて、1本は読み込めない）")
 	var cases: Array = apt.get_node("TvCorner").find_children("CaseArea", "Area3D", true, false)
 	check(cases.size() == 5, "ソフトのケースに5つの判定がある")
-	main._on_interact_requested(cases[1])
-	check(game.mode == "blocks" and main.hud._message_label.text.contains("BLOCKS"), "ケースを調べるとそのソフトに入れ替わる")
+	main._on_interact_requested(cases[0])
+	check(game.mode == "tetris" and main.hud._message_label.text.contains("FALLING BLOCKS"), "ケースを調べるとそのソフトに入れ替わる")
 	game.start()
-	game.br_x = 100.0
+	var x0: int = game.tt_x
 	game.input = Vector2(1, 0)
-	for i in 30:
-		game.step(1.0 / 60.0)
-	check(game.br_x > 100.0 + 50.0, "ブロック崩し：A/D（右）でパドルが動く")
-	var before: int = game.bricks_left()
-	game.br_ball = Vector2(15.0, 24.0 + 4.0)
-	game.br_vel = Vector2(0.0, -60.0)
-	game._br_wait = 0.0
-	game.step(0.05)
-	check(game.bricks_left() == before - 1 and game.score == 10, "ブロックに当てると壊れて 10 点")
-	game.input = Vector2.ZERO
-	game.lives = 1
-	game.br_ball = Vector2(100.0, 200.0)
-	game.br_vel = Vector2(0.0, 80.0)
-	game.step(0.05)
-	check(game.message == "GAME OVER", "ボールを 3 回落とすとゲームオーバー")
-	game.step(3.0)
-	check(game.lives == 3 and game.message == "", "あとで最初から")
-	main._on_interact_requested(cases[2])
-	check(game.mode == "snake" and not game.playing, "へびに入れ替え（デモに戻る）")
-	game.start()
-	var len0: int = game.snake.size()
-	game.food = game.snake[0] + Vector2i(1, 0)
-	game.input = Vector2(0, 0)
-	game._snake_t = 1.0
-	game.step(0.01)
-	check(game.snake.size() == len0 + 1 and game.score == 1, "へび：りんごを食べると伸びて 1 点")
-	game.input = Vector2(0, -1)
-	game.step(0.2)
-	check(game.snake_dir == Vector2i(0, -1), "へび：W で上へ曲がる")
-	game.input = Vector2(0, 1)
-	game.step(0.2)
-	check(game.snake_dir != Vector2i(0, 1), "へび：逆向きには曲がれない")
-	game.input = Vector2.ZERO
-	for i in 120:
+	for i in 4:
 		game.step(0.12)
-		if game.message != "":
+	check(game.tt_x > x0, "落ちものパズル：D（右）でブロックが動く")
+	game.input = Vector2.ZERO
+	var rot0: int = game.tt_rot
+	game.input = Vector2(0, -1)
+	game.step(0.02)
+	check(game.tt_rot != rot0 or game.tt_kind == "O", "落ちものパズル：W で回る")
+	game.input = Vector2.ZERO
+	game.reset_game()
+	for ci in 9:
+		game.tt_grid[17][ci] = 1
+	game.tt_kind = "I"
+	game.tt_rot = 1   # 縦
+	game.tt_x = 7     # 縦の I は x+2 の列（右端の 9 列目）に入る
+	game.tt_y = 10
+	game._tt_fall = 0.0
+	for i in 40:
+		game.step(0.1)
+		if game.tt_lines > 0:
 			break
-	check(game.message == "GAME OVER", "へび：壁にぶつかるとゲームオーバー")
+	check(game.tt_lines >= 1 and game.score >= 100, "落ちものパズル：1 行そろうと消えて 100 点（lines %d）" % game.tt_lines)
+	game.stop()
+	main._on_interact_requested(cases[1])
+	check(game.mode == "racer" and not game.playing, "レースゲームに入れ替え（デモに戻る）")
+	game.start()
+	var rx0: float = game.rc_x
+	game.input = Vector2(-1, 0)
+	for i in 20:
+		game.step(1.0 / 60.0)
+	check(game.rc_x < rx0 - 20.0, "レース：A（左）でハンドルを切る")
+	game.input = Vector2.ZERO
+	game.rc_cars = [{"x": game.rc_x, "y": 140.0, "v": 40.0}]
+	game._rc_spawn = 10.0
+	game.step(0.05)
+	check(game.message == "CRASH", "レース：ぶつかるとクラッシュ")
+	game.stop()
+	main._on_interact_requested(cases[2])
+	check(game.mode == "climb" and not game.playing, "樽よけ・はしご登りに入れ替え")
+	game.start()
+	game.cl_x = float(game.CL_LADDER[0])
+	game.input = Vector2(0, -1)
+	for i in 80:
+		game.step(1.0 / 60.0)
+	check(game.cl_level == 1 or game.cl_climbing, "はしご登り：はしごの所で W を押すと登る")
+	game.cl_level = 2
+	game.cl_climbing = false
+	game.cl_x = float(game.CL_LADDER[2])
+	game.cl_barrels = []
+	game._cl_spawn = 99.0
+	game.input = Vector2(0, -1)
+	for i in 120:
+		game.step(1.0 / 60.0)
+		if game.message == "CLEAR":
+			break
+	check(game.message == "CLEAR", "はしご登り：いちばん上へ着くとクリア")
+	game.stop()
+	game.start()
+	game.cl_barrels = [{"x": game.cl_x, "level": 0, "dir": 1.0}]
+	game._cl_spawn = 99.0
+	game.step(0.02)
+	check(game.message == "GAME OVER", "はしご登り：樽に当たるとゲームオーバー")
 	game.stop()
 	main._on_interact_requested(cases[3])
 	game.start()
@@ -120,9 +144,9 @@ func _run() -> void:
 	game.stop()
 	for mode_i in 4:
 		game.select(mode_i)
-		for i in 600:
+		for i in 1800:
 			game.step(1.0 / 60.0)
-		check(game.score + game.hits >= 0 and not game.playing, "%s のデモは 10 秒走っても止まらない（score %d）" % [game.TITLES[game.mode], game.score])
+		check(game.score + game.hits >= 0 and not game.playing, "%s のデモは 30 秒走っても止まらない（score %d）" % [game.TITLES[game.mode], game.score])
 	main._on_interact_requested(cases[4])
 	check(game.mode == "nodisc" and not game.playable(), "5本目は読み込めないディスク")
 	main._start_game()

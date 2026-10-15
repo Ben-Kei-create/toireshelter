@@ -1255,7 +1255,7 @@ func _fire(target: Object) -> void:
 
 # ---------------------------------------------------------------- ゲームソフトの入れ替え
 
-const GAME_NAMES := ["ラケット対戦（PONG）", "ブロック崩し（BLOCKS）", "へび（SNAKE）", "よけゲー（DODGE）", "ラベルのはがれたディスク"]
+const GAME_NAMES := ["落ちものパズル（FALLING BLOCKS）", "レースゲーム（GRAND RACE）", "樽よけ・はしご登り（BARREL CLIMB）", "よけゲー（DODGE）", "ラベルのはがれたディスク"]
 
 
 func _select_game(i: int) -> void:
