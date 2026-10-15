@@ -120,6 +120,23 @@ static func _pheasant(img: Image, c: Color) -> void:
 	_line(img, Vector2(0.48, 0.90), Vector2(0.58, 0.90), 0.025, c)
 
 
+## 射的の「当たり」の印：黄色い星（透明な背景）。
+static func star_texture() -> ImageTexture:
+	if _cache.has("star"):
+		return _cache["star"]
+	var img := Image.create(SIZE, SIZE, false, Image.FORMAT_RGBA8)
+	img.fill(Color(0, 0, 0, 0))
+	var pts := []
+	for i in 10:
+		var a := -PI * 0.5 + TAU * float(i) / 10.0
+		var r := 0.46 if i % 2 == 0 else 0.2
+		pts.append(Vector2(0.5 + cos(a) * r, 0.52 + sin(a) * r))
+	_poly(img, pts, Color(1.0, 0.85, 0.15, 1.0))
+	var t := ImageTexture.create_from_image(img)
+	_cache["star"] = t
+	return t
+
+
 ## 掛け軸の、バラバラの墨の模様（揃っていないときの見え方）。256×512 の縦長。
 static func scroll_blotches() -> ImageTexture:
 	if _cache.has("scroll"):

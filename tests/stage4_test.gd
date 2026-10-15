@@ -194,8 +194,8 @@ func _run() -> void:
 	main = await _fresh()
 	main.ride_speed = 20.0
 	var k = main.room.apartment.kitchen
-	main._on_interact_requested(k.rice_node.get_node("RiceArea"))
-	_check(main.inventory.has("rice_pack") and k.rice_taken, "台の上のパックご飯を拾う")
+	main._give_stage5("rice_pack")   # パックご飯は、つかみ取りの 5 個目の景品
+	_check(main.inventory.has("rice_pack"), "パックご飯を持っている")
 	main.select_item(main.inventory.find("rice_pack"))
 	main.use_selected()
 	_check(main.hud._message_label.text == main.STAGE4["need_egg"] and main.inventory.has("rice_pack"), "卵がないと、冷めた TKG は作れない（ご飯は減らない）")

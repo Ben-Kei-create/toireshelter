@@ -52,7 +52,7 @@ func _run() -> void:
 	main.add_coin(2)
 	check(main.coin_count == 3 and main.inventory.size() == 1 and main.item_name("ufo_coin") == "UFOコイン×3", "コインは1つの欄にまとまる")
 	main.coin_count = 1
-	check(ufo.interact("ufo_catcher") == "ufo_miss" and main.coin_count == 0 and not main.inventory.has("ufo_coin"), "遊ぶと1枚へる。0 枚になると欄から消える")
+	check(ufo.interact("ufo_catcher") == "ufo_win" and main.coin_count == 0 and not main.inventory.has("ufo_coin"), "遊ぶと1枚へる。0 枚になると欄から消える")
 	# --- 釣れたコイン
 	var f = main.fishing
 	var before: int = main.coin_count

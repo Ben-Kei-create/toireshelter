@@ -24,7 +24,7 @@ const DISCOVERIES := {
 	"driver": "ドライバー", "microwave": "電子レンジ", "calendar": "カレンダー",
 	"inspect_lever": "点検レバー", "vent_stretch": "背伸びで換気口へ", "ladder": "ボロボロのはしご", "lean_out": "手すりから乗り出す", "ko_line": "KO線", "unit_rise": "ゴゴゴ（浴室が上がった）", "wood_stick": "木の棒",
 	"ten_yen": "十円玉", "soap": "固形せっけん", "soap_placed": "せっけんを沈めた", "sink_lid": "洗面台のふた", "soap_dissolved": "せっけんが溶けた", "sinker": "鉛のおもり", "tub_lid": "浴槽のふた", "bath_ball": "入浴剤の玉",
-	"ball_dissolved": "玉が溶けた", "match_stick": "マッチ棒", "room_key": "部屋の鍵", "torch": "松明", "torch_thrown": "松明を捨てた", "window_unlocked": "窓の鍵を開けた", "door_knob": "壊れたドアノブ", "hatch_open": "小さな扉が開いた", "fuse": "ヒューズ", "breaker_open": "ブレーカーの蓋", "power_back": "部屋の電気", "chuuren": "九蓮宝燈", "hand_mirror": "手かがみ", "gem": "宝石が割れた", "pickaxe": "大きなツルハシ", "crystal": "結晶", "kotatsu_wall": "こたつの壁を壊した", "washitsu": "隣の和室", "scroll_aligned": "掛け軸の影絵", "bm_dog": "栞（犬）", "bm_monkey": "栞（猿）", "bm_pheasant": "栞（キジ）", "heirloom_open": "家宝が開いた", "photo_tkg": "写真『おふくろのTKG』", "lighter": "ライター", "wood_ladder": "はしご（和室）", "washitsu_coin": "和室のコイン", "rice_pack": "パックご飯", "cold_tkg": "冷めたTKG", "tkg": "TKG", "tkg_eaten": "TKGを食べた", "ladder_placed": "はしごを立てかけた", "curtain_digits": "カーテンの数字", "lint_washed": "毛だまり", "lint": "毛だまりを拾う", "mirror_paper": "鏡文字のメモ",
+	"ball_dissolved": "玉が溶けた", "match_stick": "マッチ棒", "room_key": "部屋の鍵", "torch": "松明", "torch_thrown": "松明を捨てた", "window_unlocked": "窓の鍵を開けた", "door_knob": "壊れたドアノブ", "hatch_open": "小さな扉が開いた", "fuse": "ヒューズ", "breaker_open": "ブレーカーの蓋", "power_back": "部屋の電気", "chuuren": "九蓮宝燈", "hand_mirror": "手かがみ", "gem": "宝石が割れた", "pickaxe": "大きなツルハシ", "crystal": "結晶", "kotatsu_wall": "こたつの壁を壊した", "washitsu": "隣の和室", "scroll_aligned": "掛け軸の影絵", "bm_dog": "栞（犬）", "bm_monkey": "栞（猿）", "bm_pheasant": "栞（キジ）", "heirloom_open": "家宝が開いた", "photo_tkg": "写真『おふくろのTKG』", "lighter": "ライター", "wood_ladder": "はしご（和室）", "washitsu_coin": "和室のコイン", "rice_pack": "パックご飯", "cold_tkg": "冷めたTKG", "tkg": "TKG", "tkg_eaten": "TKGを食べた", "ladder_placed": "はしごを立てかけた", "star_figure": "射的の当たり", "shot_coin": "射的のコイン", "flashlight": "小さな懐中電灯", "magnifier": "虫眼鏡", "magnet_hook": "磁石付きの釣り針", "earplugs": "耳栓", "home_key": "家の鍵", "blowgun_part": "吹き矢の材料", "mahjong_tiles": "麻雀牌（東・中）", "front_door_unlock": "玄関の鍵を開けた", "bad_book": "悪口本", "bad_book_wet": "濡れた悪口本", "bad_book_flush": "悪口本を流した", "curtain_digits": "カーテンの数字", "lint_washed": "毛だまり", "lint": "毛だまりを拾う", "mirror_paper": "鏡文字のメモ",
 }
 
 ## 幕（章）の名前。いまの幕より先は、行くまで「？？？」と出す。
@@ -369,7 +369,7 @@ func _stage4_snapshot() -> Dictionary:
 		"wall_broken": apt.kotatsu.wall_broken,
 		"slots": w.slots_filled, "heirloom_open": w.heirloom_open, "photo_taken": w.photo_taken,
 		"ladder_taken": w.ladder_taken, "coin_taken": w.coin_taken,
-		"ladder_placed": room.ladder_placed, "god_silent": main.god_silent, "lighter_taken": room.exterior.breaker.lighter_taken, "rice_taken": room.apartment.kitchen.rice_taken,
+		"ladder_placed": room.ladder_placed, "bad_book_taken": apt.bad_book_taken, "toilet_clogged": room.toilet.clogged, "ufo_taken": apt.ufo_catcher.taken, "front_unlocked": not room.front_door.locked, "shot_coin_taken": main.shot_coin_taken, "shot_coin_pos": [main.shot_coin_node.position.x, main.shot_coin_node.position.y, main.shot_coin_node.position.z] if main.shot_coin_node else [], "god_silent": main.god_silent, "lighter_taken": room.exterior.breaker.lighter_taken, "rice_taken": room.apartment.kitchen.rice_taken,
 	}
 
 
@@ -397,15 +397,31 @@ func _stage4_apply(d: Dictionary) -> void:
 		w.take_coin()
 	if bool(d.get("ladder_placed", false)):
 		room.place_ladder()
+	if bool(d.get("bad_book_taken", false)):
+		apt.take_bad_book()
+	if bool(d.get("toilet_clogged", false)):
+		room.toilet.restore_clogged()
+	var ufo_n := int(d.get("ufo_taken", 0))
+	for i in mini(ufo_n, apt.ufo_catcher.prizes.size()):
+		apt.ufo_catcher.prizes[i].taken = true
+		(apt.ufo_catcher.prizes[i].node as Node3D).visible = false
+	apt.ufo_catcher.taken = ufo_n
+	if bool(d.get("front_unlocked", false)):
+		room.front_door.locked = false
+	main.shot_coin_taken = bool(d.get("shot_coin_taken", false))
+	var sc: Array = d.get("shot_coin_pos", [])
+	if sc.size() == 3 and not main.shot_coin_taken:
+		main.spawn_shot_coin(Vector3(sc[0], sc[1] - 0.012, sc[2]))
 	if bool(d.get("rice_taken", false)):
 		apt.kitchen.take_rice()
+	main.fishing.magnet = main.inventory.has("magnet_hook") or main.items_found.has("magnet_hook")
 	main.god_silent = bool(d.get("god_silent", false))
 	main.hud.voice_silenced = main.god_silent
 	room.exterior.breaker.restore(room.exterior.breaker.cover_open, room.exterior.breaker.fuse_in, bool(d.get("lighter_taken", false)))
 
 
 func _restore_stage4_models(inv: Array) -> void:
-	for id in ["hand_mirror", "pickaxe", "crystal", "bm_dog", "bm_monkey", "bm_pheasant", "lighter", "wood_ladder", "photo_tkg", "rice_pack", "cold_tkg", "tkg"]:
+	for id in ["hand_mirror", "pickaxe", "crystal", "bm_dog", "bm_monkey", "bm_pheasant", "lighter", "wood_ladder", "photo_tkg", "rice_pack", "cold_tkg", "tkg", "flashlight", "magnifier", "magnet_hook", "earplugs", "home_key", "blowgun_part", "mahjong_tiles", "bad_book", "bad_book_wet"]:
 		if inv.has(id):
 			main._give_stage4_model(id)
 

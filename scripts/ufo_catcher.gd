@@ -24,13 +24,14 @@ const HOME := Vector2(0.14, 0.14)   # アームの待機位置（右手前。x �
 const OUTLET := Vector2(-0.14, 0.14)   # 取り出し口の上（左手前）
 const CLAW_TOP_Y := 1.42
 const CLAW_DOWN_Y := 0.88
-const SUCCESS_EVERY := [false, false, true, false, true, false, false, true]
+const SUCCESS_EVERY := [true]   # コインは貴重なので、1 枚で必ず景品が出る（景品は固定順。main.gd が中身を決める）
 
 var busy := false
 var coin_check := Callable()   # 遊ぶ前に呼ぶ。コインを1枚使えたら true（main.gd が設定。なければ無料＝テスト用）
 var plays := 0
 var prizes: Array = []        # [{node, spot: Vector2, taken}]
 var taken := 0
+signal prize_won(index: int)   # 景品が取り出し口に落ちた（0 から数えた何個目か）
 var claw: Node3D
 var _cable: MeshInstance3D
 var _prongs: Array = []
@@ -123,8 +124,8 @@ func _build_glass() -> void:
 
 ## 景品：絵6つ（平らな絵の立て札）。透過付きの novelty を画像の比率のまま、床に立てて少しずつ傾ける。
 func _build_prizes() -> void:
-	var spots := [Vector2(-0.12, -0.12), Vector2(0.02, -0.14), Vector2(0.14, -0.08), Vector2(-0.14, 0.0), Vector2(0.0, -0.02), Vector2(0.12, 0.04)]
-	var files := [2, 3, 5, 9, 11, 12]
+	var spots := [Vector2(-0.12, -0.12), Vector2(0.02, -0.14), Vector2(0.14, -0.08), Vector2(-0.14, 0.0), Vector2(0.0, -0.02), Vector2(0.12, 0.04), Vector2(-0.06, 0.12), Vector2(0.1, -0.18)]
+	var files := [2, 3, 5, 9, 11, 12, 1, 4]
 	for i in files.size():
 		var tex: Texture2D = load("res://assets/textures/room/novelty_%02d.png" % files[i])
 		var h := 0.12
@@ -266,6 +267,7 @@ func _drop(p: Dictionary) -> void:
 	node.global_transform = keep
 	p.taken = true
 	taken += 1
+	prize_won.emit(taken - 1)
 	var slot := Vector3(OUTLET.x + (_outlet_stack % 3 - 1) * 0.055, 0.125, D * 0.5 + 0.035)   # 取り出し口の暗い穴の前（フタの下）に並ぶ
 	_outlet_stack += 1
 	var tw := create_tween()

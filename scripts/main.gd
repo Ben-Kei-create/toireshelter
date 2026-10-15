@@ -32,6 +32,7 @@ const CorridorScript := preload("res://scripts/corridor.gd")
 const CreditsData := preload("res://scripts/credits_data.gd")
 const Stage3Items := preload("res://scripts/stage3_items.gd")
 const Stage4Items := preload("res://scripts/stage4_items.gd")
+const Stage5Items := preload("res://scripts/stage5_items.gd")
 const JapaneseRoomScript := preload("res://scripts/japanese_room.gd")
 const BurningTorchScript := preload("res://scripts/burning_torch.gd")
 
@@ -380,6 +381,15 @@ const ITEMS := {
 	"rice_pack": {"name": "パックご飯", "desc": "温めるだけのパックご飯。……あたためなくても食べられるが、冷たい。"},
 	"cold_tkg": {"name": "冷めたTKG", "desc": "ご飯に卵をかけただけの、冷めたTKG。電子レンジでチンすると、ちゃんとした TKG になるらしい。"},
 	"tkg": {"name": "TKG", "desc": "おふくろの、TKG。湯気が立っている。……食べよう。"},
+	"flashlight": {"name": "小さな懐中電灯", "desc": "小さな懐中電灯。ライターより明るい光が、前へ、細く伸びる。"},
+	"magnifier": {"name": "虫眼鏡", "desc": "古い虫眼鏡。小さな文字が、大きく読める。"},
+	"magnet_hook": {"name": "磁石付きの釣り針", "desc": "磁石の付いた釣り針。金属の物が、釣れやすくなる。"},
+	"earplugs": {"name": "耳栓", "desc": "オレンジの耳栓。F でつけ外しする。つけると、まわりの音が小さくなる。"},
+	"home_key": {"name": "家の鍵", "desc": "赤いタグの付いた鍵。玄関のドアの鍵だ。"},
+	"blowgun_part": {"name": "吹き矢の材料", "desc": "細い筒の吹き口と口金。トイレットペーパーの芯と、何かの羽根があれば、吹き矢になりそうだ。"},
+	"mahjong_tiles": {"name": "麻雀牌（東・中）", "desc": "麻雀牌が 2 枚。『東』と『中』。"},
+	"bad_book": {"name": "悪口本", "desc": "表紙も中身も、真っ黒に塗りつぶされた本。何が書いてあるのか、読めない。……水に流したら、どうなるだろう。"},
+	"bad_book_wet": {"name": "濡れた悪口本", "desc": "水に濡れて、黒が落ちた本。最後のページに『悪いことは、水に流そう。』と書いてある。"},
 	"yen100": {"name": "百円玉", "desc": "ぴかぴかの百円玉。自動販売機で使えそうだ。"},
 	"sinker": {"name": "鉛のおもり", "desc": "ずっしり重い鉛の塊。軽いものの上に載せれば、重しになる。"},
 	"lint": {"name": "毛だまり", "desc": "服についていた毛玉と綿ぼこり。ふわふわで軽い。"},
@@ -549,6 +559,34 @@ const BOOKMARK_BOOKS := {"透明な隣人": "bm_dog", "影の標本室": "bm_mon
 const BOOKMARK_ORDER := ["bm_dog", "bm_monkey", "bm_pheasant"]
 const BOOKMARK_KIND := {"bm_dog": "dog", "bm_monkey": "monkey", "bm_pheasant": "pheasant"}
 const GEM_REACH := 2.4
+## 段階 5（トイレへ戻る・つかみ取り）の説明。
+const STAGE5 := {
+	"front_door_locked": "玄関のドアは、鍵がかかっている。家の鍵がいる。",
+	"front_door_unlock": "カチャリ。玄関の鍵が開いた。",
+	"star_figure": "棚のフィギュア。……背中に、黄色い星の印がある。",
+	"star_hit": "命中！ 星の印のフィギュアが落ちた。……足元で、何かがきらりと光った。",
+	"shot_coin": "コインが落ちていた。UFOキャッチャーのコインだ。",
+	"prize_flashlight": "景品『小さな懐中電灯』が出た。ライターより明るい。",
+	"prize_magnifier": "景品『虫眼鏡』が出た。小さな文字が読めそうだ。",
+	"prize_magnet_hook": "景品『磁石付きの釣り針』が出た。釣りで、金属の物が出やすくなる。",
+	"prize_earplugs": "景品『耳栓』が出た。つけると、音が小さくなる。",
+	"prize_rice_pack": "景品『パックご飯』が出た。……卵があれば、あれが作れる。",
+	"prize_home_key": "景品『家の鍵』が出た。玄関のドアの鍵だ！",
+	"prize_blowgun_part": "景品『吹き矢の材料』が出た。筒の口と口金だ。",
+	"prize_mahjong_tiles": "景品『麻雀牌（東・中）』が出た。",
+	"earplugs_on": "耳栓をつけた。まわりの音が、小さくなった。",
+	"earplugs_off": "耳栓を外した。",
+	"magnifier_use": "虫眼鏡で見る。……小さな文字は、狙った先にあるはずだ。",
+	"bad_book_pickup": "椅子の上に、真っ黒に塗りつぶされた本があった。表紙も、中身も、読めない。",
+	"flush_need_lid": "便器の蓋が閉まっている。本を流すなら、蓋を開けよう。",
+	"flush_not_here": "便器のそばで、使おう。",
+	"flush_book": "本を便器に落として、レバーを引いた。ゴボゴボゴボ……。",
+	"clog": "ごぼっ。……詰まった。水位が、じわじわ上がってくる。もう、流れない。",
+	"book_back": "水の底から、本が浮かんできた。黒が落ちて、文字が読める。ページのあいだから、コインが 1 枚、こぼれ落ちた。",
+	"toilet_clogged": "つまっていて、流れない。水があふれそうだ。（ほかの設備は、使える）",
+}
+## つかみ取りの景品（固定順）。コイン 1 枚で、1 つずつ出る。
+const PRIZES := ["flashlight", "magnifier", "magnet_hook", "earplugs", "rice_pack", "home_key", "blowgun_part", "mahjong_tiles"]
 const VENDING_REACH := 1.49            # 自動販売機の最上段のボタンに届く目の高さ（150 cm）。最後の関門が身長
 const RIDE_STOPS := [4, 3, 2, 1]
 # 換気経路：入口で浴槽へ戻れる範囲（換気口の真上からの水平距離）、出口からベランダへ降りる経由点と着地候補
@@ -590,6 +628,10 @@ var _last_region := ""
 var door_open := false
 var cleared := false
 var _mw_busy := false
+var earplugs_on := false
+var _flash_light: SpotLight3D
+var shot_coin_node: Node3D
+var shot_coin_taken := false
 var god_silent := false            # 家宝の写真を取ると、神の声が黙る（エンディングの一言だけは出る）
 var washitsu_transit := false
 var _ambient_before := -1.0
@@ -731,6 +773,8 @@ func _ready() -> void:
 		if not progress._loading:
 			hud.show_message(MESSAGES["stairs_revealed"], 5.0)
 			progress.discover("stairs"))
+	room.apartment.ufo_catcher.prize_won.connect(_on_prize_won)
+	room.apartment.star_figure_down.connect(_on_star_down)
 	room.apartment.record_player.disc_set.connect(func() -> void:
 		remove_item("record_disc")
 		progress.discover("record_set"))
@@ -1502,7 +1546,7 @@ func _prompt_for(target: Object) -> String:
 			return PROMPTS["dice_roll"]
 		"tv_remote":
 			return PROMPTS["tv_remote"]
-		"door_knob", "fuse", "hand_mirror", "pickaxe", "crystal", "ladder_prop", "washitsu_coin", "heirloom_photo", "lighter", "rice_pack":
+		"door_knob", "fuse", "hand_mirror", "pickaxe", "crystal", "ladder_prop", "washitsu_coin", "heirloom_photo", "lighter", "rice_pack", "shot_coin", "bad_book":
 			return PROMPT_PICKUP
 		"kotatsu_hole":
 			return "左クリック：穴へ進む"
@@ -1589,7 +1633,7 @@ func _on_interact_requested(target: Object) -> void:
 		# 便器・浴槽・蛇口など状態を持つ設備は、その設備が操作し、表示する説明のキーを返す
 		var key: String = fixture.interact(id)
 		if not key.is_empty():
-			var text: String = MESSAGES[key] if MESSAGES.has(key) else STAGE3[key]
+			var text: String = MESSAGES[key] if MESSAGES.has(key) else (STAGE3[key] if STAGE3.has(key) else STAGE5[key])
 			if fixture.has_method("format_message"):
 				text = fixture.format_message(key, text)
 			hud.show_message(text)
@@ -1720,6 +1764,22 @@ func _on_interact_requested(target: Object) -> void:
 			room.apartment.record_player.take_display()
 			add_item("record_disc")
 			hud.show_message(MESSAGES["record_disc"])
+		"bad_book":
+			if inventory.has("bad_book") or inventory.has("bad_book_wet") or room.apartment.bad_book_taken:
+				return
+			_give_stage5("bad_book")
+			room.apartment.take_bad_book()
+			hud.show_message(STAGE5["bad_book_pickup"], 5.0)
+		"shot_coin":
+			if shot_coin_taken:
+				return
+			shot_coin_taken = true
+			if shot_coin_node:
+				shot_coin_node.queue_free()
+				shot_coin_node = null
+			add_coin(1)
+			progress.discover("shot_coin")
+			hud.show_message(STAGE5["shot_coin"], 5.0)
 		"figure":
 			if selected_item() == "cork_gun":
 				_fire(target)
@@ -2094,6 +2154,29 @@ func use_selected() -> void:
 		hud.show_message(STAGE4["ladder_placed"], 5.0)
 		progress.discover("ladder_placed")
 		return
+	if id == "bad_book":
+		_flush_book(tid)
+		return
+	if id == "bad_book_wet":
+		_open_reader("悪口本", ["黒かった表紙は、水を吸って、すっかり色が抜けている。", "『悪いことは、水に流そう。』", "……最後のページに、小さく、そう書いてあった。"], null, Color(0.55, 0.55, 0.6))
+		return
+	if id == "home_key":
+		if tid == "front_door" and room.front_door.locked:
+			room.front_door.unlock()
+			hud.show_message(STAGE5["front_door_unlock"], 4.0)
+			progress.discover("front_door_unlock")
+		else:
+			hud.show_message(MESSAGES["cannot_use"])
+		return
+	if id == "earplugs":
+		earplugs_on = not earplugs_on
+		AudioSettingsScript.set_earplugs(earplugs_on)
+		SfxScript.play("rustle")
+		hud.show_message(STAGE5["earplugs_on"] if earplugs_on else STAGE5["earplugs_off"])
+		return
+	if id == "magnifier":
+		hud.show_message(STAGE5["magnifier_use"])
+		return
 	if id == "rice_pack":
 		var k = room.apartment.kitchen
 		if k.eggs_held <= 0:
@@ -2465,6 +2548,48 @@ func give_yen100() -> void:
 	add_item("yen100")
 
 
+## つかみ取りの景品（固定順）が取り出し口に落ちた：持ち物に入る。
+func _on_prize_won(index: int) -> void:
+	if index < 0 or index >= PRIZES.size():
+		return
+	var id: String = PRIZES[index]
+	await get_tree().create_timer(1.0).timeout
+	if id == "rice_pack" and (inventory.has(id) or items_found.has(id)):
+		return
+	_give_stage5(id)
+	hud.show_message(STAGE5["prize_" + id], 6.0)
+
+
+func _give_stage5(id: String) -> void:
+	_give_stage4_model(id)
+	add_item(id)
+	progress.discover(id)
+	if id == "magnet_hook":
+		fishing.magnet = true
+
+
+## 星の印のフィギュアを撃ち落とした：コインが 1 枚、落ちた先に出る。
+func _on_star_down(pos: Vector3) -> void:
+	hud.show_message(STAGE5["star_hit"], 5.0)
+	progress.discover("star_figure")
+	if shot_coin_taken or shot_coin_node != null:
+		return
+	spawn_shot_coin(pos)
+
+
+func spawn_shot_coin(pos: Vector3) -> void:
+	shot_coin_node = Node3D.new()
+	shot_coin_node.name = "ShotCoin"
+	shot_coin_node.position = pos + Vector3(0, 0.012, 0)
+	room.apartment.add_child(shot_coin_node)
+	var cm := FishingScript.coin_model()
+	cm.rotation.x = deg_to_rad(90.0)
+	cm.scale = Vector3(0.6, 0.6, 0.6)
+	shot_coin_node.add_child(cm)
+	var a := MeshKit.interact_area(shot_coin_node, "ShotCoinArea", "shot_coin")
+	MeshKit.shape_box(a, Vector3(0.16, 0.08, 0.16), Vector3.ZERO)
+
+
 # ---------------------------------------------------------------- 段階 4：手かがみ・宝石・ツルハシ・こたつの壁・隣の和室
 
 func _give_stage4_model(id: String) -> void:
@@ -2479,6 +2604,24 @@ func _give_stage4_model(id: String) -> void:
 			_item_models[id] = Stage4Items.bookmark_model(BOOKMARK_KIND[id])
 		"lighter":
 			_item_models[id] = Stage4Items.lighter_model()
+		"flashlight":
+			_item_models[id] = Stage5Items.flashlight_model()
+		"magnifier":
+			_item_models[id] = Stage5Items.magnifier_model()
+		"magnet_hook":
+			_item_models[id] = Stage5Items.magnet_hook_model()
+		"earplugs":
+			_item_models[id] = Stage5Items.earplugs_model()
+		"home_key":
+			_item_models[id] = Stage5Items.home_key_model()
+		"blowgun_part":
+			_item_models[id] = Stage5Items.blowgun_part_model()
+		"mahjong_tiles":
+			_item_models[id] = Stage5Items.mahjong_tiles_model()
+		"bad_book":
+			_item_models[id] = Stage5Items.bad_book_model(false)
+		"bad_book_wet":
+			_item_models[id] = Stage5Items.bad_book_model(true)
 		"rice_pack":
 			_item_models[id] = Stage4Items.rice_model()
 		"cold_tkg":
@@ -2523,6 +2666,32 @@ func _use_mirror_on_gem() -> void:
 	hud.show_message(STAGE4["gem_after"], 5.0)
 
 
+## 悪口本を、トイレ（浮き上がった浴室）の便器に流す：本が流れて、便器が詰まる。濡れた本が浮かび、コインが 1 枚こぼれる（5 枚目）。
+func _flush_book(tid: String) -> void:
+	if not (tid in ["toilet", "toilet_seat", "toilet_lid", "flush_lever", "toilet_slippers"]):
+		hud.show_message(STAGE5["flush_not_here"])
+		return
+	var t = room.toilet
+	if t.clogged or t.flushing:
+		hud.show_message(MESSAGES["cannot_use"])
+		return
+	if not t.lid_open:
+		hud.show_message(STAGE5["flush_need_lid"])
+		return
+	remove_item("bad_book")
+	t.flush()
+	hud.show_message(STAGE5["flush_book"], 4.0)
+	progress.discover("bad_book_flush")
+	await get_tree().create_timer(2.8 / ride_speed).timeout
+	t.clog()
+	hud.show_message(STAGE5["clog"], 5.0)
+	await get_tree().create_timer(3.0 / ride_speed).timeout
+	_give_stage5("bad_book_wet")
+	add_coin(1)
+	SfxScript.play("chime")
+	hud.show_message(STAGE5["book_back"], 6.0)
+
+
 ## 冷めた TKG を電子レンジでチンする（電気が必要）。
 func _heat_tkg() -> void:
 	if not room.power_on:
@@ -2544,8 +2713,12 @@ func _heat_tkg() -> void:
 	_mw_busy = false
 
 
+func _has_light() -> bool:
+	return (_torch_light != null and _torch_light.visible) or (_flash_light != null and _flash_light.visible)
+
+
 func _look_scroll() -> void:
-	if not (_torch_light and _torch_light.visible):
+	if not _has_light():
 		hud.show_message(STAGE4["scroll_dark"])
 		return
 	if absf(player.eye_height - JapaneseRoomScript.SCROLL_EYE) <= JapaneseRoomScript.SCROLL_TOLERANCE:
@@ -2560,7 +2733,7 @@ func _look_scroll() -> void:
 func _update_scroll(delta: float) -> void:
 	if region != "washitsu" or room.washitsu == null:
 		return
-	var aligned := absf(player.eye_height - JapaneseRoomScript.SCROLL_EYE) <= JapaneseRoomScript.SCROLL_TOLERANCE and _torch_light != null and _torch_light.visible
+	var aligned := absf(player.eye_height - JapaneseRoomScript.SCROLL_EYE) <= JapaneseRoomScript.SCROLL_TOLERANCE and _has_light()
 	_scroll_a = move_toward(_scroll_a, 1.0 if aligned else 0.0, delta * 3.0)
 	room.washitsu.set_scroll_alignment(_scroll_a)
 
@@ -2730,6 +2903,17 @@ func _make_torch() -> void:
 func _refresh_torch_light() -> void:
 	var sel := selected_item()
 	var on := sel == "torch" or sel == "lighter"
+	if sel == "flashlight" and _flash_light == null:
+		_flash_light = SpotLight3D.new()
+		_flash_light.name = "FlashLight"
+		_flash_light.position = Vector3(0.12, -0.12, -0.2)
+		_flash_light.spot_range = 9.0
+		_flash_light.spot_angle = 26.0
+		_flash_light.light_energy = 3.2
+		_flash_light.light_color = Color(1.0, 0.97, 0.85)
+		player.camera.add_child(_flash_light)
+	if _flash_light:
+		_flash_light.visible = sel == "flashlight"
 	_torch_base = 1.6 if sel == "torch" else 1.0
 	if on and _torch_light == null:
 		_torch_light = OmniLight3D.new()

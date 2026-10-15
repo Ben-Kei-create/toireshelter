@@ -10,6 +10,7 @@ static var sfx := 1.0
 static var ambient := 1.0
 static var sfx_on := true
 static var ambient_on := true
+static var earplugs := false   # 耳栓をつけている（つかみ取りの景品 4）：全体の音が小さくなり、環境音は特に小さくなる
 
 
 ## SFX・Ambient のバスがなければ作る（Master へ流す）。音を鳴らす節点を作る前に呼ぶ。
@@ -39,11 +40,16 @@ static func set_space(reverb: float, cutoff: float) -> void:
 		(AudioServer.get_bus_effect(i, 1) as AudioEffectLowPassFilter).cutoff_hz = cutoff
 
 
+static func set_earplugs(on: bool) -> void:
+	earplugs = on
+	apply()
+
+
 static func apply() -> void:
 	ensure_buses()
-	_set_bus("Master", master, true)
+	_set_bus("Master", master * (0.5 if earplugs else 1.0), true)
 	_set_bus("SFX", sfx, sfx_on)
-	_set_bus("Ambient", ambient, ambient_on)
+	_set_bus("Ambient", ambient * (0.4 if earplugs else 1.0), ambient_on)
 
 
 static func _set_bus(bus: String, linear: float, enabled: bool) -> void:

@@ -58,6 +58,7 @@ var busy := false
 var tank_open := false
 var tank_busy := false
 var flushing := false
+var clogged := false    # 悪口本を流して詰まった。以後、便器は使えない（ほかの設備は使える）
 var occupied := false   # 人が座っている（main.gd が設定）
 
 var lid_pivot: Node3D
@@ -202,9 +203,28 @@ func _process(delta: float) -> void:
 		m.uv1_offset.x += delta * 1.5
 
 
-## 水を流す。流している間は何もしない。
+## 詰まる：便器の水位がじわじわ上がって、そのまま。以後、流せない。
+func clog() -> void:
+	if clogged:
+		return
+	clogged = true
+	Sfx.play("plop")
+	var tw := create_tween()
+	tw.tween_property(bowl_water, "position:y", BOWL_WATER_Y + 0.05, 2.2).set_trans(Tween.TRANS_SINE)
+	tw.parallel().tween_callback(func() -> void: Sfx.play("flush", 0.6, -8.0))
+
+
+## 詰まりの見た目だけを戻す（保存からの復元）。
+func restore_clogged() -> void:
+	if clogged:
+		return
+	clogged = true
+	bowl_water.position.y = BOWL_WATER_Y + 0.05
+
+
+## 水を流す。流している間は何もしない。詰まっていると流れない。
 func flush() -> void:
-	if flushing:
+	if flushing or clogged:
 		return
 	flushing = true
 	Sfx.play("flush")
@@ -512,6 +532,8 @@ func interact(id: String) -> String:
 		"tank_lid":
 			toggle_tank()
 		"flush_lever":
+			if clogged:
+				return "toilet_clogged"
 			flush()
 		"toilet_lid":
 			if not occupied:

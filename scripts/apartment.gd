@@ -17,6 +17,7 @@ const HallFusumaScript := preload("res://scripts/hall_fusuma.gd")
 const FigureArt := preload("res://scripts/figure_art.gd")
 const Stage4Items := preload("res://scripts/stage4_items.gd")
 const WoodGrain := preload("res://scripts/wood_grain.gd")
+const Stage5Items := preload("res://scripts/stage5_items.gd")
 const AirconScript := preload("res://scripts/aircon.gd")
 const FanScript := preload("res://scripts/fan.gd")
 const UfoCatcherScript := preload("res://scripts/ufo_catcher.gd")
@@ -70,7 +71,11 @@ var window_open := false
 var window_locked := false   # ベランダ側から、部屋の鍵がないと開かない（浴室がせり上がったあとに施錠。room.gd の rise_unit）
 var hall_fusuma: Node3D       # ホールと自室の境のふすま（hall_fusuma.gd）
 signal curtain_changed(closed: bool)
+signal star_figure_down(pos: Vector3)   # 星の印のフィギュアを撃ち落とした（落ちた位置。main.gd がコインを置く）
+const STAR_FIGURE := 8   # 奥の壁の棚の、8 番目のフィギュア（上から 2 段目）
 ## 宝石（大きな多面体）：トイレの青い光を手かがみで反射させると割れて、ツルハシと結晶が出る（main.gd）。
+var bad_book_node: Node3D         # 椅子の上の、黒塗りの悪口本（拾える）
+var bad_book_taken := false
 var gem_root: Node3D
 var gem_stone: MeshInstance3D
 var gem_broken := false
@@ -731,6 +736,18 @@ func _build_desk_and_chair() -> void:
 		for dz in [-0.16, 0.16]:
 			MeshKit.box(chair, Vector3(0.03, 0.45, 0.03), Vector3(cx + dx, 0.225, -0.55 + dz), wood)
 	MeshKit.shape_box(_body, Vector3(0.38, 0.85, 0.38), Vector3(cx, 0.425, -0.55))
+	# 椅子の座面に置いてある、黒く塗りつぶされた本（悪口本）
+	bad_book_node = Node3D.new()
+	bad_book_node.name = "BadBook"
+	bad_book_node.position = Vector3(cx - 0.02, 0.47, -0.55)
+	bad_book_node.rotation.y = 0.35
+	add_child(bad_book_node)
+	var bm := Stage5Items.bad_book_model(false)
+	bm.rotation.x = deg_to_rad(90.0)
+	bm.position = Vector3(0, 0.018, 0)
+	bad_book_node.add_child(bm)
+	var ba := MeshKit.interact_area(bad_book_node, "BadBookArea", "bad_book")
+	MeshKit.shape_box(ba, Vector3(0.2, 0.08, 0.26), Vector3(0, 0.03, 0))
 
 
 # ---------------------------------------------------------------- フィギュア棚
@@ -747,6 +764,7 @@ func _build_figure_shelves() -> void:
 		MeshKit.box(root, Vector3(0.72, 0.02, 0.2), Vector3(1.44, y - 0.01, back_z + 0.1), white)
 		_figure_row(root, Vector3(1.12, y, back_z + 0.1), Vector3(0.11, 0, 0), 6, 1.0)
 	MeshKit.shape_box(_body, Vector3(0.72, 1.3, 0.2), Vector3(1.44, 1.7, back_z + 0.1))
+	_mark_star_figure()
 	# 手前の壁の高い所（寝床の上）：2段
 	var front_z := ROOM.end.z
 	for i in 2:
@@ -770,6 +788,34 @@ func _build_ornaments() -> void:
 	var floor_set := [[6, 0.32, 1.95, -1.06], [7, 0.3, 3.3, -1.06], [8, 0.26, 3.55, -0.7]]
 	for f in floor_set:
 		FigureArt.ornament(root, FigureArt.ORNAMENTS[int(f[0])], float(f[1]), Vector3(float(f[2]), 0.0, float(f[3])), _rng.randf_range(-0.5, 0.5))
+
+
+func take_bad_book() -> void:
+	bad_book_taken = true
+	if bad_book_node:
+		bad_book_node.visible = false
+		(bad_book_node.get_node("BadBookArea") as Area3D).collision_layer = 0
+
+
+## 当たりのフィギュア（棚の 8 番目）に、黄色い星の印を付ける。撃ち落とすと、コインが落ちる。
+func _mark_star_figure() -> void:
+	if figures.size() <= STAR_FIGURE:
+		return
+	var f: Node3D = figures[STAR_FIGURE].node
+	figures[STAR_FIGURE]["star"] = true
+	var q := QuadMesh.new()
+	q.size = Vector2(0.05, 0.05)
+	var m := StandardMaterial3D.new()
+	m.albedo_texture = preload("res://scripts/silhouettes.gd").star_texture()
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR
+	m.cull_mode = BaseMaterial3D.CULL_DISABLED
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	var mi := MeshInstance3D.new()
+	mi.name = "StarMark"
+	mi.mesh = q
+	mi.material_override = m
+	mi.position = Vector3(0, 0.2, 0.03)
+	f.add_child(mi)
 
 
 ## 棚のフィギュアをコルク銃で撃ち落とす。node は figures の中のフィギュア。落ちる間は倒れて、下の面（机・寝床・床）に落ち着く。
@@ -796,6 +842,9 @@ func knock_figure(node: Node3D) -> bool:
 		tw.tween_callback(func() -> void: Sfx.play("clunk", randf_range(0.9, 1.3), -3.0))
 		tw.tween_property(node, "position:y", floor_y + 0.06, 0.08)
 		tw.tween_property(node, "position:y", floor_y + 0.03, 0.08)
+		if fg.get("star", false):
+			var coin_at := Vector3(land_xz.x + 0.12, floor_y, land_xz.z)
+			tw.tween_callback(func() -> void: star_figure_down.emit(coin_at))
 		return true
 	return false
 

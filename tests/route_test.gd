@@ -22,6 +22,7 @@ func _run() -> void:
 	main.credits_enabled = false   # エンドロールは ending_test で確かめる。ここでは、クリア画面をすぐ出す
 	var player = main.player
 	var room = main.room
+	room.front_door.locked = false   # 玄関ドアは、はじめ施錠（家の鍵で開く）。ここでは、開けた先の検証なので、開けておく（鍵は stage5_test）
 	# ホールと自室の境のふすまは、はじめ閉まっている。ここは通り抜けの検証なので、開けておく（ふすま自体は stage3_test）
 	room.apartment.hall_fusuma.set_open(true, true)
 	var tub = room.bathtub

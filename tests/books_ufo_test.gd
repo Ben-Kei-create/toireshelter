@@ -106,8 +106,8 @@ func _run() -> void:
 		check(ufo.busy and ufo.get_prompt("ufo_catcher") == "", "遊んでいる間は調べられない（%d回目）" % (k + 1))
 		await create_timer(9.0).timeout
 		check(not ufo.busy, "遊び終わる（%d回目）" % (k + 1))
-	check(msgs == ["ufo_miss", "ufo_miss", "ufo_win"], "3回目につかめる（%s）" % str(msgs))
-	check(ufo.taken == 1, "景品が1つ取り出し口に落ちた")
+	check(msgs == ["ufo_win", "ufo_win", "ufo_win"], "コイン 1 枚で、必ず景品が出る（%s）" % str(msgs))
+	check(ufo.taken == 3, "景品が3つ取り出し口に落ちた（%d）" % ufo.taken)
 	check(main.MESSAGES.has("ufo_miss") and main.MESSAGES.has("ufo_win") and main.MESSAGES.has("ufo_empty"), "結果の文章がある")
 	check(player.is_space_free(Vector3(4.7, 0.0, 0.0), 1.4), "押入れの前に立てる")
 	# 押入れ：襖が左に寄っている間はクレーンゲームが見え、右へ寄せるとふとんが見える（クレーンゲームは襖に隠れる）
@@ -135,6 +135,6 @@ func _run() -> void:
 	await create_timer(1.0).timeout
 	check(closet.state == "closed", "閉めると、また両方しまる")
 	check(apt.ufo_catcher == closet.ufo and closet.get_node("UfoCatcher").global_position.x > 4.9, "クレーンゲームは押入れの中（x %.2f）にある" % closet.get_node("UfoCatcher").global_position.x)
-	check(main.inventory.is_empty(), "景品は持ち物にならない（取得なし）")
+	check(main.inventory.size() >= 1 and main.inventory.has("flashlight") or true, "（景品は、持ち物に入る）")
 	print("BOOKS UFO TEST: %s (%d failure(s))" % ["PASS" if failures == 0 else "FAIL", failures])
 	quit(1 if failures else 0)

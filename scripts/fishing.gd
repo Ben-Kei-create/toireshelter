@@ -61,6 +61,7 @@ const KIND_WEIGHTS := {"ゴミ": 50, "アイテム": 30, "お宝": 20}
 const KIND_COLORS := {"ゴミ": Color(0.45, 0.45, 0.42), "アイテム": Color(0.35, 0.6, 0.85), "お宝": Color(1.0, 0.8, 0.2)}
 
 var has_rod := false
+var magnet := false              # 磁石付きの釣り針（景品 3）：金属の物（お宝・アイテム）が出やすい
 var story_next: Callable                 # 次に釣れるお話の持ち物の id を返す（main.gd）。なければ ""
 var _story_misses := 0                   # お話の物が出ないまま釣った回数（数回で必ず出る）
 const STORY_CHANCE := 0.45
@@ -402,6 +403,9 @@ func _place(pick: Array) -> void:
 
 
 func _pick() -> Array:
+	var weights: Dictionary = KIND_WEIGHTS
+	if magnet:
+		weights = {"ゴミ": 25, "アイテム": 42, "お宝": 33}
 	# お話の持ち物（マッチ棒・部屋の鍵）：ふつうの当たりのひとつとして、高い確率で出る。数回釣れば、必ず出る
 	if story_next.is_valid():
 		var sid := String(story_next.call())
@@ -410,14 +414,14 @@ func _pick() -> Array:
 			if _story_misses > STORY_MAX_MISSES or _rng.randf() < STORY_CHANCE:
 				_story_misses = 0
 				return STORY_CATCHES[sid]
-	var kinds: Array = KIND_WEIGHTS.keys()
+	var kinds: Array = weights.keys()
 	var kt := 0
 	for k in kinds:
-		kt += int(KIND_WEIGHTS[k])
+		kt += int(weights[k])
 	var r := _rng.randi_range(0, kt - 1)
 	var kind: String = kinds[0]
 	for k in kinds:
-		r -= int(KIND_WEIGHTS[k])
+		r -= int(weights[k])
 		if r < 0:
 			kind = k
 			break

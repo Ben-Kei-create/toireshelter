@@ -107,7 +107,6 @@ func _ready() -> void:
 	_build_stove_extras(stove_x, cz)
 	_build_fridge()
 	_build_microwave()
-	_build_rice()
 	MeshKit.auto_round = true
 
 

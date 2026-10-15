@@ -1,7 +1,7 @@
 extends Node3D
 ## 玄関ドア（5階の共用廊下への出口）。玄関ホールの左の壁（x=-0.95）、z 1.5〜2.2（幅0.7m）、高さ2.0m。
 ## 蝶番はホールの奥側（z=2.2）。外（廊下、-x）へ開く。クリックで開け、開けたままになる（再プレイで閉じる）。
-## 施錠も仕掛けもない。外へ出るとクリア（main.gd が廊下の区画で判定する）。
+## はじめは施錠されている（家の鍵＝つかみ取りの 6 個目の景品で開く）。外へ出るとクリア（main.gd が廊下の区画で判定する）。
 ## 座標は部屋と同じ（この節点は原点に置く）。
 ##
 ##   FrontDoor/Frame       … 枠（見た目だけ）
@@ -17,6 +17,7 @@ const OPEN_DEG := 100.0
 const SWING_TIME := 0.8
 
 var is_open := false
+var locked := true        # 家の鍵で開く（main.gd の use_selected）
 var busy := false
 var pivot: Node3D
 var mail_envelope: MeshInstance3D   # 受け箱の中の封筒（インターホンが鳴ったあと、見えるようになる）
@@ -118,9 +119,17 @@ func get_prompt(_id: String) -> String:
 	return "front_door_open"
 
 
+func unlock() -> void:
+	locked = false
+	Sfx.play("click")
+
+
 func interact(_id: String) -> String:
 	if is_open or busy:
 		return ""
+	if locked:
+		Sfx.play("buzz", 0.8, -6.0)
+		return "front_door_locked"
 	busy = true
 	Sfx.play("creak")
 	var tween := create_tween()
