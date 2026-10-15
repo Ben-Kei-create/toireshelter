@@ -553,7 +553,7 @@ const STAGE4 := {
 	"ranma_low": "高い所に、彫刻がある。もう少し背が高ければ、見えそうだ。",
 	"ranma_high": "欄間の彫刻。犬と、猿と、鳥が、並んでいる。……掛け軸と、同じ順だ。",
 	"town_map": "下南澤のミニチュア。コーポヨシミの 5 階の窓に、小さな灯りが一つだけ描いてある。",
-	"mouse_hole": "ねずみ穴。小さな穴の奥に、何かが転がっている気配がする。",
+	"mouse_hole": "ねずみ穴。目の高さを低くしたら、見つけられた。小さな穴の奥に、何かが転がっている気配がする。……あの隅の床の、光る物のことだろうか。",
 	"ladder_pickup": "古い木のはしごを手に入れた。浮き上がった浴室へ、立てかけられそうだ。",
 	"coin_pickup": "暗い隅に、コインが落ちていた。UFOキャッチャーのコインだ。",
 	"coin_dark": "暗くて、よく見えない。何か、光る物が落ちている気がする。",
@@ -641,6 +641,7 @@ const STAGE5 := {
 	"chest_open": "釣りの道具箱だ。ふたを開けると、釣りで手に入る物が、種類ごとに、ずらりと並んでいた。",
 	"chest_small": "箱の底に、小さなツルハシが 1 本あった。もらっていこう。",
 	"small_have": "また、小さなツルハシが釣れた。……もう、持っている。",
+	"duct_sound": "耳栓をしたら、ダクトのうなりが消えた。……トン、トン、トトン。壁の向こうから、規則正しい音がする。こたつの奥のほうこうだ。",
 	"hp_pick": "こたつの中に、ヘッドホンが落ちていた。誰かの物だろうか。",
 	"hp_on": "ヘッドホンを耳につけた。……ざあ、とノイズが鳴って、誰かの話し声が聞こえてくる。",
 	"hp_voice": "二人の声。くぐもっていて、何を話しているのか、聞き取れない。……片方は、自分の声に似ている気がする。",
@@ -717,6 +718,7 @@ var _mutter_idle_i := 0
 var _reader_after: Callable
 var phone_coin_taken := false
 var medal_given := false
+var _duct_heard := false
 var vending_busy := false
 var wall_hits := {"w": 0, "e": 0}   # 隔て板を叩いた回数（大きなツルハシ 62 回、小さなツルハシ 1994 回で割れる）
 var _wall_hold := 0.0
@@ -996,6 +998,8 @@ func _process(_delta: float) -> void:
 	if not paused and room.exterior.blowgun_sign:
 		room.exterior.set_blowgun_sign_visible(player.eye_height >= ExteriorScript.SIGN_MIN_EYE and ExteriorScript.in_balcony(player.global_position))
 	_update_wall_hold(_delta)
+	room.washitsu.set_mouse_hole_visible(player.eye_height <= room.washitsu.MOUSE_EYE_MAX)
+	_update_duct_sound()
 	_check_neighbor_escape()
 	if _hp_on and _hp_player and not _hp_player.playing and _hp_audio.ready():
 		_start_headphones()
@@ -3030,6 +3034,10 @@ func _use_mirror_on_gem() -> void:
 	if player.global_position.distance_to(apt.gem_root.global_position) > GEM_REACH:
 		hud.show_message(STAGE4["gem_far"])
 		return
+	var from_p: Vector3 = player.camera.global_position + player.camera.global_basis * Vector3(0.15, -0.15, -0.3)
+	var bath_p: Vector3 = room.bath_light.global_position
+	_flash_beam(bath_p, from_p)
+	_flash_beam(from_p, apt.gem_root.global_position + Vector3(0, 0.1, 0))
 	apt.break_gem()
 	SfxScript.play("chime", 1.2)
 	hud.show_message(STAGE4["gem_break"], 6.0)
@@ -3302,7 +3310,46 @@ func _use_medal(tid: String) -> void:
 	progress.discover("yen100")
 
 
-## ベランダの隔て板をツルハシで叩く：大きなツルハシは 62 回、小さなツルハシは 1994 回で割れる。長押しでくり返し叩ける。
+## ダクトの中で耳栓をつけると、うなりが消えて、壁の向こうの規則正しい音が聞こえる（こたつの奥のほうこう）。
+func _update_duct_sound() -> void:
+	if region != "duct" or not earplugs_on or _duct_heard:
+		return
+	_duct_heard = true
+	hud.show_message(STAGE5["duct_sound"], 7.0)
+	progress.discover("duct_sound")
+	progress.add_note("duct_sound", "ダクトの音", "耳栓をすると、ダクトのうなりが消えて、トン、トン、トトン……と壁の向こうから規則正しい音が聞こえた。こたつの奥のほうこうだ。", "手がかり")
+
+
+## 手かがみではね返した青い光の筋（from → to）を、少しのあいだ光らせて消す。
+func _flash_beam(from: Vector3, to: Vector3) -> void:
+	var len := from.distance_to(to)
+	if len < 0.05:
+		return
+	var m := MeshInstance3D.new()
+	var cyl := CylinderMesh.new()
+	cyl.top_radius = 0.012
+	cyl.bottom_radius = 0.012
+	cyl.height = len
+	m.mesh = cyl
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.albedo_color = Color(0.55, 0.6, 1.0, 0.85)
+	mat.emission_enabled = true
+	mat.emission = Color(0.5, 0.55, 1.0)
+	mat.emission_energy_multiplier = 3.0
+	m.material_override = mat
+	add_child(m)
+	m.global_position = (from + to) * 0.5
+	var up := Vector3.UP if absf((to - from).normalized().dot(Vector3.UP)) < 0.99 else Vector3.RIGHT
+	m.look_at(to, up)
+	m.rotate_object_local(Vector3.RIGHT, PI * 0.5)
+	var tw := create_tween()
+	tw.tween_property(mat, "albedo_color:a", 0.0, 1.4)
+	tw.tween_callback(m.queue_free)
+
+
+## 保存からの復元：ベランダの隔て板：大きなツルハシは 62 回、小さなツルハシは 1994 回で割れる。長押しでくり返し叩ける。
 func _hit_partition(tool_id: String, side: String) -> void:
 	var ext = room.exterior
 	if ext.part_open[side]:

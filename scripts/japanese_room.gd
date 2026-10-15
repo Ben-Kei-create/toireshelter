@@ -313,6 +313,18 @@ func _build_extras() -> void:
 	MeshKit.shape_box(ca, Vector3(0.14, 0.08, 0.14), Vector3.ZERO)
 
 
+## ねずみ穴は、目の高さが低い（130〜140 cm）ときだけ見える・調べられる。
+const MOUSE_EYE_MAX := 1.4
+
+
+func set_mouse_hole_visible(on: bool) -> void:
+	var m := get_node_or_null("MouseHole") as Node3D
+	if m == null or m.visible == on:
+		return
+	m.visible = on
+	(m.get_node("MouseHoleArea") as Area3D).collision_layer = MeshKit.LAYER_INTERACT if on else 0
+
+
 ## 掛け軸：目の高さが SCROLL_EYE にぴったりのときだけ、影絵が揃って見える（0〜1）。
 func set_scroll_alignment(a: float) -> void:
 	for i in 3:
