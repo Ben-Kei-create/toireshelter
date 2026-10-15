@@ -105,12 +105,14 @@ func _run() -> void:
 	p.set_eye_height(1.5)
 	main._on_interact_requested(vt)
 	await create_timer(0.8).timeout
-	_check(main.vending_done and not main.inventory.has("yen100"), "身長 150 cm で買える。百円玉は減る")
+	_check(main.vending_busy and not main.vending_done and main.inventory.has("yen100"), "購入の演出中は、百円玉はまだ手元にある（途中で保存しても、買い直せる）")
+	var mid: Dictionary = JSON.parse_string(JSON.stringify(main.progress.snapshot()))
+	_check(Array(mid.get("inventory", [])).has("yen100") and not bool(mid.get("vending_done", false)), "演出の途中で保存しても、百円玉は残り、購入は済んでいない")
 	var guard := 0
 	while not main.cleared and guard < 600:
 		await physics_frame
 		guard += 1
-	_check(main.cleared and main.clear_route == "true" and main.hud._clear_menu.visible, "飲むと「真のクリア」")
+	_check(main.cleared and main.clear_route == "true" and main.hud._clear_menu.visible and main.vending_done and not main.inventory.has("yen100"), "飲むと「真のクリア」（百円玉は、ここで減る）")
 	_check((main.hud._clear_menu.get_node("Center/Box").get_child(0) as Label).text == "真のクリア", "クリア画面の見出し")
 	p.set_eye_height(1.5)
 

@@ -717,6 +717,7 @@ var _mutter_idle_i := 0
 var _reader_after: Callable
 var phone_coin_taken := false
 var medal_given := false
+var vending_busy := false
 var wall_hits := {"w": 0, "e": 0}   # 隔て板を叩いた回数（大きなツルハシ 62 回、小さなツルハシ 1994 回で割れる）
 var _wall_hold := 0.0
 var _neighbor_seen := false
@@ -2873,8 +2874,9 @@ func _use_vending() -> void:
 	if not inventory.has("yen100"):
 		hud.show_message(ENDING["vending_no_money"])
 		return
-	vending_done = true
-	remove_item("yen100")
+	if vending_busy:
+		return
+	vending_busy = true   # 演出の途中で保存されても、百円玉はまだ手元にある（最初からやり直せる）
 	player.controls_enabled = false
 	progress.discover("vending")
 	SfxScript.play("click")
@@ -2890,6 +2892,9 @@ func _use_vending() -> void:
 	hud.voice_silenced = false   # 神の声は黙っていても、エンディングの一言だけは出る
 	hud.show_message(ENDING["vending_voice"], 4.5, "voice")
 	await get_tree().create_timer(4.0 / ride_speed).timeout
+	vending_done = true
+	vending_busy = false
+	remove_item("yen100")
 	_clear("true")
 
 
