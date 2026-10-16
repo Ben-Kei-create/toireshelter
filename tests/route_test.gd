@@ -19,8 +19,12 @@ func _run() -> void:
 	change_scene_to_file("res://scenes/main.tscn")
 	await _frames(10)
 	var main := current_scene
+	main.credits_enabled = false   # エンドロールは ending_test で確かめる。ここでは、クリア画面をすぐ出す
 	var player = main.player
 	var room = main.room
+	room.front_door.locked = false   # 玄関ドアは、はじめ施錠（家の鍵で開く）。ここでは、開けた先の検証なので、開けておく（鍵は stage5_test）
+	# ホールと自室の境のふすまは、はじめ閉まっている。ここは通り抜けの検証なので、開けておく（ふすま自体は stage3_test）
+	room.apartment.hall_fusuma.set_open(true, true)
 	var tub = room.bathtub
 
 	# ---------------------------------------------------------------- 空間の寸法と接続
@@ -49,6 +53,10 @@ func _run() -> void:
 	await _seconds(0.6)
 	_check(not room.shower_curtain.closed, "（準備）カーテンを開け直した")
 
+	# ---------------------------------------------------------------- 背を最大（170 cm）にする（換気口に届くのは、設定の身長だけ）
+	main._on_eye_height_changed(1.7)
+	_check(main._tall_enough(), "（準備）目の高さを最大にした")
+
 	# ---------------------------------------------------------------- 換気口へ入る（浴槽から）
 	player.global_position = Vector3(0.3, 0.0, -0.2)
 	_aim(player, tub.to_global(Vector3(0.3, 0.3, 0.375)))
@@ -60,7 +68,7 @@ func _run() -> void:
 	var vh = player.get_focused(true)
 	_check(main._action_for(vh) == "vent_enter" and main.ACTION_PROMPTS["vent_enter"] in _prompt(main), "浴槽から換気口を狙うと「E：換気口へ入る」")
 	player.global_position = Vector3.ZERO   # （立った状態では出ないことの確認用に一時的に戻す）
-	player.global_position = tub.to_global(main.TUB_FEET_LOCAL)
+	player.global_position = main._tub_feet()
 	await _key(KEY_E)
 	_check(player.pose == Pose.TRANSITION and room.vent_open, "格子が開き、移動演出が始まる")
 	await _seconds(0.25)
@@ -100,8 +108,12 @@ func _run() -> void:
 	var p2: Vector3 = player.global_position
 	_check(p2.z > Ext.DUCT_B.position.z - 0.02 and p2.z < Ext.DUCT_EXIT_EDGE_Z and absf(p2.y - y0) < 0.05,
 			"出口側の管を進み、外壁の出口の手前で止まる（落ちない。z=%.2f）" % p2.z)
-	_check(main._action_for(null) == "balcony_down" and main.ACTION_PROMPTS["balcony_down"] in _prompt(main), "出口で「E：ベランダへ降りる」")
+	_check(main._action_for(null) == "ladder_lower" and main.ACTION_PROMPTS["ladder_lower"] in _prompt(main), "出口で、まず「E：はしごを下ろす」")
 	_check(not main.cleared, "（経路の中ではクリアしない）")
+	await _key(KEY_E)
+	await _seconds(1.5)
+	_check(room.exterior.ladder_down and room.exterior.get_node_or_null("Ladder") != null and player.pose == Pose.DUCT, "はしごが下りる（まだダクトの中）")
+	_check(main._action_for(null) == "balcony_down" and main.ACTION_PROMPTS["balcony_down"] in _prompt(main), "はしごを下ろすと「E：はしごでベランダへ降りる」")
 
 	# ---------------------------------------------------------------- ベランダへ降りる
 	await _key(KEY_E)
@@ -176,6 +188,7 @@ func _run() -> void:
 			and p2n.global_position.distance_to(m2.room.spawn_position) < 0.06 and not m2.room.vent_open
 			and not m2.room.apartment.window_open, "再プレイで浴室の初期位置・格子と窓は閉・経路の記録なし")
 
+	m2._on_eye_height_changed(1.5)   # 設定ファイルを元に戻す
 	print("ROUTE TEST: %s (%d failure(s))" % ["PASS" if _failures == 0 else "FAIL", _failures])
 	quit(1 if _failures > 0 else 0)
 

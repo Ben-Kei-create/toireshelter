@@ -67,6 +67,8 @@ func stop() -> void:
 
 
 func _refresh() -> void:
+	if toilet and toilet.has_method("set_spray"):
+		toilet.set_spray(mode)
 	if _status == null:
 		return
 	var running := not mode.is_empty()

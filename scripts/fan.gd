@@ -3,6 +3,7 @@ extends Node3D
 ## つけると羽根がまわり、首が左右にゆっくり動く。原点は足元（床）。座標は部屋と同じ。
 
 const MeshKit := preload("res://scripts/mesh_kit.gd")
+const Sfx := preload("res://scripts/sfx.gd")
 
 const POLE_H := 0.85
 
@@ -79,4 +80,5 @@ func get_prompt(_id: String) -> String:
 
 func interact(_id: String) -> String:
 	is_on = not is_on
+	Sfx.play("click")
 	return "fan_on" if is_on else "fan_off"

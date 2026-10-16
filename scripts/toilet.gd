@@ -19,8 +19,10 @@ extends Node3D
 ## アニメーション中のクリックは無視する。
 
 const MeshKit := preload("res://scripts/mesh_kit.gd")
+const Sfx := preload("res://scripts/sfx.gd")
 
 const WALL_X := -0.9
+const COIN_POS := Vector3(WALL_X + 0.1, 0.838, 0.02)   # 浮き球（水面 0.80 の上）のてっぺん
 const RIM_Y := 0.40            # 便器の縁の高さ（便座の下面）
 const LID_HINGE := Vector3(-0.675, 0.43, 0.0)
 const SEAT_HINGE := Vector3(-0.645, RIM_Y, 0.0)
@@ -46,12 +48,17 @@ const BOWL_WATER_Y := 0.236
 const LEVER_DOWN_DEG := 25.0    # 取っ手の先（+z）が下がる向き
 const FLUSH_DRAIN_TIME := 1.2
 const FLUSH_REFILL_TIME := 3.0
+signal coin_taken   # タンクの中のコインを拾った（main.gd が持ち物に入れる）
+var coin_taken_already := false
+var coin_area: Area3D
+var coin_root: Node3D
 var lid_open := false
 var seat_up := false
 var busy := false
 var tank_open := false
 var tank_busy := false
 var flushing := false
+var clogged := false    # 悪口本を流して詰まった。以後、便器は使えない（ほかの設備は使える）
 var occupied := false   # 人が座っている（main.gd が設定）
 
 var lid_pivot: Node3D
@@ -72,7 +79,10 @@ func _ready() -> void:
 	_build_body(visual)
 	_build_seat()
 	_build_lid()
+	_build_covers()
+	_build_spray()
 	_build_tank_lid()
+	_build_coin()
 
 	var body := StaticBody3D.new()
 	body.name = "Collision"
@@ -82,14 +92,22 @@ func _ready() -> void:
 	body.set_meta("fixture", self)
 	add_child(body)
 	var tank_h := TANK_BODY_TOP - TANK_BOTTOM   # 蓋の部分は蓋の判定に任せる
-	MeshKit.shape_box(body, Vector3(0.2, tank_h, 0.4), Vector3(WALL_X + 0.1, TANK_BOTTOM + tank_h * 0.5, 0.0))   # タンク
+	# タンク：中の空いた箱（底・前後・左右の壁）。蓋を外したとき、照準が中のコインに届くように中身は空ける
+	var tw := TANK_WALL
+	var tcy := TANK_BOTTOM + tank_h * 0.5
+	var tcx := WALL_X + 0.1
+	MeshKit.shape_box(body, Vector3(0.2, 0.02, 0.4), Vector3(tcx, TANK_BOTTOM + 0.01, 0.0))
+	MeshKit.shape_box(body, Vector3(tw, tank_h, 0.4), Vector3(WALL_X + 0.2 - tw * 0.5, tcy, 0.0))
+	MeshKit.shape_box(body, Vector3(tw, tank_h, 0.4), Vector3(WALL_X + tw * 0.5, tcy, 0.0))
+	for zz in [-0.2 + tw * 0.5, 0.2 - tw * 0.5]:
+		MeshKit.shape_box(body, Vector3(0.2 - tw * 2.0, tank_h, tw), Vector3(tcx, tcy, zz))
 	MeshKit.shape_box(body, Vector3(0.4, RIM_Y, 0.36), Vector3(-0.5, RIM_Y * 0.5, 0.0))   # 本体
 
 
 func _build_body(visual: Node3D) -> void:
-	var porcelain := MeshKit.mat("porcelain", Color(0.92, 0.92, 0.92), 0.3)
+	var porcelain := MeshKit.mat("palace_gold_body", Color(0.78, 0.58, 0.2), 0.22, 0.85)
 	var inner := MeshKit.mat("bowl_inner", Color(0.82, 0.83, 0.84), 0.25)
-	var metal := MeshKit.mat("metal", Color(0.75, 0.75, 0.78), 0.25, 0.8)
+	var metal := MeshKit.mat("palace_gold_metal", Color(0.92, 0.74, 0.32), 0.2, 0.9)
 	# 貯水タンク（中空。蓋は別ノード）とレバー
 	_build_tank(visual, porcelain, metal)
 	_build_lever(metal)
@@ -178,17 +196,38 @@ func _build_lever(metal: Material) -> void:
 
 
 func _process(delta: float) -> void:
+	_spray_step(delta)
 	if flushing:
 		bowl_swirl.rotation.y -= delta * 9.0
 		var m: StandardMaterial3D = bowl_swirl.material_override
 		m.uv1_offset.x += delta * 1.5
 
 
-## 水を流す。流している間は何もしない。
+## 詰まる：便器の水位がじわじわ上がって、そのまま。以後、流せない。
+func clog() -> void:
+	if clogged:
+		return
+	clogged = true
+	Sfx.play("plop")
+	var tw := create_tween()
+	tw.tween_property(bowl_water, "position:y", BOWL_WATER_Y + 0.05, 2.2).set_trans(Tween.TRANS_SINE)
+	tw.parallel().tween_callback(func() -> void: Sfx.play("flush", 0.6, -8.0))
+
+
+## 詰まりの見た目だけを戻す（保存からの復元）。
+func restore_clogged() -> void:
+	if clogged:
+		return
+	clogged = true
+	bowl_water.position.y = BOWL_WATER_Y + 0.05
+
+
+## 水を流す。流している間は何もしない。詰まっていると流れない。
 func flush() -> void:
-	if flushing:
+	if flushing or clogged:
 		return
 	flushing = true
+	Sfx.play("flush")
 	var tween := create_tween()
 	tween.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 	# レバーを下げ、排水弁を開ける
@@ -211,6 +250,8 @@ func flush() -> void:
 func _set_tank_level(y: float) -> void:
 	tank_water.position.y = y
 	tank_float.position.y = y + 0.005
+	if coin_root:
+		coin_root.position.y = y + 0.038
 
 
 ## 座れる状態か：蓋が開き、便座が下りていて、動いていない。
@@ -224,7 +265,7 @@ func _build_seat() -> void:
 	seat_pivot.name = "SeatPivot"
 	seat_pivot.position = SEAT_HINGE
 	add_child(seat_pivot)
-	var seat_mat := MeshKit.mat("seat", Color(0.96, 0.96, 0.95), 0.4)
+	var seat_mat := MeshKit.mat("palace_gold_seat", Color(0.85, 0.65, 0.24), 0.25, 0.8)
 	var t := 0.025
 	var parts := [
 		[Vector3(0.035, t, 0.34), Vector3(0.0175, t * 0.5, 0.0)],      # 後ろ
@@ -246,9 +287,140 @@ func _build_lid() -> void:
 	add_child(lid_pivot)
 	var size := Vector3(0.40, 0.02, 0.36)
 	var center := Vector3(0.20, 0.01, 0.0)
-	MeshKit.box(lid_pivot, size, center, MeshKit.mat("lid", Color(0.95, 0.95, 0.94), 0.4), "Lid")
+	MeshKit.box(lid_pivot, size, center, MeshKit.mat("palace_gold_seat", Color(0.85, 0.65, 0.24), 0.25, 0.8), "Lid")
 	var area := MeshKit.interact_area(lid_pivot, "LidArea", "toilet_lid", self)
 	MeshKit.shape_box(area, size, center)
+
+
+## 便座カバーと蓋カバー：ピンクのふわふわ。便座・蓋の動きにいっしょに付いてくる（見た目だけ。判定は便座・蓋のまま）。
+func _build_covers() -> void:
+	var fur := MeshKit.mat("toilet_cover_velvet", Color(0.5, 0.08, 0.12), 1.0)   # 宮殿の配色に合わせて、深い赤のビロード
+	var fur_dark := MeshKit.mat("toilet_cover_velvet_edge", Color(0.36, 0.05, 0.09), 1.0)
+	var t := 0.025
+	var parts := [
+		[Vector3(0.035, t, 0.34), Vector3(0.0175, t * 0.5, 0.0)],
+		[Vector3(0.07, t, 0.34), Vector3(0.335, t * 0.5, 0.0)],
+		[Vector3(0.265, t, 0.055), Vector3(0.1675, t * 0.5, -0.1425)],
+		[Vector3(0.265, t, 0.055), Vector3(0.1675, t * 0.5, 0.1425)],
+	]
+	for p in parts:
+		var m := MeshKit.box(seat_pivot, p[0] + Vector3(0.008, 0.012, 0.008), p[1] + Vector3(0, 0.0045, 0), fur, "SeatCover")
+		m.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var lid := MeshKit.box(lid_pivot, Vector3(0.405, 0.012, 0.365), Vector3(0.2, 0.026, 0.0), fur, "LidCover")
+	lid.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	MeshKit.box(lid_pivot, Vector3(0.38, 0.004, 0.34), Vector3(0.2, 0.033, 0.0), fur_dark, "LidCoverInner").cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+
+
+## 温水洗浄の水：座った状態で「おしり」「ビデ」を選ぶと、便器の奥のノズルから水が出る（細い水の筋。音つき）。
+## おしり＝後ろ（壁側 -x）へ広めに、ビデ＝前（+x）へ細く。立つと止まる（toilet_panel.gd が set_spray を呼ぶ）。
+var spray_mode := ""
+var _spray_nodes := {}
+var _spray_player: AudioStreamPlayer
+var _spray_t := 0.0
+
+
+func _build_spray() -> void:
+	var water := StandardMaterial3D.new()
+	water.albedo_color = Color(0.7, 0.88, 1.0, 0.75)
+	water.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	water.emission_enabled = true
+	water.emission = Color(0.6, 0.8, 1.0)
+	water.emission_energy_multiplier = 1.2
+	for kind in ["rear", "bidet"]:
+		var root := Node3D.new()
+		root.name = "Spray_" + kind
+		root.position = Vector3(-0.5, 0.215, 0.0)   # 便器の中の奥（水面の少し上）
+		root.visible = false
+		add_child(root)
+		var count := 5 if kind == "rear" else 3
+		var spread := 0.16 if kind == "rear" else 0.05
+		var dir := -1.0 if kind == "rear" else 1.0
+		for i in count:
+			var a := (float(i) - (count - 1) * 0.5) * spread
+			var c := CylinderMesh.new()
+			c.top_radius = 0.005
+			c.bottom_radius = 0.007
+			c.height = 0.2
+			c.radial_segments = 5
+			c.rings = 1
+			var mi := MeshInstance3D.new()
+			mi.mesh = c
+			mi.material_override = water
+			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			# 斜め上へ。x 方向に寝かせた筋を、左右（z）へ a だけ振る
+			mi.rotation = Vector3(0.0, a, dir * deg_to_rad(-62.0) + 0.0)
+			mi.position = Vector3(dir * 0.04, 0.07, 0.0)
+			mi.position = Vector3(dir * 0.05, 0.07, a * 0.4)
+			root.add_child(mi)
+		_spray_nodes[kind] = root
+	_spray_player = AudioStreamPlayer.new()
+	_spray_player.name = "SpraySound"
+	_spray_player.bus = "SFX"
+	_spray_player.volume_db = -20.0
+	var n := 22050
+	var s := PackedByteArray()
+	s.resize(n * 2)
+	var y := 0.0
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 5
+	for i in n:
+		y += 0.3 * (rng.randf_range(-1.0, 1.0) - y)
+		s.encode_s16(i * 2, int(clampf(y * 0.9, -1.0, 1.0) * 22000.0))
+	var w := AudioStreamWAV.new()
+	w.format = AudioStreamWAV.FORMAT_16_BITS
+	w.mix_rate = 22050
+	w.data = s
+	w.loop_mode = AudioStreamWAV.LOOP_FORWARD
+	w.loop_end = n
+	_spray_player.stream = w
+	add_child(_spray_player)
+
+
+## 水を出す／止める。mode は "" / "rear" / "bidet"。
+func set_spray(mode: String) -> void:
+	if mode == spray_mode:
+		return
+	spray_mode = mode
+	for k in _spray_nodes:
+		(_spray_nodes[k] as Node3D).visible = (k == mode)
+	if mode.is_empty():
+		_spray_player.stop()
+	else:
+		_spray_player.pitch_scale = 1.0 if mode == "rear" else 1.25
+		_spray_player.play()
+
+
+func _spray_step(delta: float) -> void:
+	if spray_mode.is_empty():
+		return
+	_spray_t += delta
+	var root: Node3D = _spray_nodes[spray_mode]
+	for i in root.get_child_count():
+		var mi: Node3D = root.get_child(i)
+		mi.scale = Vector3(1.0, 0.85 + 0.2 * sin(_spray_t * 37.0 + i * 1.7), 1.0)
+
+
+## タンクの中のコイン：浮き球（フロート）の上に、UFOキャッチャー用のコインが1枚のっている。蓋を外したときだけ狙える。
+## 水位（流すと下がる）に合わせて浮き球ごと上下する。底に置くと手前の壁の陰になり、立った目の高さからは見えないので、水面の浮き球の上にした。
+func _build_coin() -> void:
+	coin_root = Node3D.new()
+	coin_root.name = "CoinRoot"
+	coin_root.position = COIN_POS
+	add_child(coin_root)
+	var gold := MeshKit.mat("ufo_coin", Color(0.95, 0.78, 0.25), 0.25, 0.8)
+	gold.emission_enabled = true   # 水まわりでも見つけられるよう、うっすら光らせる
+	gold.emission = Color(0.9, 0.65, 0.15)
+	gold.emission_energy_multiplier = 0.6
+	MeshKit.cylinder(coin_root, 0.02, 0.003, Vector3.ZERO, gold, "UfoCoin")
+	var ctex := MeshKit.prop_tex("ufo_coin_face")
+	MeshKit.image_quad(coin_root, ctex, Vector2(0.04, 0.04), Vector3(0, 0.0017, 0), Vector3.UP, "UfoCoinFace", false, 0.35)
+	coin_area = MeshKit.interact_area(coin_root, "CoinArea", "tank_coin", self)
+	MeshKit.shape_box(coin_area, Vector3(0.07, 0.06, 0.07), Vector3(0, 0.02, 0))
+	coin_area.collision_layer = 0
+
+
+func _update_coin_area() -> void:
+	coin_area.collision_layer = MeshKit.LAYER_INTERACT if (tank_open and not coin_taken_already) else 0
 
 
 func _build_tank_lid() -> void:
@@ -256,7 +428,7 @@ func _build_tank_lid() -> void:
 	tank_lid.name = "TankLid"
 	tank_lid.position = TANK_LID_CLOSED
 	add_child(tank_lid)
-	MeshKit.box(tank_lid, TANK_LID_SIZE, Vector3.ZERO, MeshKit.mat("porcelain", Color(0.92, 0.92, 0.92), 0.3), "Lid")
+	MeshKit.box(tank_lid, TANK_LID_SIZE, Vector3.ZERO, MeshKit.mat("palace_gold_body", Color(0.78, 0.58, 0.2), 0.22, 0.85), "Lid")
 	var area := MeshKit.interact_area(tank_lid, "TankLidArea", "tank_lid", self)
 	MeshKit.shape_box(area, TANK_LID_SIZE + Vector3(0.006, 0.006, 0.006), Vector3.ZERO)
 
@@ -285,7 +457,9 @@ func toggle_tank() -> void:
 		tween.tween_property(tank_lid, "rotation", Vector3.ZERO, d[2])
 		tween.tween_property(tank_lid, "position", lifted, d[1])
 		tween.tween_property(tank_lid, "position", TANK_LID_CLOSED, d[0])
-	tween.tween_callback(func() -> void: tank_busy = false)
+	tween.tween_callback(func() -> void:
+		tank_busy = false
+		_update_coin_area())
 
 
 ## 蓋を開ける／閉める。閉じるときに便座が上がっていれば、先に便座を下ろす。
@@ -326,6 +500,8 @@ func _swing_tween() -> Tween:
 # ---------------------------------------------------------------- main.gd から呼ばれる
 
 func get_prompt(id: String) -> String:
+	if id == "tank_coin":
+		return "coin_take"
 	if id == "toilet":
 		return "examine"
 	if id == "flush_lever":
@@ -343,11 +519,21 @@ func get_prompt(id: String) -> String:
 
 func interact(id: String) -> String:
 	match id:
+		"tank_coin":
+			if coin_taken_already:
+				return ""
+			coin_taken_already = true
+			coin_root.visible = false
+			_update_coin_area()
+			coin_taken.emit()
+			return "coin_pickup"
 		"toilet":
 			return "toilet"
 		"tank_lid":
 			toggle_tank()
 		"flush_lever":
+			if clogged:
+				return "toilet_clogged"
 			flush()
 		"toilet_lid":
 			if not occupied:

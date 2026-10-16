@@ -23,20 +23,25 @@ func _run() -> void:
 	var remote = room.bath_remote
 	var panel = room.toilet_panel
 	var toilet = room.toilet
+	# 浴槽は今は最初から栓がない。水をためる検証のため、十円玉とおもりでふたをして栓をした状態から始める
+	tub.put_lid(false)
+	tub.put_lid(true)
 
 	# ================================================================ 1：ユブロマン
 	player.global_position = Vector3(0.0, 0.0, 0.3)
 	var powder_node: Node3D = room.get_node("BathPowder")
 	_aim(player, room.get_node("BathPowder/Visual").global_position + Vector3(0, 0.08, 0))
 	player.try_interact()
-	_check(main.inventory.has("bath_powder") and not powder_node.visible and main.selected_item() == "bath_powder", "棚のユブロマンを拾い、選択される")
+	_check(main.inventory.has("bath_powder") and not powder_node.visible and main.selected_item() != "bath_powder", "棚のユブロマンを拾う（拾っただけでは手に持たない）")
+	main.select_item(main.inventory.find("bath_powder"))
+	_check(main.selected_item() == "bath_powder", "1〜3 で選ぶと手に持つ")
 	main._on_interact_requested(room.get_node("BathPowder/Collision"))
 	_check(main.inventory.count("bath_powder") == 1, "重複して取れない")
 	# 水が足りない
 	player.global_position = Vector3(0.3, 0.0, -0.2)
 	var tub_aim: Vector3 = tub.to_global(Vector3(0.3, 0.3, 0.375))
 	_aim(player, tub_aim)
-	_check(main._use_prompt(player.get_focused(true)) == "F：ユブロマンを使う", "浴槽を狙うと「F：ユブロマンを使う」")
+	_check(main._use_prompt(player.get_focused(true)) == "F：使う", "浴槽を狙うと「F：ユブロマンを使う」")
 	tub.level = 0.05
 	tub.advance(0.0)
 	await _key(KEY_F)
@@ -72,7 +77,7 @@ func _run() -> void:
 	_check(main.hud._message_label.text == main.MESSAGES["bathtub_yuzu"], "浴槽を調べると「ゆず色のお湯」")
 	# 給水すると薄まる
 	tub.faucet.set_on(true)
-	tub.advance(16.0)   # +0.4
+	tub.advance(8.0)   # +0.4（満水 20 秒）
 	_check(is_equal_approx(tub.level, 0.8) and is_equal_approx(tub.concentration(), 0.5)
 			and tub._water_mat.albedo_color.is_equal_approx(tub.WATER_COLOR.lerp(tub.YUZU_COLOR, 0.5)), "給水すると濃さが薄まる（0.5）")
 	tub.faucet.set_on(false)
@@ -129,13 +134,13 @@ func _run() -> void:
 	await _frames(3)
 	_check(remote.status_text() == "お湯はり中", "表示「お湯はり中」")
 	var l0: float = tub.level
-	tub.advance(16.0)
-	_check(absf(tub.level - l0 - 0.4) < 0.0001, "ふろ自動の給水は手の蛇口と同じ速さ（16秒で+0.4）")
+	tub.advance(8.0)
+	_check(absf(tub.level - l0 - 0.4) < 0.0001, "ふろ自動の給水は手の蛇口と同じ速さ（8秒で+0.4）")
 	# 手の蛇口と併用しても二重に数えない
 	tub.faucet.set_on(true)
 	l0 = tub.level
-	tub.advance(4.0)
-	_check(absf(tub.level - l0 - 0.1) < 0.0001, "手の蛇口と同時でも給水は1本分（4秒で+0.1）")
+	tub.advance(2.0)
+	_check(absf(tub.level - l0 - 0.1) < 0.0001, "手の蛇口と同時でも給水は1本分（2秒で+0.1）")
 	tub.faucet.set_on(false)
 	tub.advance(100.0)
 	_check(is_equal_approx(tub.level, tub.AUTO_LEVEL) and not tub.auto_filling and tub.auto_done, "設定水位（%.1f）で自動停止" % tub.AUTO_LEVEL)
@@ -320,11 +325,11 @@ func _run() -> void:
 	_check(sh.is_on and st.visible and absf(st_bottom - tub.to_global(Vector3(0, tub.water_y(), 0)).y) < 0.001,
 			"シャワーの水が水面まで落ちる（下端 %.3f）" % st_bottom)
 	var sl0: float = tub.level
-	tub.advance(4.0)
-	_check(absf(tub.level - sl0 - 0.1) < 0.0001, "シャワーで給水される（4秒で +0.1）")
+	tub.advance(2.0)
+	_check(absf(tub.level - sl0 - 0.1) < 0.0001, "シャワーで給水される（2秒で +0.1）")
 	tub.faucet.set_on(true)
 	sl0 = tub.level
-	tub.advance(4.0)
+	tub.advance(2.0)
 	_check(absf(tub.level - sl0 - 0.1) < 0.0001, "蛇口とシャワーを同時に出しても給水は1本分")
 	tub.faucet.set_on(false)
 	_check(main._prompt_for(player.get_focused(true)) == main.PROMPTS["shower_off"], "出ているときは「シャワーを止める」")

@@ -9,6 +9,7 @@ const LEVER_ON_DEG := 35.0
 const STREAM_SPEED := 2.5   # 水流の模様が流れる速さ
 
 var is_on := false
+var held := false               # 手に持っている（水流は持ち主が別に描く）
 var stream_floor_y := 0.0
 var prompt_on := "water_on"     # 案内のキー（シャワーは "shower_on" / "shower_off"）
 var prompt_off := "water_off"
@@ -74,7 +75,7 @@ func _update_stream() -> void:
 	if _stream == null:
 		return
 	var length := stream_length()
-	_stream.visible = length > 0.002
+	_stream.visible = length > 0.002 and not held
 	if _stream.visible:
 		_stream.position = _spout_tip - Vector3(0.0, length * 0.5, 0.0)
 		_stream.scale = Vector3(1.0, length, 1.0)

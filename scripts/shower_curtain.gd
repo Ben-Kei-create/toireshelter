@@ -22,6 +22,15 @@ const FOLDS := 10
 const OPEN_SCALE := 0.13     # 開けたとき（左端に寄せた）の幅の割合
 const SLIDE_TIME := 0.45
 
+const DIGITS := "7305"          # パスワード①（黒電話・のちの鍵）。濡れたときだけ、カーテンに浮かぶ
+const WET_TIME := 30.0          # 濡れてから乾いて消えるまで（秒）
+
+signal digits_revealed
+
+var wet := 0.0                 # 濡れの残り（秒）。0 で乾いて数字が消える
+var digits_seen := false
+var shower: Object             # 浴槽のシャワー（faucet.gd）。つながっていれば、出ている間にカーテンへかけられる
+var _digits: Label3D
 var closed := false
 var busy := false
 var cloth: Node3D
@@ -51,10 +60,51 @@ func _ready() -> void:
 	# レールのリング
 	for i in FOLDS + 1:
 		MeshKit.sphere(cloth, 0.012, Vector3(fw * i, RAIL_Y - 0.012, 0.0), metal)
+	_digits = Label3D.new()
+	_digits.name = "Digits"
+	_digits.text = " ".join(DIGITS.split(""))
+	_digits.font_size = 96
+	_digits.pixel_size = 0.0016
+	_digits.modulate = Color(0.85, 0.92, 1.0, 0.0)
+	_digits.outline_size = 0
+	_digits.shaded = false
+	_digits.double_sided = true
+	_digits.render_priority = 3
+	_digits.position = Vector3(0.0, 1.25, Z + 0.05)
+	_digits.visible = false
+	add_child(_digits)
 	var area := MeshKit.interact_area(self, "CurtainArea", "shower_curtain", self)
 	_area_shape = MeshKit.shape_box(area, Vector3.ONE, Vector3.ZERO)
 	_area_shape.shape = BoxShape3D.new()
 	_place_area(false)
+
+
+func _process(delta: float) -> void:
+	if wet > 0.0:
+		wet = maxf(0.0, wet - delta)
+	_update_digits()
+
+
+func _update_digits() -> void:
+	var a := clampf(wet / 6.0, 0.0, 1.0) * 0.8 if closed else 0.0
+	_digits.visible = a > 0.01
+	_digits.modulate.a = a
+
+
+## 手に持ったシャワーの水がカーテンに当たっている間、呼ぶ。しばらく当て続けると、数字が浮かぶ（濡れた間だけ見える）。
+const HIT_NEEDED := 1.2
+var _hit := 0.0
+
+
+func wet_hit(delta: float) -> void:
+	if not closed:
+		return
+	wet = WET_TIME
+	_hit += delta
+	if _hit >= HIT_NEEDED and not digits_seen:
+		digits_seen = true
+		digits_revealed.emit()
+	_update_digits()
 
 
 func toggle() -> void:

@@ -14,9 +14,14 @@ func _run() -> void:
 	change_scene_to_file("res://scenes/main.tscn")
 	await _frames(10)
 	var main := current_scene
+	main.credits_enabled = false   # エンドロールは ending_test で確かめる。ここでは、クリア画面をすぐ出す
 	var player = main.player
 	var room = main.room
-	var driver_pos: Vector3 = room.driver_node.global_position
+	room.front_door.locked = false   # 玄関ドアは、はじめ施錠（家の鍵で開く）。ここでは、開けた先の検証なので、開けておく（鍵は stage5_test）
+	# ホールと自室の境のふすまは、はじめ閉まっている。ここは通り抜けの検証なので、開けておく（ふすま自体は stage3_test）
+	room.apartment.hall_fusuma.set_open(true, true)
+	player.set_eye_height(1.5)   # 遊ぶ人の設定（目の高さ）に左右されないよう、テストでは 1.5 m に固定する（設定ファイルは書き換えない）
+	var driver_pos: Vector3 = room.get_node("BathBucket").global_position + Vector3(0, 0.06, 0)   # 床の風呂桶（調べるだけ）で、照準と壁越しの遮断を確かめる
 
 	# --- 照準：対象から視点を外して即クリック（物理フレームを挟まない）
 	player.global_position = Vector3(0.2, 0.0, 0.3)
@@ -24,18 +29,18 @@ func _run() -> void:
 	_aim(player, driver_pos)
 	await physics_frame
 	await physics_frame
-	_check(player.get_focused() != null, "照準を合わせると表示用の判定にドライバーが入る")
+	_check(player.get_focused() != null, "照準を合わせると表示用の判定に風呂桶が入る")
 	_aim(player, driver_pos + Vector3(-1.5, 1.2, 0.0))   # 視点を外す
 	_check(player.get_focused() != null, "（再現）視点変更直後は表示用キャッシュが古い対象を返す")
 	player.try_interact()
-	_check(not main.has_driver, "視点を外した直後のクリックでは拾わない")
+	_check(not main.examined.has("bath_bucket"), "視点を外した直後のクリックでは調べない")
 
 	# --- 壁越しの遮断：右の壁の外から狙う
 	var saved: Vector3 = player.global_position
 	player.global_position = Vector3(1.25, 0.0, 0.05)
 	_aim(player, driver_pos)
 	player.try_interact()
-	_check(not main.has_driver, "壁越しには拾えない")
+	_check(not main.examined.has("bath_bucket"), "壁越しには調べられない")
 	player.global_position = saved
 
 	# --- 換気口：初期位置（床）から見上げて調べられる。通常の距離 1.8m より遠い
@@ -123,8 +128,10 @@ func _run() -> void:
 	var toilet = room.toilet
 	var tub = room.bathtub
 	var sink_faucet = room.sink_faucet
-	_check(not toilet.lid_open and not toilet.seat_up and tub.level == 0.0 and tub.plug_in
-			and not tub.faucet.is_on and not sink_faucet.is_on, "初期状態：蓋・便座が閉、浴槽が空、栓あり、蛇口OFF")
+	_check(not toilet.lid_open and not toilet.seat_up and tub.level == 0.0 and not tub.plug_in
+			and not tub.faucet.is_on and not sink_faucet.is_on, "初期状態：蓋・便座が閉、浴槽が空、栓なし、蛇口OFF")
+	tub.put_lid(false)   # 水をためる検証のため、十円玉とおもりでふたをして栓をする
+	tub.put_lid(true)
 
 	# --- 便器：狙い分けと案内
 	player.global_position = Vector3(0.0, 0.0, 0.3)
@@ -197,12 +204,12 @@ func _run() -> void:
 	_aim(player, plug_pos)
 	var p_hit = player.get_focused(true)
 	var plug_dist: float = player.camera.global_position.distance_to(plug_pos)
-	_check(_id(p_hit) == "bath_plug" and main._prompt_for(p_hit) == main.PROMPTS["plug_pull"] and plug_dist < player.INTERACT_RANGE,
+	_check(_id(p_hit) == "bath_plug" and main._prompt_for(p_hit) == main.PROMPTS["lid_remove"] and plug_dist < player.INTERACT_RANGE,
 			"浴槽の前から底の栓を狙える（%.2fm、距離の調整なし）" % plug_dist)
 
 	# --- 貯水・排水（時間を進めて計算）
-	tub.advance(20.0)
-	_check(is_equal_approx(tub.level, 0.5), "給水20秒で半分（満水まで40秒）")
+	tub.advance(10.0)
+	_check(is_equal_approx(tub.level, 0.5), "給水10秒で半分（満水まで20秒）")
 	tub.advance(30.0)
 	_check(tub.level == 1.0 and tub.water_y() <= tub.WATER_MAX_Y and tub.WATER_MAX_Y < tub.HALF.y, "満水で止まり、水面は縁より下")
 	_check(tub.faucet.stream_length() < spout.y - tub.WATER_MAX_Y, "水流は水面までで止まる")
@@ -210,12 +217,12 @@ func _run() -> void:
 	tub.advance(100.0)
 	_check(tub.level == 1.0 and not tub.faucet.is_on, "蛇口を止めて栓をしていれば水位を保つ")
 	player.try_interact()   # 照準は栓
-	_check(not tub.plug_in and main._prompt_for(p_hit) == main.PROMPTS["plug_insert"], "栓を抜くと案内が「栓をする」になる")
-	tub.advance(10.0)
-	_check(is_equal_approx(tub.level, 0.6), "栓を抜くと水位が下がる（満水から25秒で空）")
+	_check(not tub.plug_in and main._prompt_for(p_hit) == main.PROMPTS["lid_set"], "栓を抜くと案内が「ふたを戻す」になる")
+	tub.advance(5.6)
+	_check(is_equal_approx(tub.level, 0.6), "栓を抜くと水位が下がる（満水から14秒で空）")
 	tub.faucet.interact("bath_faucet")
 	tub.advance(10.0)
-	_check(is_equal_approx(tub.level, 0.6 - 10.0 * (1.0 / 25.0 - 1.0 / 40.0)), "給水と排水を同時に行うと流量差で下がる")
+	_check(is_equal_approx(tub.level, 0.6 - 10.0 * (1.0 / 14.0 - 1.0 / 20.0)), "給水と排水を同時に行うと流量差で下がる")
 	tub.advance(100.0)
 	_check(tub.level == 0.0 and not tub._water.visible, "空になると下限で止まり、水面が消える")
 	main.hud._message_label.text = ""
@@ -350,11 +357,12 @@ func _run() -> void:
 
 	# --- 洗面台の貯水と排水
 	var sk = room.sink
-	_check(sk.level == 0.0 and sk.plug_in and not sk.faucet.is_on, "初期状態：洗面台は水量0、栓あり、蛇口OFF")
+	_check(sk.level == 0.0 and not sk.plug_in and not sk.faucet.is_on, "初期状態：洗面台は水量0、栓なし、蛇口OFF")
+	sk.set_plug(true)   # 水をためる検証のため、栓をする
 	player.global_position = Vector3(0.25, 0.0, 0.1)
 	_aim(player, sk.to_global(sk.DRAIN_POS + Vector3(0, 0.008, 0)))
 	var sp_hit = player.get_focused(true)
-	_check(_id(sp_hit) == "sink_plug" and main._prompt_for(sp_hit) == main.PROMPTS["plug_pull"], "洗面台の栓を狙うと「栓を抜く」")
+	_check(_id(sp_hit) == "sink_plug" and main._prompt_for(sp_hit) == main.PROMPTS["coin10_take"], "洗面台の栓（十円玉のふた）を狙うと「十円玉を取る」")
 	sk.faucet.set_on(true)
 	var cavity := AABB(Vector3(sk.CAVITY_X.x, sk.BOTTOM_Y, sk.CAVITY_Z.x), Vector3(sk.CAVITY_X.y - sk.CAVITY_X.x, 0.1, sk.CAVITY_Z.y - sk.CAVITY_Z.x))
 	for lv in [0.0, 0.5, 1.0]:
@@ -371,8 +379,8 @@ func _run() -> void:
 				and absf(bottom - (wy if lv > 0.0 else sk.BOTTOM_Y)) < 0.0005,
 				"洗面台 水位%d%%：水面 %s がくぼみの中、水流の下端 %.3f" % [int(lv * 100.0), ("非表示" if not w.visible else "y=%.3f" % w.global_position.y), bottom])
 	sk.level = 0.0
-	sk.advance(6.0)
-	_check(is_equal_approx(sk.level, 0.5), "栓をして給水6秒で半分（満水まで12秒）")
+	sk.advance(4.0)
+	_check(is_equal_approx(sk.level, 0.5), "栓をして給水4秒で半分（満水まで8秒）")
 	sk.advance(100.0)
 	_check(sk.level == 1.0, "満水で止まる（縁より2cm下）")
 	sk.faucet.set_on(false)
@@ -381,16 +389,17 @@ func _run() -> void:
 	_aim(player, sk.to_global(sk.DRAIN_POS + Vector3(0, 0.008, 0)))
 	sp_hit = player.get_focused(true)
 	player.try_interact()
-	_check(_id(sp_hit) == "sink_plug" and not sk.plug_in and main._prompt_for(sp_hit) == main.PROMPTS["plug_insert"], "満水でも水面越しに栓を抜ける")
-	sk.advance(4.0)
-	_check(is_equal_approx(sk.level, 0.5), "栓を抜くと徐々に下がる（満水から8秒で空）")
+	_check(_id(sp_hit) == "sink_plug" and not sk.plug_in and main.inventory.has("ten_yen"), "満水でも水面越しに十円玉を取れる（栓が抜ける）")
+	sk.advance(3.0)
+	_check(is_equal_approx(sk.level, 0.5), "栓を抜くと徐々に下がる（満水から6秒で空）")
 	sk.faucet.set_on(true)
 	sk.advance(4.0)
-	_check(is_equal_approx(sk.level, 0.5 - 4.0 * (1.0 / 8.0 - 1.0 / 12.0)), "同時給排水は流量差で下がる")
+	_check(is_equal_approx(sk.level, 0.5 - 4.0 * (1.0 / 6.0 - 1.0 / 8.0)), "同時給排水は流量差で下がる")
 	sk.advance(100.0)
 	_check(sk.level == 0.0 and not sk._water.visible, "空で止まり、水面が消える")
-	player.try_interact()
-	_check(sk.plug_in, "栓を戻せる")
+	main.select_item(main.inventory.find("ten_yen"))
+	main.use_selected()
+	_check(sk.plug_in and not main.inventory.has("ten_yen"), "十円玉を選んで F で、ふたを戻せる")
 	sk.advance(3.0)
 	var lv_before: float = sk.level
 	main._pause()
@@ -412,7 +421,7 @@ func _run() -> void:
 	for i in 3:
 		player.try_interact()
 	await _seconds(0.6)
-	_check(not cab.is_open and absf(cab.door_pivot.rotation.y) < 0.001 and main.hud._message_label.text == main.MESSAGES["cabinet_locked"],
+	_check(not cab.is_open and absf(cab.door_pivot.rotation.y) < 0.001 and main.hud._message_label.text == main.MESSAGES["cabinet_locked_mirror"],
 			"施錠中はクリックしても開かず「鍵がかかっている」")
 	_check(cab.door_pivot.has_node("Lock"), "扉の右端に鍵の金具がある")
 	cab.unlock()   # ここから先は解錠した状態で確認（解錠の仕掛けはまだない）
@@ -499,7 +508,7 @@ func _run() -> void:
 	player.global_position = Vector3(0.2, 0.0, -0.1)   # 洗面台のボウルの陰にならない位置
 	_aim(player, room.get_node("BathBucket").global_position + Vector3(0, 0.06, 0))
 	player.try_interact()
-	_check(main.hud._message_label.text == main.MESSAGES["bath_bucket"], "風呂桶を調べられる")
+	_check(main.hud._message_label.text == main.MESSAGES["bath_bucket"] and not main.inventory.has("bucket"), "風呂桶は調べるだけ（拾えない）")
 	# カセット
 	var carts: Node3D = room.apartment.get_node("Cartridges")
 	var n_carts := 0
@@ -512,7 +521,9 @@ func _run() -> void:
 	# --- 照準を合わせてクリックすると拾える
 	_aim(player, driver_pos)
 	player.try_interact()
-	_check(main.has_driver, "照準を合わせたクリックで拾える")
+	_check(main.examined.has("bath_bucket"), "照準を合わせたクリックで調べられる")
+	main._on_interact_requested(room.bathtub.get_node("TubDriver/Pickup"))   # ドライバーは入浴剤の玉の中。拾う操作だけを直接呼ぶ
+	_check(main.has_driver and main.inventory.has("driver"), "ドライバーを拾う")
 	await _frames(2)
 
 	# --- ドア修理
@@ -526,7 +537,7 @@ func _run() -> void:
 	main.use_selected()
 	_check(not main.door_open and main.inventory.has("spare_roll"), "ドアに予備ロールを使っても何も起きず、消費しない")
 	main.select_item(main.inventory.find("driver"))
-	_check(main._use_prompt(player.get_focused(true)) == "F：ドライバーを使う", "ドライバーを選んでドアを狙うと「F：ドライバーを使う」")
+	_check(main._use_prompt(player.get_focused(true)) == "F：使う", "ドライバーを選んでドアを狙うと「F：ドライバーを使う」")
 	main.use_selected()
 	_check(main.door_open and main.inventory.has("driver"), "F でドライバーを使うとドアを直せる（ドライバーは消費しない）")
 
@@ -558,7 +569,7 @@ func _run() -> void:
 	player.rotation.y = PI * 0.5   # -x（左の壁）を向く
 	player._pitch = 0.0
 	player.camera.rotation.x = 0.0
-	player.global_position = Vector3(-0.3, 0.05, 1.85)
+	player.global_position = Vector3(-0.75, 0.05, 1.65)   # 開いた浴室のドア（x -0.35）の向こう側（玄関ドア側）から狙う（z 1.65：中央ののぞき穴の判定を避ける）
 	for i in 4:
 		await physics_frame
 	await _frames(2)
@@ -579,13 +590,13 @@ func _run() -> void:
 	var main2 := current_scene
 	_check(main2 != main and not main2.has_driver and not main2.door_open and not main2.cleared,
 			"「もう一度」で初期状態に戻る")
-	_check(main2.room.driver_node != null, "再プレイ後にドライバーが元の位置にある")
+	_check(main2.room.driver_node == null, "再プレイ後も、ドライバーは床にない")
 	var r2 = main2.room
-	_check(not r2.toilet.lid_open and not r2.toilet.seat_up and r2.bathtub.level == 0.0 and r2.bathtub.plug_in
+	_check(not r2.toilet.lid_open and not r2.toilet.seat_up and r2.bathtub.level == 0.0 and not r2.bathtub.plug_in
 			and not r2.bathtub.faucet.is_on and not r2.sink_faucet.is_on,
-			"再プレイで蓋・便座が閉、浴槽が空、栓あり、蛇口OFFに戻る")
+			"再プレイで蓋・便座が閉、浴槽が空、栓なし、蛇口OFFに戻る")
 	_check(not r2.toilet.tank_open and r2.toilet.tank_lid.position.is_equal_approx(r2.toilet.TANK_LID_CLOSED)
-			and r2.sink.level == 0.0 and r2.sink.plug_in and not r2.sink.faucet.is_on
+			and r2.sink.level == 0.0 and not r2.sink.plug_in and not r2.sink.faucet.is_on
 			and not r2.mirror_cabinet.is_open and absf(r2.mirror_cabinet.door_pivot.rotation.y) < 0.001,
 			"再プレイでタンクの蓋・洗面台・鏡の扉も初期状態に戻る")
 	_check(r2.mirror_cabinet.locked and not r2.shower_curtain.closed, "再プレイで鏡は施錠、カーテンは開いた状態に戻る")

@@ -8,8 +8,10 @@ extends CharacterBody3D
 ##   SEATED     … 便器に座っている（決まった位置から見回すだけ。歩けない・しゃがめない）
 ##   IN_TUB     … 浴槽の中（決まった位置から見回すだけ）
 ##   DUCT       … 換気経路の中（低い姿勢で這う。目 0.38m・体 0.5m・半径 0.2m・速さ 0.7m/s。立ち上がれない）
+##   CLOSET … 押入れの中（左の仕切り）に座って、襖を閉じている（決まった位置から見回すだけ。真っ暗）
 ##   KOTATSU_SEAT … こたつの座布団に座っている（決まった位置から見回すだけ。目の高さ 0.85m）
-##   KOTATSU_IN   … こたつの布団の中（決まった位置から見回すだけ。目の高さ 0.27m）
+##   KOTATSU_IN   … こたつの布団の中。這って動ける（WASD、速さ 0.6m/s、目の高さ 0.27m、体の高さ 0.4m・半径 0.2m）。布団の外へ出ると立つ
+##   LEAN       … ベランダの手すりから身を乗り出している（手すりの外へ体を出して、見回すだけ。歩けない）
 ##   TRANSITION … 座る／立つ／浴槽に入る／出るの移動演出中（見回し・操作・移動すべて無効）
 ## SEATED / IN_TUB / TRANSITION の間は体の当たり判定を切り、重力もかけない（決まった位置に置くため）。
 ## 足元（このノードの原点）はどの姿勢でも床の高さで、体の形は足元から上に伸ばす。
@@ -17,16 +19,26 @@ extends CharacterBody3D
 signal interact_requested(target: Object)
 signal crouch_blocked   # 頭上が狭くて立てなかった
 
-enum Pose { WALK, CROUCH, SEATED, IN_TUB, TRANSITION, DUCT, KOTATSU_SEAT, KOTATSU_IN }
+enum Pose { WALK, CROUCH, SEATED, IN_TUB, TRANSITION, DUCT, KOTATSU_SEAT, KOTATSU_IN, LYING, LEAN, CLOSET }
+
+const Sfx := preload("res://scripts/sfx.gd")
+const CharacterBodyScript := preload("res://scripts/character_body.gd")
 
 const SPEED := 1.8
 const CROUCH_SPEED := 0.8
 const MOUSE_SENSITIVITY := 0.0022
+const SENS_MIN := 0.4
+const SENS_MAX := 2.5
 const GRAVITY := 9.8
 const INTERACT_RANGE := 1.8       # 通常の対象を調べられる距離
+const TUB_REACH := 1.25           # 浴槽の中に座っているとき、手が届く距離（それより遠い物は、操作の表示も出ない）
 const INTERACT_RANGE_MAX := 2.4   # レイの長さ。対象ごとの interact_range メタの上限
 const EYE_HEIGHT := 1.5
 const CROUCH_EYE_HEIGHT := 0.6
+const EYE_HEIGHT_MIN := 1.3
+const BOB_WALK := 0.012         # 歩くときの上下のゆれ（m）
+const BOB_BREATH := 0.0025      # 止まっているときの呼吸のゆれ（m）
+const EYE_HEIGHT_MAX := 1.7
 const BODY_RADIUS := 0.25
 const BODY_HEIGHT := 1.6
 const CROUCH_BODY_HEIGHT := 0.7
@@ -34,6 +46,11 @@ const EYE_LERP_SPEED := 8.0       # 目の高さの追従（大きいほど速�
 const PITCH_LIMIT_DEG := 85.0
 const MOVE_TIME := 0.6            # 座る／浴槽に入るときの移動演出の長さ
 const DUCT_SPEED := 0.7
+const KOTATSU_SPEED := 0.6        # こたつの中を這う速さ
+const LYING_PITCH := 1.4          # 寝たときの視線（ほぼ真上。ラジアン）
+const KOTATSU_BODY_HEIGHT := 0.4
+const KOTATSU_BODY_RADIUS := 0.2
+const STEP_DISTANCE := 0.62       # 足音を鳴らす歩幅（しゃがむ・這うときは短い）
 const DUCT_EYE_HEIGHT := 0.38
 const DUCT_BODY_HEIGHT := 0.5
 const DUCT_BODY_RADIUS := 0.2
@@ -46,7 +63,17 @@ var _pitch := 0.0
 var _shape: CollisionShape3D
 var _capsule: CapsuleShape3D
 var _eye_target := EYE_HEIGHT
+var show_body := false             # 自分の体（ちょー雑な3D）を見せる。設定で切り替え（初期はオフ）
+var sensitivity := 1.0              # 視点の感度の倍率（設定で変える。SENS_MIN〜SENS_MAX）
+var head_bob := true               # 視点のゆれ（歩くときの上下・呼吸）。設定で切れる
+var body_rig: Node3D            # 自分の目から見える体（ちょー雑な3D。character_body.gd）
+var _last_bob := 0.0
+var _walk_phase := 0.0
+var _bob_phase := 0.0
+var _bob_t := 0.0
+var eye_height := EYE_HEIGHT          # 立っているときの目の高さ（設定で変えられる。EYE_HEIGHT_MIN〜MAX）
 var _settled_pose: Pose = Pose.WALK   # 移動演出が終わったあとの姿勢
+var _step_acc := 0.0
 
 
 func _ready() -> void:
@@ -62,6 +89,8 @@ func _ready() -> void:
 	_shape.position = Vector3(0.0, BODY_HEIGHT * 0.5, 0.0)
 	add_child(_shape)
 
+	body_rig = CharacterBodyScript.build()
+	add_child(body_rig)
 	camera = Camera3D.new()
 	camera.name = "Camera"
 	camera.position = Vector3(0.0, EYE_HEIGHT, 0.0)
@@ -81,12 +110,12 @@ func _ready() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if not controls_enabled or pose == Pose.TRANSITION:
+	if not controls_enabled or pose == Pose.TRANSITION or pose == Pose.LYING:   # 寝ている間は天井を見上げたまま
 		return
 	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		var motion := event as InputEventMouseMotion
-		rotate_y(-motion.relative.x * MOUSE_SENSITIVITY)
-		_pitch = clampf(_pitch - motion.relative.y * MOUSE_SENSITIVITY,
+		rotate_y(-motion.relative.x * MOUSE_SENSITIVITY * sensitivity)
+		_pitch = clampf(_pitch - motion.relative.y * MOUSE_SENSITIVITY * sensitivity,
 				deg_to_rad(-PITCH_LIMIT_DEG), deg_to_rad(PITCH_LIMIT_DEG))
 		camera.rotation.x = _pitch
 	elif event.is_action_pressed("interact"):
@@ -105,10 +134,50 @@ func _unhandled_input(event: InputEvent) -> void:
 				crouch_blocked.emit()
 
 
+## 世界の点 p のほうへ視点を向ける（ゲームを始めるときなど）。
+func look_at_point(p: Vector3) -> void:
+	var d := p - camera.global_position
+	rotation.y = atan2(-d.x, -d.z)
+	_pitch = clampf(atan2(d.y, Vector2(d.x, d.z).length()), deg_to_rad(-PITCH_LIMIT_DEG), deg_to_rad(PITCH_LIMIT_DEG))
+	camera.rotation.x = _pitch
+
+
+## 体の見た目を、姿勢と歩きに合わせる。歩く・しゃがむときだけ見せ、座る・浴槽・こたつ・ダクトの中では隠す。
+func _update_body(delta: float) -> void:
+	var show := show_body and (pose == Pose.WALK or pose == Pose.CROUCH)
+	body_rig.visible = show
+	if not show:
+		return
+	var s := eye_height / EYE_HEIGHT
+	# しゃがむと体は縮み、目の高さ（0.6m）の低さに合わせる
+	var squat := 0.42 if pose == Pose.CROUCH else 1.0
+	body_rig.scale = Vector3(s, s * squat, s)
+	var speed := Vector2(velocity.x, velocity.z).length()
+	var walk := clampf(speed / SPEED, 0.0, 1.0) if controls_enabled else 0.0
+	_walk_phase += delta * speed * 3.4
+	CharacterBodyScript.animate(body_rig, walk, _walk_phase)
+
+
 func _process(delta: float) -> void:
-	# 立つ／しゃがむときの目の高さは滑らかに追従させる（移動演出中は Tween が動かす）
+	_update_body(delta)
+	# 立つ／しゃがむときの目の高さは滑らかに追従させる（移動演出中は Tween が動かす）。
+	# 視点のゆれ（head_bob）：歩くと歩幅に合わせて上下に小さくゆれ、止まっていると呼吸でごくわずかにゆれる
 	if pose == Pose.WALK or pose == Pose.CROUCH:
-		camera.position.y = lerpf(camera.position.y, _eye_target, 1.0 - exp(-EYE_LERP_SPEED * delta))
+		var base := camera.position.y - _last_bob
+		base = lerpf(base, _eye_target, 1.0 - exp(-EYE_LERP_SPEED * delta))
+		var bob := 0.0
+		if head_bob:
+			var speed := Vector2(velocity.x, velocity.z).length()
+			_bob_t += delta
+			if speed > 0.2 and controls_enabled:
+				_bob_phase += delta * speed * 5.2
+				bob = sin(_bob_phase) * BOB_WALK * clampf(speed / SPEED, 0.0, 1.0)
+			else:
+				bob = sin(_bob_t * 1.7) * BOB_BREATH
+		_last_bob = lerpf(_last_bob, bob, 1.0 - exp(-14.0 * delta))
+		camera.position.y = base + _last_bob
+	else:
+		_last_bob = 0.0
 
 
 func _physics_process(delta: float) -> void:
@@ -120,6 +189,13 @@ func _physics_process(delta: float) -> void:
 	else:
 		velocity.y = 0.0
 
+	if controls_enabled and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED and pose != Pose.TRANSITION and pose != Pose.LYING:
+		# 右スティックで見回す
+		var look := Input.get_vector("look_left", "look_right", "look_up", "look_down")
+		if look.length() > 0.01:
+			rotate_y(-look.x * 2.4 * delta * sensitivity)
+			_pitch = clampf(_pitch - look.y * 1.8 * delta * sensitivity, deg_to_rad(-PITCH_LIMIT_DEG), deg_to_rad(PITCH_LIMIT_DEG))
+			camera.rotation.x = _pitch
 	var input := Vector2.ZERO
 	if controls_enabled:
 		input = Input.get_vector("move_left", "move_right", "move_forward", "move_back")
@@ -132,14 +208,53 @@ func _physics_process(delta: float) -> void:
 		speed = CROUCH_SPEED
 	elif pose == Pose.DUCT:
 		speed = DUCT_SPEED
+	elif pose == Pose.KOTATSU_IN:
+		speed = KOTATSU_SPEED
 	velocity.x = dir.x * speed
 	velocity.z = dir.z * speed
 	move_and_slide()
+	# 足音（歩く・しゃがむ・這うとき。歩幅ごとに小さく1回）
+	if is_on_floor() and Vector2(velocity.x, velocity.z).length() > 0.2:
+		_step_acc += Vector2(velocity.x, velocity.z).length() * delta
+		var stride := STEP_DISTANCE * (0.6 if pose != Pose.WALK else 1.0)
+		if _step_acc >= stride:
+			_step_acc = 0.0
+			_play_step()
+
+
+## 立っているときの目の高さを変える（設定の「身長」）。立っていれば、目の高さは滑らかに追従する。
+func set_eye_height(h: float) -> void:
+	eye_height = clampf(h, EYE_HEIGHT_MIN, EYE_HEIGHT_MAX)
+	if pose == Pose.WALK:
+		_eye_target = eye_height
+
+
+## 足元の素材ごとの足音：[音の名前, 高さの倍率, 音量の加減 dB, 重ねる音（なければ空）]。素材は surface_fn（足元 → 素材名）が返す。
+const STEP_SOUNDS := {
+	"wood": ["step", 1.0, 0.0, ""],
+	"tile": ["step", 1.4, 1.0, "tick"],
+	"rug": ["step", 0.7, -5.0, ""],
+	"hollow": ["thunk", 1.3, -14.0, ""],
+	"concrete": ["step", 1.2, 1.5, "tick"],
+	"metal": ["clunk", 1.5, -13.0, ""],
+}
+var surface_fn := Callable()   # 足元の位置 → 素材名（main.gd が設定。なければ wood）
+
+
+func _play_step() -> void:
+	var kind := "wood"
+	if surface_fn.is_valid():
+		kind = String(surface_fn.call(global_position))
+	var def: Array = STEP_SOUNDS.get(kind, STEP_SOUNDS["wood"])
+	var db := (-9.0 if pose == Pose.WALK else -15.0) + float(def[2])
+	Sfx.play(def[0], float(def[1]) * randf_range(0.9, 1.1), db)
+	if def[3] != "":
+		Sfx.play(def[3], randf_range(0.8, 1.0), db - 4.0)
 
 
 ## 自分の足で動ける姿勢（立つ／しゃがむ／換気経路で這う）か。
 func is_walking() -> bool:
-	return pose == Pose.WALK or pose == Pose.CROUCH or pose == Pose.DUCT
+	return pose == Pose.WALK or pose == Pose.CROUCH or pose == Pose.DUCT or pose == Pose.KOTATSU_IN
 
 
 # ---------------------------------------------------------------- しゃがむ
@@ -156,9 +271,23 @@ func toggle_crouch() -> bool:
 			return false
 		_set_body_height(BODY_HEIGHT)
 		pose = Pose.WALK
-		_eye_target = EYE_HEIGHT
+		_eye_target = eye_height
 		return true
 	return false
+
+
+## こたつの中を這う状態から、外へ抜けて立つ（立てなければしゃがむ）。体の形を戻す。
+func leave_crawl() -> void:
+	if pose != Pose.KOTATSU_IN:
+		return
+	if is_space_free(global_position, BODY_HEIGHT):
+		_set_body_height(BODY_HEIGHT)
+		pose = Pose.WALK
+		_eye_target = eye_height
+	else:
+		_set_body_height(CROUCH_BODY_HEIGHT)
+		pose = Pose.CROUCH
+		_eye_target = CROUCH_EYE_HEIGHT
 
 
 ## 足元 feet に、高さ height の体が壁や設備に重ならずに入るか。
@@ -194,12 +323,12 @@ func enter_fixed(target_pose: Pose, feet: Vector3, yaw: float, eye: float) -> vo
 ## 座っている／浴槽にいる／換気経路にいる状態から、候補の足元のうち最初に空いている所へ立って移る。
 ## どこも空いていなければ何もせず false。
 func leave_fixed(candidates: Array, via: Array = []) -> bool:
-	if pose != Pose.SEATED and pose != Pose.IN_TUB and pose != Pose.DUCT and pose != Pose.KOTATSU_SEAT:
+	if pose != Pose.SEATED and pose != Pose.IN_TUB and pose != Pose.DUCT and pose != Pose.KOTATSU_SEAT and pose != Pose.LYING and pose != Pose.LEAN and pose != Pose.CLOSET:
 		return false
 	for c in candidates:
 		var feet: Vector3 = c
 		if is_space_free(feet, BODY_HEIGHT):
-			move_to(Pose.WALK, feet, rotation.y, EYE_HEIGHT, via, true, BODY_HEIGHT, BODY_RADIUS)
+			move_to(Pose.WALK, feet, rotation.y, eye_height, via, true, BODY_HEIGHT, BODY_RADIUS)
 			return true
 	return false
 
@@ -210,6 +339,7 @@ func move_to(target_pose: Pose, feet: Vector3, yaw: float, eye: float, via: Arra
 		enable_body := false, body_h := BODY_HEIGHT, body_r := BODY_RADIUS) -> void:
 	_shape.disabled = true
 	_settled_pose = target_pose
+	var was_lying := pose == Pose.LYING
 	pose = Pose.TRANSITION
 	velocity = Vector3.ZERO
 	if target_pose == Pose.WALK or target_pose == Pose.CROUCH:
@@ -223,6 +353,12 @@ func move_to(target_pose: Pose, feet: Vector3, yaw: float, eye: float, via: Arra
 	look.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 	look.tween_property(self, "rotation:y", _nearest_angle(rotation.y, yaw), total)
 	look.tween_property(camera, "position:y", eye, total)
+	if target_pose == Pose.LYING:   # 寝るときは、天井を見上げる
+		look.tween_property(camera, "rotation:x", LYING_PITCH, total)
+		_pitch = LYING_PITCH
+	elif was_lying or absf(_pitch) > 0.9:
+		look.tween_property(camera, "rotation:x", 0.0, total)
+		_pitch = 0.0
 	var tween := create_tween()
 	tween.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 	for i in points.size():
@@ -268,7 +404,7 @@ func get_focused(force_update: bool = false) -> Object:
 	if not hit.has_meta("interact_id"):
 		return null
 	# 距離の上限は対象ごと（天井の換気口など）。指定がなければ INTERACT_RANGE
-	var max_range: float = hit.get_meta("interact_range", INTERACT_RANGE)
+	var max_range: float = hit.get_meta("interact_range", TUB_REACH if pose == Pose.IN_TUB else INTERACT_RANGE)
 	if ray.global_position.distance_to(ray.get_collision_point()) > max_range:
 		return null
 	return hit

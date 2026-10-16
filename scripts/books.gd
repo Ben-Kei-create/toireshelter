@@ -8,11 +8,12 @@ extends Node
 signal read_requested(title: String, pages: Array, cover: Texture2D, tint: Color)
 
 const COVER_DIR := "res://assets/textures/books/book_cover_%02d.png"
-const SHELF_Z0 := -1.1
 const SPINE_BUCKET := 0.1    # 背表紙の本を選ぶ横幅（m）
 
 var player: Node3D   # main.gd が渡す。照準の当たった位置（段・横位置）を調べる
-var shelf_step := 2.35 / 7.0
+var shelf_step := 1.18 / 4.0
+var shelf_z0 := -0.2   # 本棚の端（z）。apartment.gd が渡す
+var levels := 4         # 本棚の段の数
 
 # 表紙を見せた本：[題名, [3ページ]]。番号は book_cover_NN
 const COVERS := {
@@ -82,8 +83,8 @@ func interact(id: String) -> String:
 	var p := Vector3.ZERO
 	if player and player.get("ray"):
 		p = player.ray.get_collision_point()
-	var level := clampi(int(p.y / shelf_step), 0, 6)
-	var bucket := maxi(0, int((p.z - SHELF_Z0) / SPINE_BUCKET))
+	var level := clampi(int(p.y / shelf_step), 0, levels - 1)
+	var bucket := maxi(0, int((p.z - shelf_z0) / SPINE_BUCKET))
 	var s: Array = SPINES[posmod(level * 11 + bucket * 7, SPINES.size())]
 	var h := float(posmod(level * 53 + bucket * 29, 100)) / 100.0
 	var tint := Color.from_hsv(h, 0.35, 0.55)

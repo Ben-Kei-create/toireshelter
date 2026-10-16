@@ -41,7 +41,8 @@ func _run() -> void:
 		if str(c.name).begins_with("Wear08_"):
 			prints += 1
 	check(prints == 2, "鏡の扉の指紋が扉の子として 2 枚（開閉に付いて動く）")
-	check(_count(wear, [CollisionObject3D, CollisionShape3D, Area3D]) == 0, "汚れ・傷・影・額に当たり判定と調べる判定がない")
+	var wear_areas := _count(wear, [CollisionObject3D, CollisionShape3D, Area3D])
+	check(wear_areas == 3, "汚れ・傷・影・額に当たり判定と調べる判定がない（あるのはトイレ用スリッパの調べる判定 1 つだけ：%d）" % wear_areas)
 	check(wear.get_node("OverheadPicture/Picture") != null, "俯瞰の額がある")
 	var shade: Node = wear.get_node("ContactShade")
 	check(shade.get_child_count() == 14, "接地影の帯12と丸い影2（%d）" % shade.get_child_count())
@@ -58,7 +59,8 @@ func _run() -> void:
 	check(_count(props, [CollisionObject3D, Area3D]) == 0, "雑貨スタンドに当たり判定・調べる判定がない")
 	var tv: Node = main.room.apartment.get_node("TvCorner")
 	check(tv.get_node("Tv/Screen") != null and tv.get_node("Console") != null and tv.get_node("Game05") != null, "テレビ・ゲーム機・ソフト5本がある")
-	check(_count(tv, [CollisionObject3D, Area3D]) == 0, "テレビ台まわりの飾りに個別の調べる判定がない（台の当たり判定は apartment の共通ボディ）")
+	var tv_areas := tv.find_children("*", "Area3D", true, false)
+	check(tv_areas.size() == 15 and tv_areas.filter(func(a): return a.get_meta("interact_id") == "tv_play").size() == 3 and tv_areas.filter(func(a): return String(a.get_meta("interact_id")).begins_with("game_case_")).size() == 5 and tv_areas.filter(func(a): return String(a.get_meta("interact_id")).begins_with("game_cover_")).size() == 7, "テレビ台まわりの判定は、ゲームを始める3つ（テレビ・ゲーム機・コントローラ）とソフトのケース5つ、床のケース7つ（調べるだけ）")
 	check(main.room.apartment.get_node("HallSlippers") != null and wear.get_node("BathSlippers") != null, "スリッパが玄関ホールと浴室にある")
 	var lp: Node = main.room.apartment.get_node("LifePapers")
 	var ids := []

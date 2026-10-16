@@ -16,7 +16,7 @@ func _run() -> void:
 	change_scene_to_file("res://scenes/main.tscn")
 	await _frames(5)
 	var hud = current_scene.hud
-	var menus := {"一時停止": hud._pause_menu, "クリア": hud._clear_menu}
+	var menus := {"設定": hud._pause_menu, "クリア": hud._clear_menu}
 
 	for win_size in SIZES:
 		root.size = win_size
@@ -34,11 +34,14 @@ func _run() -> void:
 					"  %s：背景 %s がビューポート全体と一致" % [menu_name, rect])
 			var buttons := 0
 			for button in menu.find_children("*", "Button", true, false):
+				if button is CheckButton or button.name == "HintAskButton" or button.name == "AdvancedButton" or str(button.name).begins_with("Key_") or button.name == "KeysResetButton":
+					continue   # 設定の「オン／オフ」と「神の声にきく」（スクロールの中）は数えない
 				buttons += 1
 				var b: Rect2 = (button as Control).get_global_rect()
 				_check(view.encloses(b) and b.size.x > 0.0 and b.size.y > 0.0,
 						"  %s：ボタン「%s」%s が画面内" % [menu_name, button.text, b])
-			_check(buttons == 2, "  %s：ボタンが2つある" % menu_name)
+			var expect := 3 if menu == hud._pause_menu else 2   # 設定は「再開」「はじめから」「終了」
+			_check(buttons == expect, "  %s：ボタンが%dつある" % [menu_name, expect])
 
 	hud._pause_menu.visible = false
 	hud._clear_menu.visible = false

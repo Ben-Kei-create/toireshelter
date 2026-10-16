@@ -1,13 +1,14 @@
 extends Node3D
 ## 玄関ドア（5階の共用廊下への出口）。玄関ホールの左の壁（x=-0.95）、z 1.5〜2.2（幅0.7m）、高さ2.0m。
 ## 蝶番はホールの奥側（z=2.2）。外（廊下、-x）へ開く。クリックで開け、開けたままになる（再プレイで閉じる）。
-## 施錠も仕掛けもない。外へ出るとクリア（main.gd が廊下の区画で判定する）。
+## はじめは施錠されている（家の鍵＝つかみ取りの 6 個目の景品で開く）。外へ出るとクリア（main.gd が廊下の区画で判定する）。
 ## 座標は部屋と同じ（この節点は原点に置く）。
 ##
 ##   FrontDoor/Frame       … 枠（見た目だけ）
 ##   FrontDoor/Pivot/Leaf  … 扉。Pivot を回して開く。Leaf は当たり判定（world）つきで、調べる対象（front_door）
 
 const MeshKit := preload("res://scripts/mesh_kit.gd")
+const Sfx := preload("res://scripts/sfx.gd")
 
 const X := -0.95
 const Z := Vector2(1.5, 2.2)
@@ -16,8 +17,12 @@ const OPEN_DEG := 100.0
 const SWING_TIME := 0.8
 
 var is_open := false
+var locked := true        # 家の鍵で開く（main.gd の use_selected）
 var busy := false
 var pivot: Node3D
+var mail_envelope: MeshInstance3D   # 受け箱の中の封筒（インターホンが鳴ったあと、見えるようになる）
+var peephole_area: Area3D
+var mail_area: Area3D
 
 
 func _ready() -> void:
@@ -34,7 +39,7 @@ func _ready() -> void:
 	add_child(pivot)
 	var leaf_w := w - 0.03
 	var leaf_h := H - 0.02
-	var leaf_mat := MeshKit.mat("fd_leaf", Color(0.42, 0.5, 0.48), 0.55)
+	var leaf_mat := MeshKit.mat("fd_leaf", Color(0.18, 0.185, 0.19), 0.5)
 	var body := StaticBody3D.new()
 	body.name = "Leaf"
 	body.collision_layer = MeshKit.LAYER_WORLD
@@ -57,7 +62,7 @@ func _ready() -> void:
 	plate.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	var num := Label3D.new()
 	num.name = "RoomNumber"
-	num.text = "505"
+	num.text = "503"
 	num.font_size = 64
 	num.pixel_size = 0.0012
 	num.modulate = Color(0.15, 0.12, 0.1)
@@ -66,6 +71,46 @@ func _ready() -> void:
 	num.position = Vector3(-0.0265, 1.68, -leaf_w * 0.5)
 	num.rotation.y = -PI * 0.5   # 表を廊下側（-x）へ
 	pivot.add_child(num)
+	_build_inside(leaf_w, metal)
+
+
+## 扉の部屋側（+x の面）：のぞき穴のレンズ（ぼんやり）と、郵便受けの下に吊るしたミニポスト（受け箱）。扉といっしょに動く。
+func _build_inside(leaf_w: float, metal: Material) -> void:
+	var zc := -leaf_w * 0.5
+	# のぞき穴：金属のリングと、ぼんやり光る小さなレンズ（調べると外が見える）
+	var ring := MeshKit.cylinder(pivot, 0.02, 0.012, Vector3(0.026, 1.5, zc), metal, "PeepRing")
+	ring.rotation.z = deg_to_rad(90.0)
+	var lens_m := StandardMaterial3D.new()
+	lens_m.albedo_color = Color(0.55, 0.65, 0.7, 0.9)
+	lens_m.roughness = 0.1
+	lens_m.emission_enabled = true
+	lens_m.emission = Color(0.45, 0.6, 0.55)
+	lens_m.emission_energy_multiplier = 0.5
+	var lens := MeshKit.sphere(pivot, 0.012, Vector3(0.032, 1.5, zc), lens_m)
+	lens.name = "PeepLens"
+	lens.scale = Vector3(0.5, 1.0, 1.0)
+	peephole_area = MeshKit.interact_area(pivot, "PeepholeArea", "peephole")
+	MeshKit.shape_box(peephole_area, Vector3(0.1, 0.1, 0.1), Vector3(0.04, 1.5, zc))
+	peephole_area.set_meta("interact_range", 1.8)
+	# ミニポスト：郵便受け（y 0.95）の真下に、扉に取りつけた小さな受け箱
+	var tin := MeshKit.mat("mailbox_tin", Color(0.55, 0.28, 0.2), 0.5, 0.4)
+	var inside := MeshKit.mat("mailbox_inside", Color(0.15, 0.1, 0.08), 0.9)
+	var bx := 0.06
+	var by := 0.82
+	MeshKit.box(pivot, Vector3(0.09, 0.012, 0.3), Vector3(bx, by - 0.07, zc), tin, "MailBottom")
+	MeshKit.box(pivot, Vector3(0.012, 0.14, 0.3), Vector3(bx + 0.039, by, zc), tin, "MailFront")
+	for sz in [-1.0, 1.0]:
+		MeshKit.box(pivot, Vector3(0.09, 0.14, 0.012), Vector3(bx, by, zc + sz * 0.144), tin, "MailSide")
+	MeshKit.box(pivot, Vector3(0.002, 0.14, 0.3), Vector3(0.022, by, zc), inside, "MailBack")
+	var flyer_cols := [Color(0.9, 0.85, 0.3), Color(0.55, 0.8, 0.9), Color(0.95, 0.6, 0.6)]
+	for i in 3:
+		var fl := MeshKit.box(pivot, Vector3(0.005, 0.12, 0.09), Vector3(0.035 + i * 0.012, by - 0.01, zc - 0.08 + i * 0.075), MeshKit.mat("flyer_%d" % i, flyer_cols[i], 0.8), "Flyer%d" % i)
+		fl.rotation.x = deg_to_rad(-6.0 + i * 5.0)
+	mail_envelope = MeshKit.box(pivot, Vector3(0.004, 0.1, 0.16), Vector3(0.062, by - 0.03, zc + 0.02), MeshKit.mat("envelope", Color(0.97, 0.96, 0.93), 0.9), "Envelope")
+	mail_envelope.visible = false
+	mail_area = MeshKit.interact_area(pivot, "MailArea", "mail_catcher")
+	MeshKit.shape_box(mail_area, Vector3(0.14, 0.2, 0.34), Vector3(bx, by, zc))
+	mail_area.set_meta("interact_range", 1.8)
 
 
 func get_prompt(_id: String) -> String:
@@ -74,10 +119,26 @@ func get_prompt(_id: String) -> String:
 	return "front_door_open"
 
 
+func unlock() -> void:
+	locked = false
+	Sfx.play("click")
+
+
+var warn_enabled := false     # はじめて開けるとき、「ここを出ると終わるかもしれない」と予告する（1 回だけ。もう一度押すと開く）
+var warned := false
+
+
 func interact(_id: String) -> String:
 	if is_open or busy:
 		return ""
+	if locked:
+		Sfx.play("buzz", 0.8, -6.0)
+		return "front_door_locked"
+	if warn_enabled and not warned:
+		warned = true
+		return "front_door_warn"
 	busy = true
+	Sfx.play("creak")
 	var tween := create_tween()
 	tween.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
 	tween.tween_property(pivot, "rotation:y", deg_to_rad(OPEN_DEG), SWING_TIME)
