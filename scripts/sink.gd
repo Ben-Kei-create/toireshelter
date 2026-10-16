@@ -12,8 +12,8 @@ const FaucetScript := preload("res://scripts/faucet.gd")
 const TEX_PIPE := preload("res://assets/textures/surfaces/surface_08.png")
 const TEX_PIPE_WALLPAPER := preload("res://assets/textures/surfaces/surface_05.png")
 
-const FILL_TIME := 12.0
-const DRAIN_TIME := 8.0
+const FILL_TIME := 8.0
+const DRAIN_TIME := 6.0
 
 const WALL_X := 0.9
 const Z := 0.1                                    # ボウルの中心（壁沿いの方向）
@@ -31,7 +31,7 @@ const PLUG_HEIGHT := 0.012
 const SOAP_POS := Vector3(0.64, BOTTOM_Y, Z + 0.18)   # 溶かすとき、くぼみの底に置く位置
 const SOAP_FLOOR := Vector3(0.6, 0.0, 0.05)           # 固形せっけんが落ちている床（洗面台の下）
 const SOAP_SOAK_LEVEL := 0.4                            # この水位以上に浸かると溶けはじめる
-const SOAP_TIME := 8.0                                  # 浸かり続けて溶けきるまで（秒）
+const SOAP_TIME := 5.0                                  # 浸かり続けて溶けきるまで（秒）
 const COIN_RADIUS := 0.0118
 const DRAIN_HOLE_RADIUS := 0.0105   # 十円玉（半径 1.18cm）のほうが少し大きい：栓にしたとき、穴をふさいで輪にのる
 const COIN_SEAT_Y := 0.0060         # 栓をしたときの十円玉の中心の高さ（穴の黒い円盤の上面 0.005 の上にのる）
@@ -184,8 +184,8 @@ func _update_water() -> void:
 # ---------------------------------------------------------------- 組み立て
 
 func _build_bowl(visual: Node3D) -> void:
-	var porcelain := MeshKit.mat("palace_gold_body", Color(0.74, 0.55, 0.2), 0.28, 0.8)
-	var inner := MeshKit.mat("basin_inner_dark", Color(0.08, 0.02, 0.03), 0.18, 0.2)   # 金の洗面台の底は、黒い漆（小さな物が見えるように）
+	var porcelain := MeshKit.mat("palace_porcelain", Color(0.94, 0.91, 0.85), 0.18, 0.0)
+	var inner := MeshKit.mat("basin_inner_cream", Color(0.9, 0.87, 0.8), 0.2)   # 白い陶器の底（小さな物が見える）
 	var o0 := OUTER.position
 	var o1 := OUTER.end
 	var wall_h := o1.y - BOTTOM_Y

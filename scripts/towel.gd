@@ -74,8 +74,8 @@ func _build_cloth() -> void:
 	cloth.name = "Cloth"
 	add_child(cloth)
 	# 布地は画像を 0.2m 四方で繰り返す（トリプラナー投影なので、箱・円柱のどの面でも同じ細かさ）。縁取りは同じ布地を暗くしたもの
-	var fabric := MeshKit.tiled_mat("towel", TOWEL_TEX, 0.2)
-	var hem := MeshKit.tiled_mat("towel_hem", TOWEL_TEX, 0.2, Color(0.78, 0.8, 0.84))
+	var fabric := MeshKit.tiled_mat("towel_red", TOWEL_TEX, 0.2, Color(0.75, 0.2, 0.25))
+	var hem := MeshKit.tiled_mat("towel_hem_red", TOWEL_TEX, 0.2, Color(0.55, 0.12, 0.17))
 	var t := 0.009
 	var fold := MeshKit.cylinder(cloth, FOLD_R, WIDTH, Vector3(OUT, 0, 0), fabric, "Fold", -1.0, 16)
 	fold.rotation.x = deg_to_rad(90.0)

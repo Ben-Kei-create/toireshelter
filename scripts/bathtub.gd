@@ -17,8 +17,8 @@ extends Node3D
 const MeshKit := preload("res://scripts/mesh_kit.gd")
 const FaucetScript := preload("res://scripts/faucet.gd")
 
-const FILL_TIME := 40.0    # 空→満水（秒）
-const DRAIN_TIME := 25.0   # 満水→空（秒）。給水より速い
+const FILL_TIME := 20.0    # 空→満水（秒）。待つだけの時間は短く（謎に必要な水位まで）
+const DRAIN_TIME := 14.0   # 満水→空（秒）。給水より速い
 const AUTO_LEVEL := 0.8    # ふろ自動の設定水位
 const MIN_POWDER_LEVEL := 0.1
 const REHEAT_MIN_LEVEL := 0.3
@@ -626,8 +626,8 @@ func _update_water() -> void:
 # ---------------------------------------------------------------- 組み立て
 
 func _build_shell(visual: Node3D) -> void:
-	var porcelain := MeshKit.mat("palace_gold_body", Color(0.74, 0.55, 0.2), 0.28, 0.8)
-	var inner := MeshKit.mat("tub_inner_dark", Color(0.08, 0.02, 0.03), 0.18, 0.2)   # 浴槽の底も、黒い漆（十円玉などが見えるように）
+	var porcelain := MeshKit.mat("palace_porcelain", Color(0.94, 0.91, 0.85), 0.18, 0.0)
+	var inner := MeshKit.mat("tub_inner_cream", Color(0.9, 0.87, 0.8), 0.2)   # 白い陶器の底（金の十円玉が見える）
 	var h := HALF.y
 	var wall_h := h - BOTTOM_Y
 	var wy := BOTTOM_Y + wall_h * 0.5

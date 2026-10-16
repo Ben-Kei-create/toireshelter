@@ -479,6 +479,7 @@ const STAGE3 := {
 	"window_locked": "窓には鍵がかかっている。部屋の鍵がいる。",
 	"window_unlocked": "カチッ。窓の鍵が開いた。",
 	"torch_made": "木の棒の先に、マッチで火をつけた。松明ができた。",
+	"torch_wind": "カーテンを開けた。……窓から風が入って、松明の火が、大きくあおられた。このまま持っていたら、危ない！（G で置くか、持ち物から外そう）",
 	"torch_voice": "松明は、危ない。",
 	"torch_thrown": "松明は、窓の外へ飛んでいった。ベランダの床で、ぱちぱちと燃えている。",
 	"torch_out": "松明の火が、ぷすっと消えた。",
@@ -634,6 +635,10 @@ const STAGE5 := {
 	"wall_w_look": "隔て板だ。薄い。向こうは、お隣のベランダのようだ。",
 	"wall_e_look": "隔て板だ。薄い。向こうは、釣り竿の側……おばあちゃんの部屋のベランダのようだ。",
 	"wall_hit": "ガツン。",
+	"wall_small_first": "小さなツルハシ。「1994 回叩けば割れる」と、どこかで聞いた気がする。……とにかく、叩いてみよう。",
+	"wall_small_half": "（まだまだ。1994 回まで、あと 1944 回……気が遠くなってきた）",
+	"wall_small_break": "100 回で、板がほろっと崩れた。1994 回のつもりだったのに。……小さなツルハシ、がんばった。",
+	"front_door_warn": "玄関のドアだ。ここを開けて外へ出たら、この部屋での探索は、終わるかもしれない。……まだ、やり残しはないか。もう一度押すと、開ける。",
 	"wall_q1": "板が、ミシッと鳴った。",
 	"wall_q2": "ひびが入ってきた。",
 	"wall_q3": "もう少しで、割れそうだ。",
@@ -647,6 +652,7 @@ const STAGE5 := {
 	"duct_sound": "耳栓をしたら、ダクトのうなりが消えた。……トン、トン、トトン。壁の向こうから、規則正しい音がする。こたつの奥のほうこうだ。",
 	"butsudan_dark": "仏壇だ。暗くて、よく見えない。位牌が二つあるようだ。……線香のにおいがする。",
 	"butsudan_lit": "仏壇に手を合わせた。チーン。ろうそくの火がゆれている。位牌のひとつは、名前が、薄れて読めない。",
+	"height_gauge": "ドア枠の、身長計のシール。130、140、150、160、170。……目の高さは、[ と ] で変えられる。高い所・低い所で、見える物が変わるかもしれない。しゃがんでも、低い所が見える。",
 	"painting_look": "額縁に入った、ひまわりの絵。ゴッホのような、勢いのある筆づかい。……下に、小さな赤いボタンがある。",
 	"painting_slide": "カチッ。絵が、するすると上へ動いた。……絵の後ろの壁に、地図が貼ってある。",
 	"painting_back": "ボタンを押して、絵をもとの位置へ戻した。",
@@ -927,6 +933,7 @@ func _ready() -> void:
 	fishing.story_next = Callable(self, "_story_catch_next")
 	fishing.item_caught.connect(_on_story_caught)
 	room.apartment.curtain_changed.connect(_on_curtain_changed)
+	room.front_door.warn_enabled = DisplayServer.get_name() != "headless"   # 実機では、玄関をはじめて開けるとき予告する
 	room.exterior.breaker.fuse_inserted.connect(_on_fuse_inserted)
 
 	if _wants_title():
@@ -1838,7 +1845,7 @@ func _prompt_for(target: Object) -> String:
 			return PROMPTS["tv_remote"]
 		"door_knob", "fuse", "hand_mirror", "pickaxe", "crystal", "ladder_prop", "washitsu_coin", "heirloom_photo", "lighter", "rice_pack", "shot_coin", "bad_book", "card_pick_0", "card_pick_1", "card_pick_2", "card_pick_3", "aq_coin", "dish_core", "dart_coin", "headphones", "placed_item":
 			return PROMPT_PICKUP
-		"balcony_wall_w", "balcony_wall_e", "granny_chest", "butsudan", "sunflower_painting", "floor_map":
+		"balcony_wall_w", "balcony_wall_e", "granny_chest", "butsudan", "sunflower_painting", "floor_map", "height_gauge":
 			return PROMPT_EXAMINE
 		"painting_button":
 			return "左クリック：ボタンを押す"
@@ -2122,6 +2129,12 @@ func _on_interact_requested(target: Object) -> void:
 			hud.show_message(STAGE5["dart_coin_get"], 5.0)
 		"balcony_wall_w", "balcony_wall_e":
 			hud.show_message(STAGE5["wall_%s_look" % id.right(1)], 5.0)
+		"height_gauge":
+			hud.show_message(STAGE5["height_gauge"], 8.0)
+			progress.discover("height_gauge")
+			if guide.should_tip("eye"):
+				_tip_cooldown = 0.0
+				_tip("eye")
 		"sunflower_painting":
 			hud.show_message(STAGE5["painting_look"], 5.0)
 		"painting_button":
@@ -3526,15 +3539,17 @@ func _hit_partition(tool_id: String, side: String) -> void:
 	SfxScript.play("thunk", 0.7 + randf() * 0.2, -3.0)
 	ext.set_partition_damage(side, ratio)
 	if wall_hits[side] == 1:
-		hud.show_message(STAGE5["wall_hit"] + "（F を長押しでも、叩きつづけられる）", 3.0)
+		hud.show_message(STAGE5["wall_small_first"] if tool_id == "small_pickaxe" else STAGE5["wall_hit"] + "（F を長押しでも、叩きつづけられる）", 4.0)
 	elif wall_hits[side] == int(need * 0.25):
 		hud.show_message(STAGE5["wall_q1"], 3.0)
 	elif wall_hits[side] == int(need * 0.5):
-		hud.show_message(STAGE5["wall_q2"], 3.0)
+		hud.show_message(STAGE5["wall_small_half"] if tool_id == "small_pickaxe" else STAGE5["wall_q2"], 3.0)
 	elif wall_hits[side] == int(need * 0.8):
 		hud.show_message(STAGE5["wall_q3"], 3.0)
 	if wall_hits[side] >= need:
 		ext.break_partition(side)
+		hud.show_message((STAGE5["wall_small_break"] + "\n") if tool_id == "small_pickaxe" else "", 3.0)
+		await get_tree().create_timer(0.1).timeout
 		hud.show_message(STAGE5["wall_%s_break" % side], 6.0)
 		progress.discover("wall_" + side)
 		progress.save()
@@ -3885,7 +3900,11 @@ func _on_curtain_changed(closed: bool) -> void:
 		return
 	room.set_moonlight(not closed)
 	if not closed and inventory.has("torch"):
-		_throw_torch()
+		# 一拍：風で火があおられる。そのまま持っていると、危ない（G で置くか、手に持たなければ、捨てられない）
+		hud.show_message(STAGE3["torch_wind"], 4.0)
+		await get_tree().create_timer(3.6 / ride_speed).timeout
+		if is_inside_tree() and inventory.has("torch") and selected_item() == "torch" and not room.apartment.curtain_closed:
+			_throw_torch()
 
 
 func _throw_torch() -> void:

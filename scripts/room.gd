@@ -154,6 +154,7 @@ func _ready() -> void:
 	_build_wall_details()
 	_build_palace_trim()
 	_build_painting()
+	_build_height_gauge()
 	# 玄関ホール・自室（apartment.gd）と、換気経路・ベランダ・外景（exterior.gd）
 	apartment = ApartmentScript.new()
 	apartment.name = "Apartment"
@@ -256,25 +257,63 @@ static func _palace_floor_tex() -> ImageTexture:
 		var n := 256
 		var img := Image.create(n, n, false, Image.FORMAT_RGB8)
 		var noise := FastNoiseLite.new()
-		noise.frequency = 0.04
+		noise.frequency = 0.035
 		noise.seed = 3
+		noise.fractal_octaves = 4
 		for y in n:
 			for x in n:
 				var cx := int(x * 2 / n)
 				var cy := int(y * 2 / n)
 				var black := (cx + cy) % 2 == 0
 				var v := noise.get_noise_2d(x, y) * 0.5 + 0.5
-				var c := Color(0.05, 0.04, 0.05).lightened(0.05 * v) if black else Color(0.3, 0.035, 0.05).lightened(0.1 * v)
-				var gx := absi(x % (n / 2) - 0) < 2 or absi(x % (n / 2) - (n / 2 - 1)) < 1
-				var gy := absi(y % (n / 2) - 0) < 2 or absi(y % (n / 2) - (n / 2 - 1)) < 1
+				var vein := absf(noise.get_noise_2d(x * 1.6 + 40.0, y * 1.6)) < 0.04   # 大理石の筋
+				var c: Color
+				if black:
+					c = Color(0.045, 0.04, 0.045).lightened(0.06 * v)
+					if vein:
+						c = Color(0.35, 0.3, 0.2)
+				else:
+					c = Color(0.84, 0.8, 0.72).darkened(0.12 * v)
+					if vein:
+						c = Color(0.55, 0.5, 0.42)
+				var gx := x % (n / 2) < 1 or x % (n / 2) > n / 2 - 2
+				var gy := y % (n / 2) < 1 or y % (n / 2) > n / 2 - 2
 				if gx or gy:
-					c = Color(0.62, 0.47, 0.17)
+					c = Color(0.12, 0.1, 0.08)
 				img.set_pixel(x, y, c)
 		img.generate_mipmaps()
 		_pf = ImageTexture.create_from_image(img)
 	return _pf
 
 
+static var _pm: ImageTexture
+
+
+## 腰壁の黒い大理石：黒地に、うっすら金と白の筋。
+static func _palace_marble_tex() -> ImageTexture:
+	if _pm == null:
+		var n := 256
+		var img := Image.create(n, n, false, Image.FORMAT_RGB8)
+		var noise := FastNoiseLite.new()
+		noise.frequency = 0.02
+		noise.seed = 21
+		noise.fractal_octaves = 5
+		for y in n:
+			for x in n:
+				var v := noise.get_noise_2d(x, y)
+				var c := Color(0.035, 0.03, 0.035).lightened(0.05 * (v * 0.5 + 0.5))
+				var vein := absf(v) < 0.025
+				if vein:
+					c = Color(0.5, 0.4, 0.2)
+				elif absf(v - 0.3) < 0.012:
+					c = Color(0.3, 0.28, 0.26)
+				img.set_pixel(x, y, c)
+		img.generate_mipmaps()
+		_pm = ImageTexture.create_from_image(img)
+	return _pm
+
+
+## 壁の腰（黒い漆の羽目板）と金のモールディング、天井ぎわの金の縁。
 var painting_map: Node3D
 
 
@@ -285,13 +324,53 @@ func _build_painting() -> void:
 	add_child(painting_map)
 
 
-## 壁の腰（黒い漆の羽目板）と金のモールディング、天井ぎわの金の縁。
+## ドア枠の脇の壁（浴室の内側）の、身長計のシール（130〜170 cm）。調べると、目の高さを変えられることを教える。
+func _build_height_gauge() -> void:
+	var g := Node3D.new()
+	g.name = "HeightGauge"
+	g.position = Vector3(-0.62, 0.0, ROOM_D * 0.5 - 0.002)
+	add_child(g)
+	var paper := _mat("gauge_paper", Color(0.95, 0.9, 0.75), 0.9)
+	_mesh_box(g, Vector3(0.1, 0.5, 0.002), Vector3(0, 1.5, 0), paper)
+	var ink := _mat("gauge_ink", Color(0.2, 0.1, 0.08), 0.9)
+	for k in 5:
+		var y := 1.3 + 0.1 * k
+		_mesh_box(g, Vector3(0.05, 0.004, 0.003), Vector3(-0.015, y, -0.001), ink)
+		var l := Label3D.new()
+		l.text = str(130 + 10 * k)
+		l.pixel_size = 0.0007
+		l.font_size = 40
+		l.modulate = Color(0.2, 0.1, 0.08)
+		l.shaded = false
+		l.position = Vector3(0.02, y, -0.0025)
+		l.rotation.y = PI   # 壁は +z 側。部屋の中（-z）へ向ける
+		g.add_child(l)
+	var a := MeshKit.interact_area(g, "GaugeArea", "height_gauge", null)
+	MeshKit.shape_box(a, Vector3(0.14, 0.6, 0.08), Vector3(0, 1.5, -0.04))
+
+
+## 壁に貼る、金の細い四角い枠（羽目板の飾り）。on_side：左の壁（x 方向に貼る）か奥の壁か。
+func _panel_frame(parent: Node3D, c: Vector3, on_side: bool, m: Material, w: float, h: float) -> void:
+	var t := 0.012
+	var d := 0.002
+	if on_side:
+		_mesh_box(parent, Vector3(d, t, w), c + Vector3(0, h * 0.5, 0), m)
+		_mesh_box(parent, Vector3(d, t, w), c - Vector3(0, h * 0.5, 0), m)
+		_mesh_box(parent, Vector3(d, h, t), c + Vector3(0, 0, w * 0.5), m)
+		_mesh_box(parent, Vector3(d, h, t), c - Vector3(0, 0, w * 0.5), m)
+	else:
+		_mesh_box(parent, Vector3(w, t, d), c + Vector3(0, h * 0.5, 0), m)
+		_mesh_box(parent, Vector3(w, t, d), c - Vector3(0, h * 0.5, 0), m)
+		_mesh_box(parent, Vector3(t, h, d), c + Vector3(w * 0.5, 0, 0), m)
+		_mesh_box(parent, Vector3(t, h, d), c - Vector3(w * 0.5, 0, 0), m)
+
+
 func _build_palace_trim() -> void:
 	var trim := Node3D.new()
 	trim.name = "PalaceTrim"
 	add_child(trim)
 	var gold := _mat("palace_frame_gold", GOLD, 0.3, 0.75)
-	var lacquer := _mat("palace_lacquer", BLACK_LACQUER, 0.22, 0.1)
+	var lacquer := MeshKit.tiled_mat("palace_marble", _palace_marble_tex(), 0.7, Color(1, 1, 1), 0.25)
 	var hw := ROOM_W * 0.5
 	var hd := ROOM_D * 0.5
 	var wh := 0.9   # 腰壁の高さ
@@ -303,6 +382,11 @@ func _build_palace_trim() -> void:
 	_mesh_box(trim, Vector3(tw, wh, ROOM_D), Vector3(-hw + tw * 0.5, wh * 0.5, 0), lacquer)
 	_mesh_box(trim, Vector3(ROOM_W, 0.03, 0.012), Vector3(0, wh + 0.015, -hd + 0.009), gold)
 	_mesh_box(trim, Vector3(0.012, 0.03, ROOM_D), Vector3(-hw + 0.009, wh + 0.015, 0), gold)
+	# 腰壁の、金の縁取りの羽目板（四角い枠）
+	for pz in [-0.7, 0.0, 0.7]:
+		_panel_frame(trim, Vector3(-hw + 0.0012, 0.45, pz), true, gold, 0.5, 0.5)
+	for px in [-0.55, 0.0, 0.55]:
+		_panel_frame(trim, Vector3(px, 0.45, -hd + 0.0012), false, gold, 0.42, 0.5)
 	# 巾木（金）
 	_mesh_box(trim, Vector3(ROOM_W, 0.08, 0.01), Vector3(0, 0.04, -hd + 0.008), gold)
 	_mesh_box(trim, Vector3(0.01, 0.08, ROOM_D), Vector3(-hw + 0.008, 0.04, 0), gold)
@@ -996,7 +1080,7 @@ func _build_environment() -> void:
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	# 電球色（2700〜3000K 相当）で少し薄暗いユニットバス。環境光も暖色にして、影が真っ黒にならないようにする
 	env.ambient_light_color = Color(0.8, 0.77, 0.72)
-	env.ambient_light_energy = 0.45
+	env.ambient_light_energy = 0.36
 	# 明るい白い設備が白飛びして輪郭が消えないよう、トーンマッピングで明るい部分をなだらかに抑える
 	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 	env.tonemap_exposure = 0.8
@@ -1041,11 +1125,11 @@ func _build_shell() -> void:
 	add_child(shell)
 
 	# 壁：薄いアイボリー／床：少し暗いグレー／設備：白（PORCELAIN）で明度差をつける
-	var wall_mat := MeshKit.tiled_mat("palace_wall", _palace_wall_tex(), 0.5, Color(1, 1, 1), 0.55)
+	var wall_mat := MeshKit.tiled_mat("palace_wall", _palace_wall_tex(), 0.3, Color(1, 1, 1), 0.55)
 	# 床：暖かいグレージュの色はそのまま、細かい粒の模様だけ足す
 	var floor_mat := MeshKit.tiled_mat("palace_floor", _palace_floor_tex(), 0.8, Color(1, 1, 1), 0.18)
 	floor_mat.metallic = 0.12
-	var ceil_mat := _mat("palace_ceiling", Color(0.3, 0.04, 0.06), 0.7)
+	var ceil_mat := _mat("palace_ceiling", Color(0.24, 0.16, 0.08), 0.75)
 
 	var outer_w := ROOM_W + WALL_T * 2.0
 	var outer_d := ROOM_D + WALL_T * 2.0

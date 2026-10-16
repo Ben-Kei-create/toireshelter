@@ -77,7 +77,7 @@ func _run() -> void:
 	_check(main.hud._message_label.text == main.MESSAGES["bathtub_yuzu"], "浴槽を調べると「ゆず色のお湯」")
 	# 給水すると薄まる
 	tub.faucet.set_on(true)
-	tub.advance(16.0)   # +0.4
+	tub.advance(8.0)   # +0.4（満水 20 秒）
 	_check(is_equal_approx(tub.level, 0.8) and is_equal_approx(tub.concentration(), 0.5)
 			and tub._water_mat.albedo_color.is_equal_approx(tub.WATER_COLOR.lerp(tub.YUZU_COLOR, 0.5)), "給水すると濃さが薄まる（0.5）")
 	tub.faucet.set_on(false)
@@ -134,13 +134,13 @@ func _run() -> void:
 	await _frames(3)
 	_check(remote.status_text() == "お湯はり中", "表示「お湯はり中」")
 	var l0: float = tub.level
-	tub.advance(16.0)
-	_check(absf(tub.level - l0 - 0.4) < 0.0001, "ふろ自動の給水は手の蛇口と同じ速さ（16秒で+0.4）")
+	tub.advance(8.0)
+	_check(absf(tub.level - l0 - 0.4) < 0.0001, "ふろ自動の給水は手の蛇口と同じ速さ（8秒で+0.4）")
 	# 手の蛇口と併用しても二重に数えない
 	tub.faucet.set_on(true)
 	l0 = tub.level
-	tub.advance(4.0)
-	_check(absf(tub.level - l0 - 0.1) < 0.0001, "手の蛇口と同時でも給水は1本分（4秒で+0.1）")
+	tub.advance(2.0)
+	_check(absf(tub.level - l0 - 0.1) < 0.0001, "手の蛇口と同時でも給水は1本分（2秒で+0.1）")
 	tub.faucet.set_on(false)
 	tub.advance(100.0)
 	_check(is_equal_approx(tub.level, tub.AUTO_LEVEL) and not tub.auto_filling and tub.auto_done, "設定水位（%.1f）で自動停止" % tub.AUTO_LEVEL)
@@ -325,8 +325,8 @@ func _run() -> void:
 	_check(sh.is_on and st.visible and absf(st_bottom - tub.to_global(Vector3(0, tub.water_y(), 0)).y) < 0.001,
 			"シャワーの水が水面まで落ちる（下端 %.3f）" % st_bottom)
 	var sl0: float = tub.level
-	tub.advance(4.0)
-	_check(absf(tub.level - sl0 - 0.1) < 0.0001, "シャワーで給水される（4秒で +0.1）")
+	tub.advance(2.0)
+	_check(absf(tub.level - sl0 - 0.1) < 0.0001, "シャワーで給水される（2秒で +0.1）")
 	tub.faucet.set_on(true)
 	sl0 = tub.level
 	tub.advance(4.0)

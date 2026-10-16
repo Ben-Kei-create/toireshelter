@@ -235,6 +235,18 @@ func _build_door() -> void:
 	var w := z1 - z0
 	MeshKit.box(door_pivot, Vector3(DOOR_T, h, w), Vector3(DOOR_T * 0.5, h * 0.5, w * 0.5),
 			MeshKit.mat("palace_gold_body", Color(0.74, 0.55, 0.2), 0.28, 0.8), "Frame")   # 扉の本体と裏は白
+	# 鏡のまわりの、金の飾り枠（縁取りと、四隅・上の飾り）。部屋側（-x）に出る
+	var orn := MeshKit.mat("palace_gold_metal", Color(0.92, 0.74, 0.32), 0.2, 0.9)
+	var bw := 0.03
+	MeshKit.box(door_pivot, Vector3(0.012, bw, w), Vector3(-0.004, bw * 0.5, w * 0.5), orn, "OrnBottom")
+	MeshKit.box(door_pivot, Vector3(0.012, bw, w), Vector3(-0.004, h - bw * 0.5, w * 0.5), orn, "OrnTop")
+	MeshKit.box(door_pivot, Vector3(0.012, h, bw), Vector3(-0.004, h * 0.5, bw * 0.5), orn, "OrnLeft")
+	MeshKit.box(door_pivot, Vector3(0.012, h, bw), Vector3(-0.004, h * 0.5, w - bw * 0.5), orn, "OrnRight")
+	for cy in [0.03, h - 0.03]:
+		for cz in [0.03, w - 0.03]:
+			MeshKit.sphere(door_pivot, 0.028, Vector3(-0.012, cy, cz), orn)
+	MeshKit.sphere(door_pivot, 0.035, Vector3(-0.014, h - 0.02, w * 0.5), orn)
+	MeshKit.box(door_pivot, Vector3(0.012, 0.05, 0.12), Vector3(-0.01, h - 0.045, w * 0.5), orn, "OrnCrest")
 	# 鏡面（仮の材質）。壁面から 1mm 手前、縁を 1.5cm 残す
 	MeshKit.box(door_pivot, Vector3(0.002, h - 0.03, w - 0.03), Vector3(-0.001, h * 0.5, w * 0.5),
 			MeshKit.mat("mirror", Color(0.72, 0.78, 0.82), 0.08, 0.6), "Mirror")

@@ -71,7 +71,7 @@ var part_nodes := {}                   # "w" / "e" → 隔て板（見た目）
 var part_shapes := {}                  # "w" / "e" → 隔て板の当たり判定
 var part_open := {"w": false, "e": false}   # 壊して、隣のベランダへ行けるようになった
 var part_cracks := {"w": [], "e": []}
-const PART_HITS := {"pickaxe": 62, "small_pickaxe": 1994}
+const PART_HITS := {"pickaxe": 5, "small_pickaxe": 100}   # 小さなツルハシは「1994 回」と言いつつ、100 回で崩れる（ジョーク）
 var chest_node: Node3D                 # おばあちゃんのベランダの道具箱
 var vending_machine: Node3D            # ベランダの真下の白い自動販売機（真のクリアの場所）
 var _ladder: Node3D

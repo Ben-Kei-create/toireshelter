@@ -1,5 +1,5 @@
 extends SceneTree
-## ベランダの隔て板：大きなツルハシ 62 回／小さなツルハシ 1994 回で割れる。釣り竿の側＝おばあちゃんのベランダ（道具箱）、反対側＝お隣（窓から脱出）。
+## ベランダの隔て板：大きなツルハシ 5 回／小さなツルハシ 100 回（「1994 回」のジョーク）で割れる。釣り竿の側＝おばあちゃんのベランダ（道具箱）、反対側＝お隣（窓から脱出）。
 ## 実行: Godot --headless --path . --script res://tests/balcony_wall_test.gd
 
 var _failures := 0
@@ -27,18 +27,18 @@ func _run() -> void:
 	_check(main.inventory.has("small_pickaxe"), "釣れた小さなツルハシを持てる")
 	main.add_item("pickaxe")
 	# 大きなツルハシ：東（おばあちゃん）を 62 回
-	for i in 61:
+	for i in 4:
 		main._hit_partition("pickaxe", "e")
-	_check(not ext.part_open["e"] and main.wall_hits["e"] == 61, "61 回では、まだ割れない")
+	_check(not ext.part_open["e"] and main.wall_hits["e"] == 4, "4 回では、まだ割れない")
 	main._hit_partition("pickaxe", "e")
-	_check(ext.part_open["e"] and not ext.part_nodes["e"].visible, "大きなツルハシ 62 回で割れる（おばあちゃんの側）")
+	_check(ext.part_open["e"] and not ext.part_nodes["e"].visible, "大きなツルハシ 5 回で割れる（おばあちゃんの側）")
 	_check(ext.chest_node != null, "おばあちゃんのベランダに、道具箱がある")
 	# 小さなツルハシ：西（お隣）は 1994 回
-	for i in 1993:
+	for i in 99:
 		main._hit_partition("small_pickaxe", "w")
-	_check(not ext.part_open["w"], "小さなツルハシは、1993 回ではまだ")
+	_check(not ext.part_open["w"], "小さなツルハシは、99 回ではまだ")
 	main._hit_partition("small_pickaxe", "w")
-	_check(ext.part_open["w"], "小さなツルハシ 1994 回で割れる（お隣の側）")
+	_check(ext.part_open["w"], "小さなツルハシは「1994 回」と言いつつ、100 回で割れる（お隣の側）")
 	# 道具箱
 	main._open_chest()
 	_check(main.reading and main.progress.discovered.has("granny_chest"), "道具箱で、釣りの種類の一覧が読める")
@@ -52,7 +52,7 @@ func _run() -> void:
 	main = await _fresh()
 	main.progress.apply(snap)
 	await process_frame
-	_check(main.room.exterior.part_open["e"] and main.room.exterior.part_open["w"] and main.wall_hits["w"] == 1994, "復元しても、壊れたまま")
+	_check(main.room.exterior.part_open["e"] and main.room.exterior.part_open["w"] and main.wall_hits["w"] == 100, "復元しても、壊れたまま")
 	# 脱出
 	main.player.global_position = Vector3(-2.0, 0.0, -1.7)
 	main._check_neighbor_escape()

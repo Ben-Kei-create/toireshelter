@@ -124,12 +124,19 @@ func unlock() -> void:
 	Sfx.play("click")
 
 
+var warn_enabled := false     # はじめて開けるとき、「ここを出ると終わるかもしれない」と予告する（1 回だけ。もう一度押すと開く）
+var warned := false
+
+
 func interact(_id: String) -> String:
 	if is_open or busy:
 		return ""
 	if locked:
 		Sfx.play("buzz", 0.8, -6.0)
 		return "front_door_locked"
+	if warn_enabled and not warned:
+		warned = true
+		return "front_door_warn"
 	busy = true
 	Sfx.play("creak")
 	var tween := create_tween()

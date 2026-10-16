@@ -85,6 +85,15 @@ func _run() -> void:
 		await physics_frame
 		t2 += 1.0 / 60.0
 	_check(t2 < t1 * 0.7, "クレーンは、2 回目から速い（%.1f 秒 → %.1f 秒）" % [t1, t2])
+	# 身長計のシール／玄関の予告／カーテンの一拍
+	var gauge: Node = main.room.get_node("HeightGauge/GaugeArea")
+	main._on_interact_requested(gauge)
+	_check(main.hud._message_label.text == main.STAGE5["height_gauge"], "ドア枠の身長計を調べると、目の高さを変えられると教える")
+	var fd = main.room.front_door
+	fd.locked = false
+	fd.warn_enabled = true
+	_check(fd.interact("front_door") == "front_door_warn" and not fd.is_open, "玄関をはじめて押すと、予告だけが出て、開かない")
+	_check(fd.interact("front_door") == "" and fd.busy, "もう一度押すと、開く")
 	print("POLISH TEST: %s (%d failure(s))" % ["PASS" if _failures == 0 else "FAIL", _failures])
 	quit(1 if _failures > 0 else 0)
 

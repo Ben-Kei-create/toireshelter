@@ -91,8 +91,9 @@ func _run() -> void:
 
 	# ---------------------------------------------------------------- カーテンを開ける：月明かりと、松明を捨てる
 	var amb0: float = room.sky_clock.ambient_scale
+	main.select_item(main.inventory.find("torch"))
 	apt.toggle_curtain()
-	await create_timer(2.6).timeout
+	await create_timer(6.5).timeout   # 風があおる一拍（3.6 秒）のあと、捨てる
 	_check(not main.inventory.has("torch") and main.thrown_torch != null and main.thrown_torch.burning, "カーテンを開けると、松明を窓の外へ捨てる（燃え続ける）")
 	_check(room.sky_clock.ambient_scale > amb0 + 0.02, "月明かりが差す（環境光 %.3f → %.3f）" % [amb0, room.sky_clock.ambient_scale])
 
