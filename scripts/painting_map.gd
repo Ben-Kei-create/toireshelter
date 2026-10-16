@@ -107,9 +107,21 @@ func _ready() -> void:
 	bt.name = "Button"
 	bt.position = Vector3(0, -SIZE.y * 0.5 - 0.06, 0.012)
 	add_child(bt)
-	MeshKit.cylinder(bt, 0.022, 0.012, Vector3(0, 0, 0), gold, "Rim", -1.0, 16).rotation.x = deg_to_rad(90.0)
-	var red := MeshKit.mat("painting_button", Color(0.75, 0.08, 0.1), 0.3)
-	MeshKit.cylinder(bt, 0.015, 0.016, Vector3(0, 0, 0.004), red, "Cap", -1.0, 16).rotation.x = deg_to_rad(90.0)
+	MeshKit.cylinder(bt, 0.03, 0.012, Vector3(0, 0, 0), gold, "Rim", -1.0, 16).rotation.x = deg_to_rad(90.0)
+	var red := MeshKit.mat("painting_button", Color(0.85, 0.1, 0.12), 0.3)
+	red.emission_enabled = true
+	red.emission = Color(0.9, 0.1, 0.1)
+	red.emission_energy_multiplier = 0.6   # 触りたくなる、ほんのり光る赤
+	MeshKit.cylinder(bt, 0.021, 0.016, Vector3(0, 0, 0.004), red, "Cap", -1.0, 16).rotation.x = deg_to_rad(90.0)
+	# 真鍮の小さな銘板（絵の題）
+	var plaque := Label3D.new()
+	plaque.text = "ひまわり　503"
+	plaque.pixel_size = 0.0004
+	plaque.font_size = 40
+	plaque.modulate = Color(0.95, 0.8, 0.4)
+	plaque.shaded = false
+	plaque.position = Vector3(0.0, -0.045, 0.002)
+	bt.add_child(plaque)
 	var ba := MeshKit.interact_area(bt, "ButtonArea", "painting_button", null)
 	MeshKit.shape_box(ba, Vector3(0.1, 0.1, 0.08), Vector3(0, 0, 0.03))
 	# 地図を調べる判定（絵がどいたあとだけ有効）

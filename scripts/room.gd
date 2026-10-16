@@ -345,6 +345,21 @@ func _build_height_gauge() -> void:
 		l.position = Vector3(0.02, y, -0.0025)
 		l.rotation.y = PI   # 壁は +z 側。部屋の中（-z）へ向ける
 		g.add_child(l)
+	# 家族の記録：鉛筆の線と、日付（背が伸びた跡）
+	var pencil := _mat("gauge_pencil", Color(0.35, 0.35, 0.38), 0.9)
+	var marks := [[1.02, "5歳"], [1.18, "小3"], [1.36, "中1"], [1.52, "高1"]]
+	for mk in marks:
+		_mesh_box(g, Vector3(0.04, 0.003, 0.003), Vector3(0.0, mk[0], -0.001), pencil)
+		var pl := Label3D.new()
+		pl.text = mk[1]
+		pl.pixel_size = 0.0005
+		pl.font_size = 36
+		pl.modulate = Color(0.3, 0.3, 0.34)
+		pl.shaded = false
+		pl.position = Vector3(-0.035, mk[0] + 0.012, -0.0025)
+		pl.rotation.y = PI
+		g.add_child(pl)
+	_mesh_box(g, Vector3(0.1, 1.0, 0.0015), Vector3(0, 1.27, 0.0005), paper)
 	var a := MeshKit.interact_area(g, "GaugeArea", "height_gauge", null)
 	MeshKit.shape_box(a, Vector3(0.14, 0.6, 0.08), Vector3(0, 1.5, -0.04))
 
@@ -466,6 +481,9 @@ func _build_bath_bulb() -> void:
 		var gem2 := MeshKit.sphere(fixture, 0.016, p1 + Vector3(0, -0.07, 0), crystal)
 		gem2.scale = Vector3(0.7, 2.2, 0.7)
 		gem2.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	# 影は落とさない（回る枝の影が、壁に大きな黒い形になって、見づらいので）
+	for mi in fixture.find_children("*", "MeshInstance3D", true, false):
+		(mi as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	# 中央の大きな電球（外せる）
 	_bulb_node = MeshKit.sphere(fixture, 0.07, Vector3(0, -0.2, 0), _bulb_mat)
 	_bulb_node.name = "Bulb"

@@ -294,8 +294,8 @@ func _build_lid() -> void:
 
 ## 便座カバーと蓋カバー：ピンクのふわふわ。便座・蓋の動きにいっしょに付いてくる（見た目だけ。判定は便座・蓋のまま）。
 func _build_covers() -> void:
-	var fur := MeshKit.mat("toilet_cover", Color(0.95, 0.72, 0.78), 1.0)
-	var fur_dark := MeshKit.mat("toilet_cover_edge", Color(0.88, 0.6, 0.68), 1.0)
+	var fur := MeshKit.mat("toilet_cover_velvet", Color(0.5, 0.08, 0.12), 1.0)   # 宮殿の配色に合わせて、深い赤のビロード
+	var fur_dark := MeshKit.mat("toilet_cover_velvet_edge", Color(0.36, 0.05, 0.09), 1.0)
 	var t := 0.025
 	var parts := [
 		[Vector3(0.035, t, 0.34), Vector3(0.0175, t * 0.5, 0.0)],
