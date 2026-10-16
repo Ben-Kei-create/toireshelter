@@ -468,7 +468,8 @@ const ENDING := {
 	"vending_coin": "百円玉を入れた。いちばん上の段、炭酸リンゴジュース。ボタンを押す。",
 	"vending_drop": "ガコン。取り出し口に、冷たい缶が落ちてきた。",
 	"vending_drink": "プシュッ。……しゅわしゅわと、喉を鳴らす。",
-	"vending_last": "……あの鍵のことは、水に流そう。",
+	"vending_last": "……誰が、あの鍵をかけたのか。思い出せない。思い出せなくても、いい。……水に流そう。",
+	"vending_note": "缶の底に、ペンで、小さく、字が書いてあった。『ごめん』。……誰の字だろう。どこかで、見た気がする。",
 	"vending_voice": "……よく、頑張ったね。",
 }
 const CLOSET_EYE := 0.8                # 押入れの中に座ったときの目の高さ
@@ -3065,8 +3066,10 @@ func _use_vending() -> void:
 	await get_tree().create_timer(2.6 / ride_speed).timeout
 	hud.show_message(ENDING["vending_drink"], 3.5)
 	await get_tree().create_timer(3.0 / ride_speed).timeout
-	hud.show_message(ENDING["vending_last"], 4.5)
-	await get_tree().create_timer(3.8 / ride_speed).timeout
+	hud.show_message(ENDING["vending_last"], 5.5)
+	await get_tree().create_timer(4.6 / ride_speed).timeout
+	hud.show_message(ENDING["vending_note"], 5.0)
+	await get_tree().create_timer(4.2 / ride_speed).timeout
 	hud.voice_silenced = false   # 神の声は黙っていても、エンディングの一言だけは出る
 	hud.show_message(ENDING["vending_voice"], 4.5, "voice")
 	await get_tree().create_timer(4.0 / ride_speed).timeout

@@ -64,11 +64,11 @@ func _voice() -> PackedFloat32Array:
 	var who := 0
 	var ph := 0.0
 	while t < VOICE_SEC - 1.0:
-		var base := 118.0 if who == 0 else 212.0
+		var base := 122.0 if who == 0 else 262.0   # 主人公（低め）と、コタニ（高めの声）
 		var syllables := rng.randi_range(3, 7)
 		for k in syllables:
 			var v: Array = vowels[rng.randi_range(0, 4)]
-			var dur := rng.randf_range(0.11, 0.24)
+			var dur := rng.randf_range(0.11, 0.24) * (1.0 if who == 0 else 0.82)   # コタニは、少し早口
 			var i0 := int(t * MIX)
 			var i1 := mini(int((t + dur) * MIX), n)
 			var f0 := base * rng.randf_range(0.88, 1.15)
