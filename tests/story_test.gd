@@ -66,6 +66,12 @@ func _run() -> void:
 	main = await _fresh()
 	main.progress.apply(snap)
 	_check(main.memos_found == ["teddy"] and main._mutter_idle_i >= 1, "復元しても、メモ・独り言の進みは同じ")
+	# コタニの痕跡
+	var kt: Node3D = main.room.apartment.get_node("KotaniTraces")
+	for nm in ["Jacket/TraceArea", "Notebook/TraceArea", "Cup/TraceArea", "PillSheet/TraceArea"]:
+		main._on_interact_requested(kt.get_node(nm))
+	_check(main.progress.has_note("kotani_jacket") and main.progress.has_note("kotani_notebook") and main.progress.has_note("kotani_cup") and main.progress.has_note("kotani_pills"), "コタニの痕跡 4 つが、調べるとノートに残る")
+	_check(main.muttered.has("kotani_more"), "3 つ見つけると、「もう一人いた」と独り言")
 	# オープニング
 	main = await _fresh()
 	main._opening_event()

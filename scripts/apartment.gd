@@ -124,6 +124,7 @@ func _ready() -> void:
 	_build_bookshelf()
 	_build_card_case()
 	_build_desk_and_chair()
+	_build_kotani_traces()
 	_build_figure_shelves()
 	_build_ornaments()
 	_build_gem()
@@ -715,6 +716,56 @@ func _sign(parent: Node3D, file: String, pos: Vector3, h: float, normal: Vector3
 
 
 # ---------------------------------------------------------------- 机と椅子
+
+## コタニの痕跡：主人公の部屋に、もう一人いた跡（脱出には関係しない。調べると、ノートに残る）。
+func _build_kotani_traces() -> void:
+	var x0 := ROOM.position.x + 0.14
+	var cx := x0 + 0.72
+	var root := Node3D.new()
+	root.name = "KotaniTraces"
+	add_child(root)
+	# 椅子の背に掛けた、見覚えのないグレーのパーカー
+	var jk := Node3D.new()
+	jk.name = "Jacket"
+	jk.position = Vector3(cx + 0.19, 0.78, -0.55)
+	root.add_child(jk)
+	var cloth := MeshKit.mat("kotani_hoodie", Color(0.38, 0.4, 0.42), 0.95)
+	MeshKit.box(jk, Vector3(0.05, 0.38, 0.42), Vector3.ZERO, cloth, "Body")
+	MeshKit.box(jk, Vector3(0.1, 0.1, 0.2), Vector3(-0.04, 0.2, 0.0), cloth, "Hood")
+	_trace_area(jk, "kotani_jacket", Vector3(0.2, 0.5, 0.5), Vector3(0, 0, 0))
+	# 机の上の、大学の講義ノート
+	var nb := Node3D.new()
+	nb.name = "Notebook"
+	nb.position = Vector3(x0 + 0.3, 0.745, -0.8)
+	nb.rotation.y = -0.25
+	root.add_child(nb)
+	MeshKit.box(nb, Vector3(0.18, 0.012, 0.25), Vector3.ZERO, MeshKit.mat("kotani_notebook", Color(0.2, 0.3, 0.55), 0.8), "Cover")
+	MeshKit.box(nb, Vector3(0.1, 0.002, 0.05), Vector3(0, 0.007, -0.03), MeshKit.mat("kotani_label", Color(0.95, 0.95, 0.9), 0.9), "Label")
+	_trace_area(nb, "kotani_notebook", Vector3(0.22, 0.1, 0.3), Vector3(0, 0.03, 0))
+	# こたつの上の、もう一つのマグカップ
+	var cup := Node3D.new()
+	cup.name = "Cup"
+	cup.position = Vector3(2.35, 0.4, 0.55)
+	root.add_child(cup)
+	MeshKit.cylinder(cup, 0.04, 0.09, Vector3(0, 0.045, 0), MeshKit.mat("kotani_cup", Color(0.85, 0.85, 0.8), 0.4), "Body", -1.0, 16)
+	MeshKit.cylinder(cup, 0.034, 0.004, Vector3(0, 0.088, 0), MeshKit.mat("kotani_cup_inside", Color(0.8, 0.75, 0.6), 0.9), "Residue", -1.0, 16)
+	_trace_area(cup, "kotani_cup", Vector3(0.14, 0.14, 0.14), Vector3(0, 0.07, 0))
+	# 床に落ちた、空の薬のシート（布団のそば）
+	var pl := Node3D.new()
+	pl.name = "PillSheet"
+	pl.position = Vector3(2.05, 0.012, 1.45)
+	pl.rotation.y = 0.6
+	root.add_child(pl)
+	MeshKit.box(pl, Vector3(0.1, 0.004, 0.06), Vector3.ZERO, MeshKit.mat("kotani_pill_foil", Color(0.75, 0.77, 0.8), 0.3, 0.7), "Foil")
+	for i in 5:
+		MeshKit.cylinder(pl, 0.008, 0.003, Vector3(-0.036 + i * 0.018, 0.004, 0.0), MeshKit.mat("kotani_pill_hole", Color(0.35, 0.35, 0.38), 0.6), "Hole", -1.0, 8)
+	_trace_area(pl, "kotani_pills", Vector3(0.16, 0.08, 0.12), Vector3(0, 0.03, 0))
+
+
+func _trace_area(parent: Node3D, id: String, size: Vector3, center: Vector3) -> void:
+	var a := MeshKit.interact_area(parent, "TraceArea", id, null)
+	MeshKit.shape_box(a, size, center)
+
 
 func _build_desk_and_chair() -> void:
 	var wood := MeshKit.mat("desk_wood", Color(0.6, 0.48, 0.34), 0.6)

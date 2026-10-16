@@ -650,6 +650,11 @@ const STAGE5 := {
 	"chest_small": "箱の底に、小さなツルハシが 1 本あった。もらっていこう。",
 	"small_have": "また、小さなツルハシが釣れた。……もう、持っている。",
 	"duct_sound": "耳栓をしたら、ダクトのうなりが消えた。……トン、トン、トトン。壁の向こうから、規則正しい音がする。こたつの奥のほうこうだ。",
+	"kotani_jacket": "椅子の背に、グレーのパーカーが掛かっている。自分のではない。大きい。……ポケットに、大学の学生証の、ケースだけが入っていた。",
+	"kotani_notebook": "大学の講義ノート。表紙に『コタニ』と書いてある。ページをめくると、後ろのほうに、「母さん」という字が、何度も、何度も、書いてある。",
+	"kotani_cup": "こたつの上に、マグカップがもう一つある。自分のではない。底に、白い粉のような物が、うっすら残っている。",
+	"kotani_pills": "空になった薬のシートが、落ちている。ラベルは、ちぎれていて、読めない。……「眠くなることがあります」とだけ、読める。",
+	"kotani_more": "（この部屋には、もう一人、いた。……名前は、コタニ。思い出せない。でも、その人は、ここで、何かをした）",
 	"butsudan_dark": "仏壇だ。暗くて、よく見えない。位牌が二つあるようだ。……線香のにおいがする。",
 	"butsudan_lit": "仏壇に手を合わせた。チーン。ろうそくの火がゆれている。位牌のひとつは、名前が、薄れて読めない。",
 	"height_gauge": "ドア枠の、身長計のシール。130、140、150、160、170。……目の高さは、[ と ] で変えられる。高い所・低い所で、見える物が変わるかもしれない。しゃがんでも、低い所が見える。",
@@ -1854,7 +1859,7 @@ func _prompt_for(target: Object) -> String:
 			return PROMPTS["tv_remote"]
 		"door_knob", "fuse", "hand_mirror", "pickaxe", "crystal", "ladder_prop", "washitsu_coin", "heirloom_photo", "lighter", "rice_pack", "shot_coin", "bad_book", "card_pick_0", "card_pick_1", "card_pick_2", "card_pick_3", "aq_coin", "dish_core", "dart_coin", "headphones", "placed_item":
 			return PROMPT_PICKUP
-		"balcony_wall_w", "balcony_wall_e", "granny_chest", "butsudan", "sunflower_painting", "floor_map", "height_gauge", "flower_pot":
+		"balcony_wall_w", "balcony_wall_e", "granny_chest", "butsudan", "sunflower_painting", "floor_map", "height_gauge", "flower_pot", "kotani_jacket", "kotani_notebook", "kotani_cup", "kotani_pills":
 			return PROMPT_EXAMINE
 		"painting_button":
 			return "左クリック：ボタンを押す"
@@ -2140,6 +2145,8 @@ func _on_interact_requested(target: Object) -> void:
 			hud.show_message(STAGE5["dart_coin_get"], 5.0)
 		"balcony_wall_w", "balcony_wall_e":
 			hud.show_message(STAGE5["wall_%s_look" % id.right(1)], 5.0)
+		"kotani_jacket", "kotani_notebook", "kotani_cup", "kotani_pills":
+			_find_kotani_trace(id)
 		"flower_pot":
 			_search_pot()
 		"height_gauge":
@@ -3278,6 +3285,10 @@ func _opening_event() -> void:
 	if not is_inside_tree() or cleared:
 		return
 	hud.show_message("出ようとして、ドアに手をかけた。……閉まっている。外から、誰かが、閉めたのか。", 6.0)
+	await get_tree().create_timer(6.5).timeout
+	if not is_inside_tree() or cleared:
+		return
+	hud.show_message("ドアの向こうで、床がきしんだ。……誰かが、息をひそめて、立っている。", 5.0)
 	await get_tree().create_timer(7.5).timeout
 	if not is_inside_tree() or cleared:
 		return
@@ -3622,6 +3633,22 @@ func _check_neighbor_escape() -> void:
 		hud.show_message(STAGE5["neighbor_window"], 5.0)
 	if ext.part_open["w"] and x < -1.6 and player.global_position.y > -0.5 and not cleared:
 		_clear("neighbor")
+
+
+## コタニの痕跡を調べる：説明が出て、ノートに残る。4 つのうち 3 つ見つけると、独り言が出る。
+func _find_kotani_trace(id: String) -> void:
+	hud.show_message(STAGE5[id], 8.0)
+	progress.discover(id)
+	var titles := {"kotani_jacket": "見覚えのないパーカー", "kotani_notebook": "コタニの講義ノート", "kotani_cup": "二つ目のマグカップ", "kotani_pills": "空の薬のシート"}
+	progress.add_note(id, titles[id], STAGE5[id], "痕跡")
+	var n := 0
+	for k in titles:
+		if progress.has_note(k):
+			n += 1
+	if n == 3 and not muttered.has("kotani_more"):
+		muttered["kotani_more"] = true
+		_reader_after = func() -> void: _mutter(STAGE5["kotani_more"], true)
+		hud.show_message(STAGE5["kotani_more"], 7.0)
 
 
 ## ベランダの植木鉢：掘るたびに、コイン → マッチ棒 → 窓の鍵 が出る。釣りをしなくても、先へ進める（釣りは任意の寄り道）。
