@@ -13,7 +13,7 @@ static func floor_texture() -> ImageTexture:
 		var img := Image.create(w, h, false, Image.FORMAT_RGBA8)
 		var rng := RandomNumberGenerator.new()
 		rng.seed = 41
-		var base := Color(0.56, 0.43, 0.31)
+		var base := Color(0.38, 0.22, 0.12)   # 夜の部屋：深い飴色の床板（つやがある）
 		var plank_h := h / 4
 		for p in 4:
 			var tone := rng.randf_range(-0.035, 0.035)

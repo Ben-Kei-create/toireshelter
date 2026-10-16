@@ -48,7 +48,7 @@ func _ready() -> void:
 	# こたつ布団：上の面と、四方に垂れる面。両面を描く（中に入ったとき内側が見える）
 	var fab := StandardMaterial3D.new()
 	fab.albedo_texture = TEX_FABRIC
-	fab.albedo_color = Color(1.0, 0.82, 0.72)
+	fab.albedo_color = Color(0.66, 0.17, 0.19)   # 夜：深い赤のこたつ布団
 	fab.uv1_triplanar = true
 	fab.uv1_scale = Vector3.ONE / 0.4
 	fab.roughness = 0.95

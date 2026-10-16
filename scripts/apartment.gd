@@ -294,7 +294,8 @@ func _build_room_shell() -> void:
 	# 自室の壁紙。模様が強くなりすぎないよう小さめ（横 0.3m）で繰り返す
 	var wall := MeshKit.tiled_mat("room_wallpaper", MeshKit.faded_texture(TEX_WALLPAPER, 0.4), 0.3, Color.WHITE, 0.9)
 	# 床はフローリング、天井は板張り：雑な木目の線を入れてある（wood_grain.gd）
-	var floor_m := MeshKit.tiled_mat("room_floor_grain", WoodGrain.floor_texture(), 1.2, Color.WHITE, 0.7)
+	var floor_m := MeshKit.tiled_mat("room_floor_grain", WoodGrain.floor_texture(), 1.2, Color.WHITE, 0.3)   # 夜：つやのある床
+	floor_m.metallic = 0.08
 	var ceil_m := MeshKit.tiled_mat("ceiling_grain", WoodGrain.ceiling_texture(), 1.2, Color.WHITE, 0.9)
 	var x0 := ROOM.position.x
 	var x1 := ROOM.end.x
@@ -1751,14 +1752,14 @@ func _build_lights() -> void:
 	var l2 := OmniLight3D.new()
 	l2.name = "RoomLightEast"
 	l2.position = Vector3(4.6, 2.25, 0.5)
-	l2.light_color = Color(1.0, 0.88, 0.74)
+	l2.light_color = Color(1.0, 0.76, 0.46)
 	l2.light_energy = 0.7
 	l2.omni_range = 4.5
 	add_child(l2)
 	var l := OmniLight3D.new()
 	l.name = "RoomLightOwn"
 	l.position = Vector3(2.5, 2.25, 0.6)
-	l.light_color = Color(1.0, 0.88, 0.74)
+	l.light_color = Color(1.0, 0.76, 0.46)   # 夜の電球色（あたたかい橙）
 	l.light_energy = 0.7
 	l.omni_range = 4.5
 	add_child(l)

@@ -63,6 +63,7 @@ func _ready() -> void:
 	_build_butsudan()
 	_build_lanterns()
 	_build_attic()
+	_build_night_details()
 	MeshKit.auto_round = true
 
 
@@ -444,6 +445,76 @@ func _build_lanterns() -> void:
 	_place_lanterns()
 
 
+## 夜の和室：まんなかの大きな紙の提灯、行灯（床の灯り）、月あかりのさす障子の窓。家宝が開くと灯る。
+var _big_lantern_mat: StandardMaterial3D
+var _andon_mat: StandardMaterial3D
+var _night_lights: Array = []
+
+
+func _build_night_details() -> void:
+	var wood := MeshKit.mat("washitsu_wood", Color(0.28, 0.2, 0.14), 0.7)
+	# まんなかの大きな提灯（天井から吊る）
+	_big_lantern_mat = MeshKit.mat("big_lantern_paper", Color(0.95, 0.82, 0.55), 0.8)
+	_big_lantern_mat.emission_enabled = true
+	_big_lantern_mat.emission = Color(1.0, 0.7, 0.35)
+	_big_lantern_mat.emission_energy_multiplier = 0.0
+	var bl := Node3D.new()
+	bl.name = "BigLantern"
+	bl.position = Vector3(0.0, H - 0.5, 0.2)
+	add_child(bl)
+	MeshKit.cylinder(bl, 0.003, 0.3, Vector3(0, 0.4, 0), wood, "Cord", -1.0, 4)
+	var body := MeshKit.sphere(bl, 0.2, Vector3.ZERO, _big_lantern_mat)
+	body.scale = Vector3(1.0, 0.8, 1.0)
+	for k in 6:   # 骨の輪
+		MeshKit.cylinder(bl, 0.2 * (1.0 - 0.08 * absf(float(k) - 2.5)), 0.006, Vector3(0, (float(k) - 2.5) * 0.055, 0), wood, "Rib", -1.0, 20)
+	MeshKit.cylinder(bl, 0.08, 0.025, Vector3(0, 0.17, 0), wood, "CapTop", -1.0, 16)
+	MeshKit.cylinder(bl, 0.08, 0.025, Vector3(0, -0.17, 0), wood, "CapBottom", -1.0, 16)
+	var ll := OmniLight3D.new()
+	ll.position = Vector3(0, -0.05, 0)
+	ll.light_color = Color(1.0, 0.72, 0.4)
+	ll.light_energy = 0.0
+	ll.omni_range = 3.2
+	bl.add_child(ll)
+	_night_lights.append(ll)
+	# 行灯（床の灯り。四角い和紙の箱）：仏壇のそば
+	_andon_mat = MeshKit.mat("andon_paper", Color(0.95, 0.85, 0.6), 0.8)
+	_andon_mat.emission_enabled = true
+	_andon_mat.emission = Color(1.0, 0.72, 0.32)
+	_andon_mat.emission_energy_multiplier = 0.0
+	var an := Node3D.new()
+	an.name = "Andon"
+	an.position = Vector3(HX - 0.35, 0.0, 0.55)
+	add_child(an)
+	MeshKit.box(an, Vector3(0.22, 0.34, 0.22), Vector3(0, 0.34, 0), _andon_mat, "Paper")
+	for sx in [-0.11, 0.11]:
+		for sz in [-0.11, 0.11]:
+			MeshKit.box(an, Vector3(0.018, 0.5, 0.018), Vector3(sx, 0.25, sz), wood, "Leg")
+	MeshKit.box(an, Vector3(0.26, 0.02, 0.26), Vector3(0, 0.52, 0), wood, "Top")
+	var al := OmniLight3D.new()
+	al.position = Vector3(0, 0.36, 0)
+	al.light_color = Color(1.0, 0.7, 0.35)
+	al.light_energy = 0.0
+	al.omni_range = 2.2
+	an.add_child(al)
+	_night_lights.append(al)
+	# 月あかりの障子の窓（南の壁、左寄り）：青い夜の光がもれる
+	var sj := Node3D.new()
+	sj.name = "ShojiWindow"
+	sj.position = Vector3(-1.1, 1.25, HZ - 0.03)
+	add_child(sj)
+	var moon := MeshKit.mat("shoji_moon", Color(0.5, 0.6, 0.95), 0.9)
+	moon.emission_enabled = true
+	moon.emission = Color(0.3, 0.45, 0.9)
+	moon.emission_energy_multiplier = 0.6
+	MeshKit.box(sj, Vector3(0.7, 0.9, 0.01), Vector3(0, 0, 0), moon, "Paper")
+	for k in 4:
+		MeshKit.box(sj, Vector3(0.012, 0.9, 0.014), Vector3(-0.26 + k * 0.173, 0, -0.004), wood, "Bar")
+	for k in 5:
+		MeshKit.box(sj, Vector3(0.7, 0.012, 0.014), Vector3(0, -0.36 + k * 0.18, -0.004), wood, "Rail")
+	MeshKit.box(sj, Vector3(0.74, 0.04, 0.02), Vector3(0, 0.47, -0.006), wood, "FrameTop")
+	MeshKit.box(sj, Vector3(0.74, 0.04, 0.02), Vector3(0, -0.47, -0.006), wood, "FrameBottom")
+
+
 ## 天井のすき間の上：屋根裏に、小さな部屋が横一列にならび、小さな提灯の列が、そのあいだをゆっくり回っていく。
 var _attic_lanterns: Array = []
 var _attic_t := 0.0
@@ -573,6 +644,11 @@ func set_festive(on: bool) -> void:
 		(l.mat as StandardMaterial3D).emission_energy_multiplier = 1.6 if on else 0.0
 		if l.light:
 			(l.light as OmniLight3D).light_energy = 0.28 if on else 0.0
+	if _big_lantern_mat:
+		_big_lantern_mat.emission_energy_multiplier = 1.8 if on else 0.0
+		_andon_mat.emission_energy_multiplier = 1.8 if on else 0.0
+		for nl in _night_lights:
+			(nl as OmniLight3D).light_energy = 0.55 if on else 0.0
 	for am in _attic_mats:
 		(am as StandardMaterial3D).emission_energy_multiplier = 2.0 if on else 0.0
 	for f in _candle_flames:

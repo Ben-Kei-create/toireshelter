@@ -1099,7 +1099,7 @@ func _build_environment() -> void:
 	room_light.name = "RoomLight"
 	# 少し入口寄りに置き、設備の手前側の面を照らして奥・下に影を落とす（影はこの1灯だけ）
 	room_light.position = Vector3(0.15, 2.05, 0.35)   # 電球（BULB_POS）の少し下
-	room_light.light_color = Color(1.0, 0.89, 0.76)   # 電球色（黄色を乗せすぎない）
+	room_light.light_color = Color(1.0, 0.8, 0.55)   # 夜の電球色
 	room_light.light_energy = 0.8
 	room_light.omni_range = 4.0
 	room_light.shadow_enabled = true

@@ -18,7 +18,7 @@ func _run() -> void:
 	w.open_heirloom(true)
 	main.room.sky_clock.ambient_scale = 0.05
 	var base: Vector3 = w.global_position
-	for v in [["butsudan", Vector3(-0.7, 0.0, -0.4), Vector3(1.7, 0.9, -0.45)], ["lanterns", Vector3(-1.4, 0.0, 0.9), Vector3(1.0, 1.9, -0.6)], ["attic", Vector3(0.0, 0.0, 0.4), Vector3(0.0, 3.0, -1.3)]]:
+	for v in [["night", Vector3(-1.3, 0.0, 0.9), Vector3(0.9, 1.0, -0.3)], ["butsudan", Vector3(-0.7, 0.0, -0.4), Vector3(1.7, 0.9, -0.45)], ["lanterns", Vector3(-1.4, 0.0, 0.9), Vector3(1.0, 1.9, -0.6)], ["attic", Vector3(0.0, 0.0, 0.4), Vector3(0.0, 3.0, -1.3)]]:
 		p.global_position = base + v[1]
 		var d: Vector3 = (base + v[2]) - p.camera.global_position
 		p.rotation.y = atan2(-d.x, -d.z)
