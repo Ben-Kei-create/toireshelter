@@ -441,6 +441,9 @@ func _build_bath_bulb() -> void:
 	_bulb_mat.albedo_color = Color(1.0, 0.95, 0.8)
 	_bulb_mat.emission_enabled = true
 	_apply_bath_light()
+	# Blender で作ったシャンデリア（assets/models/chandelier.glb。tools/blender_chandelier.py）があれば、そちらを使う
+	if _use_chandelier_model(fixture):
+		return
 	var crystal := StandardMaterial3D.new()
 	crystal.albedo_color = Color(0.9, 0.95, 1.0, 0.6)
 	crystal.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
@@ -460,7 +463,7 @@ func _build_bath_bulb() -> void:
 		MeshKit.sphere(fixture, r, Vector3(0, cy, 0), gold)
 		cy -= r * 1.6
 	# 三段の枝（広い段・中の段・小さな段）。腕は、外へ向かって、下がってから、上へ反る（4 つの短い筒でつなぐ）
-	var tiers := [[0.8, -0.14, 12, 0.0], [0.5, -0.2, 8, PI / 8.0], [0.26, -0.26, 6, PI / 6.0]]
+	var tiers := [[0.8, -0.14, 12, 0.0], [0.64, -0.17, 12, PI / 12.0], [0.48, -0.2, 8, PI / 8.0], [0.3, -0.24, 6, PI / 6.0], [0.15, -0.27, 4, PI / 4.0]]   # 五段（外から内へ、少しずつ下がる）
 	var outer_ends: Array = []
 	for ti in tiers.size():
 		var tr: float = tiers[ti][0]
@@ -528,6 +531,37 @@ func _build_bath_bulb() -> void:
 	bulb_area = MeshKit.interact_area(fixture, "BulbArea", "chandelier", null)
 	MeshKit.shape_box(bulb_area, Vector3(0.4, 0.3, 0.4), Vector3(0, -0.2, 0))
 	bulb_area.set_meta("interact_range", 2.6)
+
+
+const CHANDELIER_MODEL := "res://assets/models/chandelier.glb"
+
+
+## 書き出した 3D モデルのシャンデリアを使う。名前が「Bulb」で始まるメッシュは、灯りのマテリアルにする
+## （Bulb_Center は、外せる大きな電球）。なければ false（コードで作った仮のシャンデリア）。
+func _use_chandelier_model(fixture: Node3D) -> bool:
+	if not ResourceLoader.exists(CHANDELIER_MODEL):
+		return false
+	var scene = load(CHANDELIER_MODEL)
+	if not (scene is PackedScene):
+		return false
+	var model: Node3D = (scene as PackedScene).instantiate()
+	fixture.add_child(model)
+	_bulb_node = null
+	for mi in model.find_children("*", "MeshInstance3D", true, false):
+		var m := mi as MeshInstance3D
+		m.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		if str(m.name).begins_with("Bulb"):
+			m.material_override = _bulb_mat
+			if str(m.name).begins_with("Bulb_Center"):
+				_bulb_node = m
+	if _bulb_node == null:   # 外せる電球がモデルにないときは、中央に作る
+		_bulb_node = MeshKit.sphere(fixture, 0.075, Vector3(0, -0.2, 0), _bulb_mat)
+		_bulb_node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_bulb_node.name = "Bulb"
+	bulb_area = MeshKit.interact_area(fixture, "BulbArea", "chandelier", null)
+	MeshKit.shape_box(bulb_area, Vector3(0.4, 0.3, 0.4), _bulb_node.position if _bulb_node.get_parent() == fixture else Vector3(0, -0.2, 0))
+	bulb_area.set_meta("interact_range", 2.6)
+	return true
 
 
 ## 電球を外す／はめる。外すと、トイレの中は真っ暗（灯りも環境光も消える）。
