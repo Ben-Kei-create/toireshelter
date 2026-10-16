@@ -78,7 +78,7 @@ def make_material(name, color, metallic=0.0, roughness=0.5, alpha=1.0, emission=
     return mat
 
 
-GOLD = make_material("Gold", (0.92, 0.74, 0.32), metallic=1.0, roughness=0.16)
+GOLD = make_material("Gold", (0.86, 0.6, 0.14), metallic=1.0, roughness=0.18)
 GOLD_DARK = make_material("GoldDark", (0.6, 0.45, 0.16), metallic=1.0, roughness=0.3)
 CRYSTAL = make_material("Crystal", (0.9, 0.95, 1.0), metallic=0.0, roughness=0.02, alpha=0.55)
 WAX = make_material("Wax", (0.96, 0.93, 0.85), roughness=0.6)
@@ -198,8 +198,8 @@ cylinder_between((0, 0, -0.03), (0, 0, -0.14), 0.012, GOLD, "Chain", gold_object
 
 # 中央の柱：金の玉と輪を重ねる
 z = -0.15
-for k in range(5):
-    r = 0.045 + 0.012 * (k % 2)
+for k in range(3):
+    r = 0.04 + 0.01 * (k % 2)
     sphere((0, 0, z), r, mat=GOLD, name="ColumnBall", group=gold_objects)
     torus((0, 0, z - r * 0.9), r * 1.5, 0.006, GOLD_DARK, "ColumnRing", gold_objects, major_seg=24, minor_seg=6)
     z -= r * 1.7
@@ -258,14 +258,14 @@ for i in range(n_out):
     crystal_drop((x, y, ring_z - 0.04), 0.012, 2.8, "RingDrop")
 
 # 中央の、大きなしずく（いちばん下は、天井から 0.45 m 以内）
-sphere((0, 0, column_bottom - 0.02), 0.07, mat=BULB, name="Bulb_Center", segments=24)   # 外せる大きな電球
+sphere((0, 0, column_bottom - 0.02), 0.06, mat=BULB, name="Bulb_Center", segments=24)   # 外せる大きな電球
 for i in range(7):
     a = math.tau * i / 7
     rp = 0.1 if i > 0 else 0.0
     x, y = math.cos(a) * rp, math.sin(a) * rp
     zt = column_bottom - 0.05
     cylinder_between((x, y, zt), (x, y, zt - 0.03), 0.002, GOLD, "Wire", gold_objects, vertices=4)
-    crystal_drop((x, y, zt - 0.03), 0.028, 2.0 if i == 0 else 1.6, "CenterDrop")
+    crystal_drop((x, y, zt - 0.03), 0.02, 2.0 if i == 0 else 1.6, "CenterDrop")
 
 # ---------------------------------------------------------------- まとめる（物の数を減らす）
 def join(objs, name):
@@ -282,6 +282,24 @@ def join(objs, name):
 
 join(gold_objects, "Gold")
 join(crystal_objects, "Crystals")
+
+# ---------------------------------------------------------------- 高さを 0.45 m 以内に収める（超えたら、縦だけ縮める）
+MAX_DROP = 0.45
+min_z = 0.0
+for o in bpy.context.scene.objects:
+    if o.type == "MESH":
+        for corner in o.bound_box:
+            min_z = min(min_z, (o.matrix_world @ Vector(corner)).z)
+print("いちばん下: %.3f m" % min_z)
+if -min_z > MAX_DROP:
+    f = MAX_DROP / -min_z
+    for o in bpy.context.scene.objects:
+        if o.type == "MESH":
+            o.location.z *= f
+            o.scale.z *= f
+    bpy.ops.object.select_all(action="SELECT")
+    bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
+    print("縦を %.2f 倍に縮めた" % f)
 
 # ---------------------------------------------------------------- 書き出し
 bpy.ops.object.select_all(action="SELECT")
