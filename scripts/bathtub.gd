@@ -626,8 +626,8 @@ func _update_water() -> void:
 # ---------------------------------------------------------------- 組み立て
 
 func _build_shell(visual: Node3D) -> void:
-	var porcelain := MeshKit.mat("palace_porcelain", Color(0.94, 0.91, 0.85), 0.18, 0.0)
-	var inner := MeshKit.mat("tub_inner_cream", Color(0.9, 0.87, 0.8), 0.2)   # 白い陶器の底（金の十円玉が見える）
+	var porcelain := MeshKit.mat("palace_gold_body", Color(0.78, 0.58, 0.2), 0.22, 0.85)
+	var inner := MeshKit.mat("tub_inner_dark", Color(0.07, 0.02, 0.03), 0.18, 0.2)   # 金の浴槽の底は、黒い漆（十円玉などが見える）
 	var h := HALF.y
 	var wall_h := h - BOTTOM_Y
 	var wy := BOTTOM_Y + wall_h * 0.5

@@ -14,7 +14,7 @@ func _run() -> void:
 	var p = main.player
 	p.set_physics_process(false)
 	main.room.painting_map.set_slid(false)
-	for v in [["v1", Vector3(0.4, 0.0, 0.9), Vector3(-0.5, 0.7, -0.6)], ["v2", Vector3(0.0, 0.0, 0.8), Vector3(0.0, 0.5, -0.9)], ["v3", Vector3(-0.3, 0.0, 0.5), Vector3(0.6, 0.9, 0.9)], ["v4", Vector3(0.6, 0.0, 0.9), Vector3(-0.8, 1.4, 0.2)], ["v5", Vector3(0.0, 0.0, 0.3), Vector3(0.0, 0.2, 0.0)]]:
+	for v in [["v1", Vector3(0.4, 0.0, 0.9), Vector3(-0.5, 0.7, -0.6)], ["v2", Vector3(0.0, 0.0, 0.8), Vector3(0.0, 0.5, -0.9)], ["v3", Vector3(-0.3, 0.0, 0.5), Vector3(0.6, 0.9, 0.9)], ["v4", Vector3(0.6, 0.0, 0.9), Vector3(-0.8, 1.4, 0.2)], ["v5", Vector3(0.0, 0.0, 0.1), Vector3(0.15, 2.0, 0.35)]]:
 
 		p.global_position = v[1]
 		var d: Vector3 = v[2] - p.camera.global_position

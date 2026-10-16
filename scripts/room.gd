@@ -429,63 +429,100 @@ var bulb_area: Area3D
 
 
 func _build_bath_bulb() -> void:
-	# 宮殿のような大きなシャンデリア（天井から吊る。直径 1.5m ほど）。灯りの色の変わり方（白／青）は、電球のときと同じ
+	# 宮殿の大シャンデリア（天井から吊る。直径 1.6m）：三段の枝、曲がった金の腕、クリスタルの房と飾り紐、中央の大きなしずく。
+	# 灯りの色の変わり方（白／青）は、電球のときと同じ。影は落とさない。
 	var fixture := Node3D.new()
 	fixture.name = "BathBulb"
 	fixture.position = BULB_POS
 	add_child(fixture)
 	var gold := _mat("palace_gold_metal", Color(0.92, 0.74, 0.32), 0.2, 0.9)
-	MeshKit.cylinder(fixture, 0.2, 0.025, Vector3(0, 0.0125, 0), gold, "CeilingRose", 0.12, 28)   # 天井の大きな飾り板
-	MeshKit.cylinder(fixture, 0.012, 0.09, Vector3(0, -0.04, 0), gold, "Chain", -1.0, 8)
-	MeshKit.sphere(fixture, 0.06, Vector3(0, -0.1, 0), gold)
+	var gold_dark := _mat("palace_gold_dark", Color(0.6, 0.45, 0.16), 0.3, 0.85)
 	_bulb_mat = StandardMaterial3D.new()
 	_bulb_mat.albedo_color = Color(1.0, 0.95, 0.8)
 	_bulb_mat.emission_enabled = true
 	_apply_bath_light()
 	var crystal := StandardMaterial3D.new()
-	crystal.albedo_color = Color(0.88, 0.94, 1.0, 0.55)
+	crystal.albedo_color = Color(0.9, 0.95, 1.0, 0.6)
 	crystal.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	crystal.roughness = 0.05
-	crystal.metallic = 0.2
-	# 上の段（広い）：枝 8 本が、大きく広がる
-	var big_r := 0.7
-	var small_r := 0.34
-	for tier in 2:
-		var r: float = big_r if tier == 0 else small_r
-		var yy: float = -0.15 if tier == 0 else -0.22
-		var n := 8 if tier == 0 else 6
+	crystal.roughness = 0.03
+	crystal.metallic = 0.3
+	crystal.emission_enabled = true
+	crystal.emission = Color(0.8, 0.88, 1.0)
+	crystal.emission_energy_multiplier = 0.25   # きらめき（灯りの色には影響しない）
+	# 天井の飾り板と、鎖
+	MeshKit.cylinder(fixture, 0.24, 0.03, Vector3(0, 0.015, 0), gold, "CeilingRose", 0.14, 32)
+	MeshKit.cylinder(fixture, 0.1, 0.02, Vector3(0, -0.005, 0), gold_dark, "RoseInner", 0.06, 24)
+	MeshKit.cylinder(fixture, 0.012, 0.1, Vector3(0, -0.06, 0), gold, "Chain", -1.0, 8)
+	# 中央の柱：金の玉をいくつも重ねる
+	var cy := -0.1
+	for k in 4:
+		var r := 0.05 + 0.012 * (k % 2)
+		MeshKit.sphere(fixture, r, Vector3(0, cy, 0), gold)
+		cy -= r * 1.6
+	# 三段の枝（広い段・中の段・小さな段）。腕は、外へ向かって、下がってから、上へ反る（4 つの短い筒でつなぐ）
+	var tiers := [[0.8, -0.14, 12, 0.0], [0.5, -0.2, 8, PI / 8.0], [0.26, -0.26, 6, PI / 6.0]]
+	var outer_ends: Array = []
+	for ti in tiers.size():
+		var tr: float = tiers[ti][0]
+		var ty: float = tiers[ti][1]
+		var n: int = tiers[ti][2]
+		var off: float = tiers[ti][3]
 		for i in n:
-			var ang := TAU * float(i) / float(n) + (0.0 if tier == 0 else PI / 6.0)
+			var ang := TAU * float(i) / float(n) + off
 			var dir := Vector3(cos(ang), 0, sin(ang))
-			var arm := MeshKit.cylinder(fixture, 0.01, r, dir * r * 0.5 + Vector3(0, yy + 0.02, 0), gold, "Arm%d_%d" % [tier, i], -1.0, 6)
-			arm.rotation = Vector3(0, -ang, deg_to_rad(90.0))
-			MeshKit.cylinder(fixture, 0.028, 0.03, dir * r + Vector3(0, yy, 0), gold, "Cup%d_%d" % [tier, i], 0.014, 10)
-			var cb := MeshKit.sphere(fixture, 0.026, dir * r + Vector3(0, yy + 0.04, 0), _bulb_mat)   # 枝の先の灯り
-			cb.scale = Vector3(0.8, 1.4, 0.8)
-			cb.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-			for k in 3:   # 枝から下がる、クリスタルの房
-				var cp := dir * (r * (0.55 + 0.2 * k)) + Vector3(0, yy - 0.05 - 0.02 * k, 0)
-				MeshKit.cylinder(fixture, 0.002, 0.07, cp + Vector3(0, 0.035, 0), gold, "Wire", -1.0, 4)
-				var gem := MeshKit.sphere(fixture, 0.018, cp - Vector3(0, 0.01, 0), crystal)
-				gem.scale = Vector3(0.7, 1.9, 0.7)
-				gem.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	# 外側の輪（金の細い輪）と、そこから垂れるクリスタルのカーテン
-	var seg := 28
-	for i in seg:
-		var a1 := TAU * float(i) / float(seg)
-		var a2 := TAU * float(i + 1) / float(seg)
-		var p1 := Vector3(cos(a1), 0, sin(a1)) * big_r + Vector3(0, -0.17, 0)
-		var p2 := Vector3(cos(a2), 0, sin(a2)) * big_r + Vector3(0, -0.17, 0)
-		var bar := MeshKit.box(fixture, Vector3(p1.distance_to(p2) + 0.01, 0.012, 0.012), (p1 + p2) * 0.5, gold, "RingBar")
-		bar.rotation.y = -atan2(p2.z - p1.z, p2.x - p1.x)
-		var gem2 := MeshKit.sphere(fixture, 0.016, p1 + Vector3(0, -0.07, 0), crystal)
-		gem2.scale = Vector3(0.7, 2.2, 0.7)
-		gem2.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			var prev := Vector3(0, ty + 0.03, 0)
+			for sgi in 4:
+				var u := float(sgi + 1) / 4.0
+				var pt := dir * tr * u + Vector3(0, ty + 0.03 * (1.0 - u) - 0.045 * sin(PI * u) + 0.07 * u * u, 0)
+				var seg := MeshKit.cylinder(fixture, 0.008, prev.distance_to(pt), (prev + pt) * 0.5, gold, "Arm%d_%d_%d" % [ti, i, sgi], -1.0, 6)
+				var d := (pt - prev).normalized()
+				seg.basis = Basis(Quaternion(Vector3.UP, d)) if absf(d.dot(Vector3.UP)) < 0.999 else Basis.IDENTITY
+				MeshKit.sphere(fixture, 0.012, pt, gold)
+				prev = pt
+			# 先の受け皿と、ろうそく形の灯り
+			MeshKit.cylinder(fixture, 0.03, 0.02, prev + Vector3(0, 0.0, 0), gold, "Cup%d_%d" % [ti, i], 0.014, 12)
+			var wax := MeshKit.cylinder(fixture, 0.012, 0.05, prev + Vector3(0, 0.035, 0), MeshKit.mat("chand_wax", Color(0.96, 0.93, 0.85), 0.6), "Wax", -1.0, 8)
+			wax.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			var fl := MeshKit.sphere(fixture, 0.016, prev + Vector3(0, 0.075, 0), _bulb_mat)
+			fl.scale = Vector3(0.75, 1.6, 0.75)
+			if ti == 0:
+				outer_ends.append(prev)
+			# 腕から下がる、クリスタルのしずく（段ごとに 3 つ、長さをかえる）
+			for k in 3:
+				var cp := dir * (tr * (0.45 + 0.22 * k)) + Vector3(0, ty - 0.02 - 0.03 * k, 0)
+				MeshKit.cylinder(fixture, 0.0018, 0.06, cp + Vector3(0, 0.03, 0), gold, "Wire", -1.0, 4)
+				var drop := MeshKit.sphere(fixture, 0.02, cp - Vector3(0, 0.02 + 0.02 * float(k % 2), 0), crystal)
+				drop.scale = Vector3(0.6, 2.2, 0.6)
+	# 外側の輪（金の細い輪）と、輪から垂れる、クリスタルの飾り紐（隣の先端どうしを、たるませてつなぐ）
+	var m := outer_ends.size()
+	for i in m:
+		var p1: Vector3 = outer_ends[i]
+		var p2: Vector3 = outer_ends[(i + 1) % m]
+		var bar := MeshKit.cylinder(fixture, 0.005, p1.distance_to(p2), (p1 + p2) * 0.5, gold, "RingBar", -1.0, 6)
+		var bd := (p2 - p1).normalized()
+		bar.basis = Basis(Quaternion(Vector3.UP, bd)) if absf(bd.dot(Vector3.UP)) < 0.999 else Basis.IDENTITY
+		for k in 1:  # 輪の上の、大きなしずく
+			var mid := (p1 + p2) * 0.5 + Vector3(0, -0.05, 0)
+			var big := MeshKit.sphere(fixture, 0.022, mid, crystal)
+			big.scale = Vector3(0.7, 2.4, 0.7)
+		for k in 6:   # 飾り紐：小さな玉を、たるませて並べる
+			var u2 := float(k + 1) / 7.0
+			var pb := p1.lerp(p2, u2) + Vector3(0, -0.07 * sin(PI * u2) - 0.03, 0)
+			var bead := MeshKit.sphere(fixture, 0.01, pb, crystal)
+			bead.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	# 中央に、大きなしずく型クリスタルの束（いちばん下は、頭より十分高く）
+	for i in 7:
+		var a2 := TAU * float(i) / 7.0
+		var rp := 0.09 if i > 0 else 0.0
+		var pos := Vector3(cos(a2) * rp, -0.3 + (0.0 if i == 0 else 0.03), sin(a2) * rp)
+		MeshKit.cylinder(fixture, 0.002, 0.05, pos + Vector3(0, 0.03, 0), gold, "Wire", -1.0, 4)
+		var pend := MeshKit.sphere(fixture, 0.03, pos - Vector3(0, 0.03, 0), crystal)
+		pend.scale = Vector3(0.55, 2.0 if i == 0 else 1.6, 0.55)
 	# 影は落とさない（回る枝の影が、壁に大きな黒い形になって、見づらいので）
 	for mi in fixture.find_children("*", "MeshInstance3D", true, false):
 		(mi as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	# 中央の大きな電球（外せる）
-	_bulb_node = MeshKit.sphere(fixture, 0.07, Vector3(0, -0.2, 0), _bulb_mat)
+	_bulb_node = MeshKit.sphere(fixture, 0.075, Vector3(0, -0.2, 0), _bulb_mat)
 	_bulb_node.name = "Bulb"
 	_bulb_node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	bulb_area = MeshKit.interact_area(fixture, "BulbArea", "chandelier", null)

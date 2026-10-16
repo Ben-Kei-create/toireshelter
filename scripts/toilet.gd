@@ -105,7 +105,7 @@ func _ready() -> void:
 
 
 func _build_body(visual: Node3D) -> void:
-	var porcelain := MeshKit.mat("palace_porcelain", Color(0.94, 0.91, 0.85), 0.18, 0.0)
+	var porcelain := MeshKit.mat("palace_gold_body", Color(0.78, 0.58, 0.2), 0.22, 0.85)
 	var inner := MeshKit.mat("bowl_inner", Color(0.82, 0.83, 0.84), 0.25)
 	var metal := MeshKit.mat("palace_gold_metal", Color(0.92, 0.74, 0.32), 0.2, 0.9)
 	# 貯水タンク（中空。蓋は別ノード）とレバー
@@ -265,7 +265,7 @@ func _build_seat() -> void:
 	seat_pivot.name = "SeatPivot"
 	seat_pivot.position = SEAT_HINGE
 	add_child(seat_pivot)
-	var seat_mat := MeshKit.mat("palace_porcelain_seat", Color(0.95, 0.92, 0.86), 0.2, 0.0)
+	var seat_mat := MeshKit.mat("palace_gold_seat", Color(0.85, 0.65, 0.24), 0.25, 0.8)
 	var t := 0.025
 	var parts := [
 		[Vector3(0.035, t, 0.34), Vector3(0.0175, t * 0.5, 0.0)],      # 後ろ
@@ -287,7 +287,7 @@ func _build_lid() -> void:
 	add_child(lid_pivot)
 	var size := Vector3(0.40, 0.02, 0.36)
 	var center := Vector3(0.20, 0.01, 0.0)
-	MeshKit.box(lid_pivot, size, center, MeshKit.mat("palace_porcelain_seat", Color(0.95, 0.92, 0.86), 0.2, 0.0), "Lid")
+	MeshKit.box(lid_pivot, size, center, MeshKit.mat("palace_gold_seat", Color(0.85, 0.65, 0.24), 0.25, 0.8), "Lid")
 	var area := MeshKit.interact_area(lid_pivot, "LidArea", "toilet_lid", self)
 	MeshKit.shape_box(area, size, center)
 
@@ -428,7 +428,7 @@ func _build_tank_lid() -> void:
 	tank_lid.name = "TankLid"
 	tank_lid.position = TANK_LID_CLOSED
 	add_child(tank_lid)
-	MeshKit.box(tank_lid, TANK_LID_SIZE, Vector3.ZERO, MeshKit.mat("palace_porcelain", Color(0.94, 0.91, 0.85), 0.18, 0.0), "Lid")
+	MeshKit.box(tank_lid, TANK_LID_SIZE, Vector3.ZERO, MeshKit.mat("palace_gold_body", Color(0.78, 0.58, 0.2), 0.22, 0.85), "Lid")
 	var area := MeshKit.interact_area(tank_lid, "TankLidArea", "tank_lid", self)
 	MeshKit.shape_box(area, TANK_LID_SIZE + Vector3(0.006, 0.006, 0.006), Vector3.ZERO)
 
