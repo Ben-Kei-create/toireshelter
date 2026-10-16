@@ -329,7 +329,7 @@ func _run() -> void:
 	_check(absf(tub.level - sl0 - 0.1) < 0.0001, "シャワーで給水される（2秒で +0.1）")
 	tub.faucet.set_on(true)
 	sl0 = tub.level
-	tub.advance(4.0)
+	tub.advance(2.0)
 	_check(absf(tub.level - sl0 - 0.1) < 0.0001, "蛇口とシャワーを同時に出しても給水は1本分")
 	tub.faucet.set_on(false)
 	_check(main._prompt_for(player.get_focused(true)) == main.PROMPTS["shower_off"], "出ているときは「シャワーを止める」")
