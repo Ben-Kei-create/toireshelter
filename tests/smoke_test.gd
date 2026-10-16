@@ -208,8 +208,8 @@ func _run() -> void:
 			"浴槽の前から底の栓を狙える（%.2fm、距離の調整なし）" % plug_dist)
 
 	# --- 貯水・排水（時間を進めて計算）
-	tub.advance(20.0)
-	_check(is_equal_approx(tub.level, 0.5), "給水20秒で半分（満水まで40秒）")
+	tub.advance(10.0)
+	_check(is_equal_approx(tub.level, 0.5), "給水10秒で半分（満水まで20秒）")
 	tub.advance(30.0)
 	_check(tub.level == 1.0 and tub.water_y() <= tub.WATER_MAX_Y and tub.WATER_MAX_Y < tub.HALF.y, "満水で止まり、水面は縁より下")
 	_check(tub.faucet.stream_length() < spout.y - tub.WATER_MAX_Y, "水流は水面までで止まる")
@@ -218,11 +218,11 @@ func _run() -> void:
 	_check(tub.level == 1.0 and not tub.faucet.is_on, "蛇口を止めて栓をしていれば水位を保つ")
 	player.try_interact()   # 照準は栓
 	_check(not tub.plug_in and main._prompt_for(p_hit) == main.PROMPTS["lid_set"], "栓を抜くと案内が「ふたを戻す」になる")
-	tub.advance(10.0)
-	_check(is_equal_approx(tub.level, 0.6), "栓を抜くと水位が下がる（満水から25秒で空）")
+	tub.advance(5.6)
+	_check(is_equal_approx(tub.level, 0.6), "栓を抜くと水位が下がる（満水から14秒で空）")
 	tub.faucet.interact("bath_faucet")
 	tub.advance(10.0)
-	_check(is_equal_approx(tub.level, 0.6 - 10.0 * (1.0 / 25.0 - 1.0 / 40.0)), "給水と排水を同時に行うと流量差で下がる")
+	_check(is_equal_approx(tub.level, 0.6 - 10.0 * (1.0 / 14.0 - 1.0 / 20.0)), "給水と排水を同時に行うと流量差で下がる")
 	tub.advance(100.0)
 	_check(tub.level == 0.0 and not tub._water.visible, "空になると下限で止まり、水面が消える")
 	main.hud._message_label.text = ""
@@ -379,8 +379,8 @@ func _run() -> void:
 				and absf(bottom - (wy if lv > 0.0 else sk.BOTTOM_Y)) < 0.0005,
 				"洗面台 水位%d%%：水面 %s がくぼみの中、水流の下端 %.3f" % [int(lv * 100.0), ("非表示" if not w.visible else "y=%.3f" % w.global_position.y), bottom])
 	sk.level = 0.0
-	sk.advance(6.0)
-	_check(is_equal_approx(sk.level, 0.5), "栓をして給水6秒で半分（満水まで12秒）")
+	sk.advance(4.0)
+	_check(is_equal_approx(sk.level, 0.5), "栓をして給水4秒で半分（満水まで8秒）")
 	sk.advance(100.0)
 	_check(sk.level == 1.0, "満水で止まる（縁より2cm下）")
 	sk.faucet.set_on(false)
@@ -390,11 +390,11 @@ func _run() -> void:
 	sp_hit = player.get_focused(true)
 	player.try_interact()
 	_check(_id(sp_hit) == "sink_plug" and not sk.plug_in and main.inventory.has("ten_yen"), "満水でも水面越しに十円玉を取れる（栓が抜ける）")
-	sk.advance(4.0)
-	_check(is_equal_approx(sk.level, 0.5), "栓を抜くと徐々に下がる（満水から8秒で空）")
+	sk.advance(3.0)
+	_check(is_equal_approx(sk.level, 0.5), "栓を抜くと徐々に下がる（満水から6秒で空）")
 	sk.faucet.set_on(true)
 	sk.advance(4.0)
-	_check(is_equal_approx(sk.level, 0.5 - 4.0 * (1.0 / 8.0 - 1.0 / 12.0)), "同時給排水は流量差で下がる")
+	_check(is_equal_approx(sk.level, 0.5 - 4.0 * (1.0 / 6.0 - 1.0 / 8.0)), "同時給排水は流量差で下がる")
 	sk.advance(100.0)
 	_check(sk.level == 0.0 and not sk._water.visible, "空で止まり、水面が消える")
 	main.select_item(main.inventory.find("ten_yen"))

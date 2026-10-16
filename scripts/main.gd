@@ -454,7 +454,7 @@ const TUB_TARGETS := ["bathtub", "bath_plug", "bath_faucet", "tub_note"]   # 入
 
 ## 調べたときに鳴らす効果音（fixture のない対象）
 const INTERACT_SFX := {"guitar": "strum", "fridge": "thunk", "kitchen_stove": "click", "phone_mobile": "click", "kitchen_sink": "click", "cards": "page", "card_box": "click", "dice": "click", "cup": "click", "tissue": "rustle", "magazines": "page", "teddy": "rustle", "standee": "click", "toilet_slippers": "rustle", "shoes": "click", "clothes": "rustle", "bag": "rustle", "dumbbell": "clunk", "bottle": "click", "tv_remote": "beep", "rug": "rustle"}
-const CLEAR_TITLES := {"legit": "正規ルートで脱出", "shortcut": "裏技ルートで脱出", "true": "真のクリア", "neighbor": "お隣さんの窓から脱出"}
+const CLEAR_TITLES := {"slice": "試遊は、ここまで", "legit": "正規ルートで脱出", "shortcut": "裏技ルートで脱出", "true": "真のクリア", "neighbor": "お隣さんの窓から脱出"}
 ## 百円で、ベランダの下の自動販売機の「炭酸リンゴジュース」を買う結末（シナリオ v3 の「二つの結末」）。
 ## 部屋を出たとき百円玉を持っていると、そこではクリアにならず、廊下のエレベーターで 1 階へ降りられる。
 const ENDING := {
@@ -663,6 +663,11 @@ const STAGE5 := {
 	"chandelier_look": "宮殿のような、巨大なシャンデリア。真ん中の大きな電球が、ねじ込まれている。外せそうだ。",
 	"neighbor_window": "お隣の部屋の窓が、開いている。……あそこから入れば、ここから出られそうだ。（まだ、やり残しがあるなら、引き返そう）",
 	"torch_combine": "棒の先に、マッチ棒を合わせられそうだ。棒を手に持って、F を押してみよう。",
+	"pot_coin": "植木鉢の土を掘ってみた。……コインが 1 枚、埋まっていた。",
+	"pot_match": "もう一度、掘ってみた。土の中から、湿ったマッチ棒が 1 本、出てきた。",
+	"pot_key": "さらに掘ると、小さな鍵が出てきた。窓の鍵だ。……なんで、植木鉢に？",
+	"pot_empty": "植木鉢の土には、もう何も入っていない。",
+	"slice_end": "試遊は、ここまでです。遊んでくれて、ありがとう。",
 	"hp_pick": "こたつの中に、ヘッドホンが落ちていた。誰かの物だろうか。",
 	"hp_on": "ヘッドホンを耳につけた。……ざあ、とノイズが鳴って、誰かの話し声が聞こえてくる。",
 	"hp_voice": "二人の声。くぐもっていて、何を話しているのか、聞き取れない。……片方は、自分の声に似ている気がする。",
@@ -740,6 +745,9 @@ var _mutter_idle_i := 0
 var _reader_after: Callable
 var phone_coin_taken := false
 var medal_given := false
+var pot_searches := 0               # ベランダの植木鉢を調べた回数（釣りをしなくても、必要な物が手に入る）
+var playtest: Node = null          # 初見テスト用の行動ログ（TOIRE_PLAYTEST=1）
+var slice_mode := OS.get_environment("TOIRE_SLICE") == "1"   # 試遊版：浴室から、最初の大きな異変（ベランダ）まで
 var _ride_base := 1.0              # 演出を飛ばす前の、演出の速さ
 var guide := ControlsGuide.new()   # 操作の案内（覚えた操作・案内した操作）
 var _tip_cooldown := 0.0
@@ -1029,6 +1037,7 @@ func _process(_delta: float) -> void:
 	if not paused and room.exterior.blowgun_sign:
 		room.exterior.set_blowgun_sign_visible(player.eye_height >= ExteriorScript.SIGN_MIN_EYE and ExteriorScript.in_balcony(player.global_position))
 	_update_wall_hold(_delta)
+	_check_slice_end()
 	room.update_bulb_darkness(region == "bath" or region == "")
 	if not paused and _title == null:
 		_update_tips(_delta)
@@ -1845,7 +1854,7 @@ func _prompt_for(target: Object) -> String:
 			return PROMPTS["tv_remote"]
 		"door_knob", "fuse", "hand_mirror", "pickaxe", "crystal", "ladder_prop", "washitsu_coin", "heirloom_photo", "lighter", "rice_pack", "shot_coin", "bad_book", "card_pick_0", "card_pick_1", "card_pick_2", "card_pick_3", "aq_coin", "dish_core", "dart_coin", "headphones", "placed_item":
 			return PROMPT_PICKUP
-		"balcony_wall_w", "balcony_wall_e", "granny_chest", "butsudan", "sunflower_painting", "floor_map", "height_gauge":
+		"balcony_wall_w", "balcony_wall_e", "granny_chest", "butsudan", "sunflower_painting", "floor_map", "height_gauge", "flower_pot":
 			return PROMPT_EXAMINE
 		"painting_button":
 			return "左クリック：ボタンを押す"
@@ -1892,6 +1901,8 @@ func _on_interact_requested(target: Object) -> void:
 	if paused or cleared or reading or target == null:
 		return
 	var id := String(target.get_meta("interact_id", ""))
+	if playtest and not id.is_empty():
+		playtest.interacted(id)
 	var fixture: Object = target.get_meta("fixture") if target.has_meta("fixture") else null
 	if id == "paper_holder":
 		match room.supplies.pull_paper():
@@ -2129,6 +2140,8 @@ func _on_interact_requested(target: Object) -> void:
 			hud.show_message(STAGE5["dart_coin_get"], 5.0)
 		"balcony_wall_w", "balcony_wall_e":
 			hud.show_message(STAGE5["wall_%s_look" % id.right(1)], 5.0)
+		"flower_pot":
+			_search_pot()
 		"height_gauge":
 			hud.show_message(STAGE5["height_gauge"], 8.0)
 			progress.discover("height_gauge")
@@ -2437,6 +2450,8 @@ func add_item(id: String) -> bool:
 	if inventory.has(id):
 		return false
 	SfxScript.play("pop")
+	if playtest:
+		playtest.log_event("item", {"id": id})
 	inventory.append(id)
 	items_found[id] = true
 	if not _torch_hinted and inventory.has("wood_stick") and inventory.has("match_stick"):
@@ -3609,6 +3624,43 @@ func _check_neighbor_escape() -> void:
 		_clear("neighbor")
 
 
+## ベランダの植木鉢：掘るたびに、コイン → マッチ棒 → 窓の鍵 が出る。釣りをしなくても、先へ進める（釣りは任意の寄り道）。
+func _search_pot() -> void:
+	if not room.risen:
+		hud.show_message("植木鉢だ。小さな緑が植わっている。")
+		return
+	var steps := ["pot_coin", "pot_match", "pot_key"]
+	while pot_searches < steps.size():
+		var key: String = steps[pot_searches]
+		pot_searches += 1
+		if key == "pot_coin":
+			add_coin(1)
+		elif key == "pot_match":
+			if inventory.has("match_stick") or items_found.has("match_stick"):
+				continue
+			_give_stage3("match_stick")
+		elif key == "pot_key":
+			if inventory.has("room_key") or items_found.has("room_key"):
+				continue
+			_give_stage3("room_key")
+		SfxScript.play("rustle")
+		hud.show_message(STAGE5[key], 6.0)
+		progress.save()
+		return
+	hud.show_message(STAGE5["pot_empty"])
+
+
+## 試遊版：ベランダに出たら、ここまで。
+func _check_slice_end() -> void:
+	if slice_mode and not cleared and room.risen and region == "balcony":
+		slice_mode = false
+		if playtest:
+			playtest.log_event("slice_end")
+		hud.show_message(STAGE5["slice_end"], 5.0)
+		await get_tree().create_timer(3.0).timeout
+		_clear("slice")
+
+
 ## 悪口本を、トイレ（浮き上がった浴室）の便器に流す：本が流れて、便器が詰まる。濡れた本が浮かび、コインが 1 枚こぼれる（5 枚目）。
 func _flush_book(tid: String) -> void:
 	if not (tid in ["toilet", "toilet_seat", "toilet_lid", "flush_lever", "toilet_slippers"]):
@@ -4115,6 +4167,11 @@ func _load_settings() -> void:
 	hud.set_hints_ui(progress.hints_on)
 	AudioSettingsScript.load_from(cfg)
 	guide.load_from(cfg)
+	if preload("res://scripts/playtest_log.gd").wanted():
+		playtest = preload("res://scripts/playtest_log.gd").new()
+		playtest.name = "PlaytestLog"
+		add_child(playtest)
+		hud.message_shown.connect(func(t: String) -> void: playtest.log_event("message", {"text": t.substr(0, 40)}))
 	_load_keys(cfg)
 	hud.set_text_scale(clampf(float(cfg.get_value("ui", "text_scale", 1.0)), 0.8, 1.6))
 	_refresh_help()

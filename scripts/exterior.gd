@@ -595,6 +595,8 @@ func _build_balcony() -> void:
 	b.add_child(pot)
 	MeshKit.cylinder(pot, 0.06, 0.12, Vector3(0, 0.06, 0), MeshKit.mat("terracotta", Color(0.66, 0.36, 0.22), 0.9), "Pot", 0.08)
 	MeshKit.sphere(pot, 0.07, Vector3(0, 0.17, 0), MeshKit.mat("leaves", Color(0.25, 0.42, 0.22), 0.9))
+	var pot_area := MeshKit.interact_area(pot, "PotArea", "flower_pot", null)
+	MeshKit.shape_box(pot_area, Vector3(0.2, 0.3, 0.2), Vector3(0, 0.15, 0))
 
 
 ## 背景用のベランダ（床・腰板・手すり棒だけ）。collide は自分の階の両隣（当たり判定は手すりの見えない壁が担う）。

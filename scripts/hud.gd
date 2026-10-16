@@ -12,6 +12,7 @@ signal sensitivity_changed(value: float)
 signal typing_changed(on: bool)
 signal hints_changed(on: bool)
 signal hint_requested
+signal message_shown(text: String)
 signal text_scale_changed(value: float)
 signal key_rebound(action: String, keycode: int)
 signal keys_reset
@@ -258,6 +259,7 @@ var voice_silenced := false   # 神の声が黙っている（家宝の写真の
 
 
 func show_message(text: String, seconds: float = -1.0, kind := "") -> void:
+	message_shown.emit(text)
 	if kind == "voice" and voice_silenced:
 		return
 	if seconds <= 0.0:
