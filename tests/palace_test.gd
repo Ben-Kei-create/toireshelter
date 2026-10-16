@@ -40,9 +40,12 @@ func _run() -> void:
 	# シャンデリア
 	var fx: Node3D = room.get_node("BathBulb")
 	var span := 0.0
-	for c in fx.get_children():
-		if c is Node3D:
-			span = maxf(span, absf((c as Node3D).position.x))
+	for mi in fx.find_children("*", "MeshInstance3D", true, false):
+		var bb: AABB = (mi as MeshInstance3D).get_aabb()
+		for cx in [bb.position.x, bb.end.x]:
+			for cz in [bb.position.z, bb.end.z]:
+				var lp: Vector3 = fx.to_local((mi as MeshInstance3D).global_transform * Vector3(cx, bb.position.y, cz))
+				span = maxf(span, maxf(absf(lp.x), absf(lp.z)))
 	_check(span > 0.6, "シャンデリアは、宮殿のように大きい（半径 %.2f m）" % span)
 	var ry0: float = fx.rotation.y
 	await create_timer(0.5).timeout
