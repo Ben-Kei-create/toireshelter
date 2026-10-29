@@ -94,7 +94,12 @@ var front_door: FrontDoorScript
 var sky_clock: SkyClockScript
 var light_switch: Node3D
 # トイレの電球：自室のスイッチで入り切りする。消してからつけ直す回数が PURPLE_AFTER に達すると紫色になる（そのまま）
-const BULB_POS := Vector3(0.15, 2.17, 0.35)   # シャンデリアの吊り元（天井）
+# シャンデリアの吊り元（天井）。左右は部屋の真ん中（x 0）。前後は、浴槽の風呂桶に乗った頭（z -0.82、目 2.05m）から
+# 離すため、入口寄りに置く。モデルは CHANDELIER_MODEL_SCALE に縮めて、回っても壁に入らず、
+# 最大の目の高さ（170cm）の上に余裕が残るようにする（tests/chandelier_test.gd で実メッシュを測る）
+const BULB_POS := Vector3(0.0, 2.17, 0.3)
+const CHANDELIER_MODEL_SCALE := 0.88
+const BULB_HIT_PAD := 0.06   # 電球の判定を、見た目の電球より広げる幅（m）
 const BATH_LIGHT_ENERGY := 0.7   # 深紅と黒の壁は光を吸うので、少し明るく
 const BATH_LIGHT_COLOR := Color(1.0, 0.89, 0.76)
 const PURPLE_LIGHT_COLOR := Color(0.25, 0.4, 1.0)   # 青い蛍光灯（名前は旧仕様のまま：紫→青）
@@ -545,6 +550,7 @@ func _use_chandelier_model(fixture: Node3D) -> bool:
 	if not (scene is PackedScene):
 		return false
 	var model: Node3D = (scene as PackedScene).instantiate()
+	model.scale = Vector3.ONE * CHANDELIER_MODEL_SCALE
 	fixture.add_child(model)
 	_bulb_node = null
 	for mi in model.find_children("*", "MeshInstance3D", true, false):
@@ -559,7 +565,10 @@ func _use_chandelier_model(fixture: Node3D) -> bool:
 		_bulb_node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	_bulb_node.name = "Bulb"
 	bulb_area = MeshKit.interact_area(fixture, "BulbArea", "chandelier", null)
-	MeshKit.shape_box(bulb_area, Vector3(0.4, 0.3, 0.4), _bulb_node.position if _bulb_node.get_parent() == fixture else Vector3(0, -0.2, 0))
+	# 判定は、見えている電球に合わせる（電球はモデルの奥の階層にあるので、実際の位置と大きさから求める）。
+	# 狙いやすいよう、まわりに BULB_HIT_PAD ずつ広げる。広げすぎると、奥の天井の点検シールへの視線をふさぐ
+	var bulb_box: AABB = fixture.global_transform.affine_inverse() * _bulb_node.global_transform * _bulb_node.get_aabb()
+	MeshKit.shape_box(bulb_area, bulb_box.size + Vector3.ONE * BULB_HIT_PAD * 2.0, bulb_box.get_center())
 	bulb_area.set_meta("interact_range", 2.6)
 	return true
 
@@ -1187,7 +1196,7 @@ func _build_environment() -> void:
 	bath_light = room_light
 	room_light.name = "RoomLight"
 	# 少し入口寄りに置き、設備の手前側の面を照らして奥・下に影を落とす（影はこの1灯だけ）
-	room_light.position = Vector3(0.15, 2.05, 0.35)   # 電球（BULB_POS）の少し下
+	room_light.position = BULB_POS + Vector3(0.0, -0.12, 0.0)   # 電球（BULB_POS）の少し下
 	room_light.light_color = Color(1.0, 0.8, 0.55)   # 夜の電球色
 	room_light.light_energy = 0.8
 	room_light.omni_range = 4.0

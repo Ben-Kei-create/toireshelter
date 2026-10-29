@@ -120,7 +120,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		camera.rotation.x = _pitch
 	elif event.is_action_pressed("interact"):
 		get_viewport().set_input_as_handled()
-		if Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
+		# ヘッドレス（テスト）には掴むカーソルがなく、いつまでも掴めないので、そのまま調べる
+		if Input.mouse_mode != Input.MOUSE_MODE_CAPTURED and DisplayServer.get_name() != "headless":
 			# ウィンドウ外クリック等でマウスが外れていたら、まず掴み直すだけ
 			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 			return
