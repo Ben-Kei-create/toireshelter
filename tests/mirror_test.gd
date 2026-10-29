@@ -31,7 +31,7 @@ func _run() -> void:
 	main.hud._message_label.text = ""
 	player.try_interact()
 	await _seconds(0.6)
-	_check(cab.locked and not cab.is_open and main.hud._message_label.text == "鏡の扉は開かない。右端に溝付きの留め具がある。",
+	_check(cab.locked and not cab.is_open and main.hud._message_label.text.begins_with("鏡の扉は開かない。右端に溝付きの留め具がある。"),
 			"施錠中にクリック：「右端に溝付きの留め具がある」、開かない")
 
 	# 未取得：F を押しても何も選ばれていない
@@ -42,25 +42,24 @@ func _run() -> void:
 	player.global_position = Vector3(-0.4, 0.0, 0.6)
 	_aim(player, room.supplies.get_node("SupplyShelf/SpareRoll").global_position + Vector3(0, 0.06, 0))
 	player.try_interact()
+	main.select_item(main.inventory.find("spare_roll"))   # 拾っただけでは手に持たない
 	player.global_position = stand
 	_aim(player, lock_pt)
-	_check(main.selected_item() == "spare_roll" and main._use_prompt(player.get_focused(true)) == "", "予備ロールを選んでいるときは留め具に F の案内が出ない")
+	_check(main.selected_item() == "spare_roll" and main._use_prompt(player.get_focused(true)) == "F：使う", "予備ロールを選んでいても、案内は何に効くかを教えない（「F：予備ロールを使う」）")
 	await _key(KEY_F)
 	_check(cab.locked and main.hud._message_label.text == main.MESSAGES["cannot_use"] and main.inventory.has("spare_roll"),
 			"予備ロールで F：「ここでは使えない」、解錠しない、消費しない")
 
-	# ドライバーは鏡を開ける前に手に入る（洗面台の下の床）
-	player.global_position = Vector3(0.0, 0.0, 0.3)
-	_aim(player, room.driver_node.global_position + Vector3(0, 0.02, 0))
-	player.try_interact()
-	_check(main.inventory.has("driver") and cab.locked, "鏡が施錠されたままでも、洗面台の下のドライバーを拾える")
+	# ドライバーは鏡を開ける前に手に入る（入浴剤の玉の中。ここでは拾う操作だけを直接呼ぶ）
+	main._on_interact_requested(room.bathtub.get_node("TubDriver/Pickup"))
+	_check(main.inventory.has("driver") and cab.locked, "鏡が施錠されたままでも、ドライバーを拾える")
 
 	# ドライバーを選んで留め具を狙う
 	player.global_position = stand
 	_aim(player, lock_pt)
 	await _key([KEY_1, KEY_2, KEY_3][main.inventory.find("driver")])   # ドライバーの枠の番号キー
-	_check(main.selected_item() == "driver" and main._use_prompt(player.get_focused(true)) == "F：ドライバーで留め具を外す",
-			"ドライバーを選んで右端を狙うと「F：ドライバーで留め具を外す」")
+	_check(main.selected_item() == "driver" and main._use_prompt(player.get_focused(true)) == "F：使う",
+			"ドライバーを選んで右端を狙うと「F：ドライバーを使う」（何に効くかは教えない）")
 	# 連打
 	for i in 3:
 		await _key(KEY_F)
@@ -102,12 +101,11 @@ func _run() -> void:
 	var c2 = m2.room.mirror_cabinet
 	_check(c2.locked and not c2.is_open and is_zero_approx(c2.door_pivot.get_node("Lock").rotation.x), "再プレイで施錠に戻る")
 	var p2 = m2.player
-	p2.global_position = Vector3(0.0, 0.0, 0.3)
-	_aim(p2, m2.room.driver_node.global_position + Vector3(0, 0.02, 0))
-	p2.try_interact()
+	m2._on_interact_requested(m2.room.bathtub.get_node("TubDriver/Pickup"))
+	m2.select_item(m2.inventory.find("driver"))
 	p2.global_position = stand
 	_aim(p2, c2.door_pivot.to_global(Vector3(-0.02, 0.25, 0.22)))
-	_check(m2._use_prompt(p2.get_focused(true)) == "F：ドライバーで留め具を外す", "扉を狙っても「F：ドライバーで留め具を外す」")
+	_check(m2._use_prompt(p2.get_focused(true)) == "F：使う", "扉を狙っても「F：ドライバーを使う」")
 	await _key(KEY_F)
 	_check(not c2.locked, "扉を狙って F でも解錠できる")
 

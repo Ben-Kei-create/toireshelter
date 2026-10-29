@@ -17,6 +17,7 @@ func _run() -> void:
 	await _frames(10)
 	var main := current_scene
 	var player = main.player
+	player.set_eye_height(1.5)   # 遊ぶ人の設定（目の高さ）に左右されないよう、テストでは 1.5 m に固定する（設定ファイルは書き換えない）
 	var room = main.room
 	var toilet = room.toilet
 
@@ -150,7 +151,7 @@ func _run() -> void:
 	var plug_pos: Vector3 = tub.to_global(tub.DRAIN_POS + Vector3(0, 0.012, 0))
 	_aim(player, plug_pos)
 	var ph = player.get_focused(true)
-	_check(_id(ph) == "bath_plug" and main._prompt_for(ph) == main.PROMPTS["plug_pull"], "浴槽の中から栓を操作できる（%.2fm）" % cam.distance_to(plug_pos))
+	_check(_id(ph) == "bath_plug", "浴槽の中から栓を狙える（%.2fm）" % cam.distance_to(plug_pos))
 	_aim(player, tub.faucet.to_global(Vector3(0, -0.03, 0.09)))
 	_check(_id(player.get_focused(true)) == "bath_faucet", "浴槽の中から蛇口を操作できる")
 	_aim(player, tub.to_global(Vector3(0.0, 0.3, tub.HALF.z - tub.WALL)))   # 手前の内壁（通路からは見えにくい面）
@@ -232,8 +233,8 @@ func _run() -> void:
 	var wall_c: Color = room.WALL_COLOR
 	_check(light.light_color.r > light.light_color.b + 0.15 and light.light_energy < 0.85 and env.tonemap_mode != Environment.TONE_MAPPER_LINEAR,
 			"照明は電球色で、変更前より弱く、白飛びを抑えるトーンマッピングあり")
-	_check(floor_c.get_luminance() < wall_c.get_luminance() and floor_c.s < wall_c.s and floor_c.get_luminance() > 0.45,
-			"床は淡いグレージュ（壁より少し暗く、彩度が低い）")
+	_check(wall_c.r > wall_c.g * 3.0 and wall_c.r > wall_c.b * 3.0 and room.BLACK_LACQUER.get_luminance() < 0.05,
+			"トイレは、深紅の壁と黒い漆（宮殿の配色）")
 
 	# ================================================================ 開いた扉・外した蓋・水面が視点と照準を遮らないか
 	# ここまででタンクの蓋は開いて壁際に置かれている。鏡の扉も開け、浴槽と洗面台を満水にする
@@ -252,8 +253,8 @@ func _run() -> void:
 	player.toggle_crouch()
 	await _seconds(0.8)
 	_check(_cam_clear(player, blockers), "しゃがみ：カメラが扉・蓋・水面に埋まらない")
-	_aim(player, room.driver_node.global_position + Vector3(0, 0.02, 0))
-	_check(_id(player.get_focused(true)) == "driver", "しゃがみ：開いた扉の下からドライバーを狙える")
+	_aim(player, room.get_node("BathBucket").global_position + Vector3(0, 0.05, 0))
+	_check(_id(player.get_focused(true)) == "bath_bucket", "しゃがみ：開いた扉の下から床の風呂桶を狙える")
 	_check(player.toggle_crouch() and player.pose == Pose.WALK, "しゃがみから立ち上がる")
 	await _seconds(0.8)
 	# 立ち：開いた扉の向こうの中の物、満水の洗面台の栓
@@ -301,7 +302,7 @@ func _run() -> void:
 	var m2 := current_scene
 	var p2 = m2.player
 	_check(m2 != main and p2.pose == Pose.WALK and p2.global_position.distance_to(m2.room.spawn_position) < 0.06
-			and absf(p2.camera.position.y - p2.EYE_HEIGHT) < 0.01 and not p2._shape.disabled
+			and absf(p2.camera.position.y - p2.eye_height) < 0.01 and not p2._shape.disabled
 			and not m2.room.toilet.occupied and not m2.room.toilet.flushing
 			and is_equal_approx(m2.room.toilet.tank_water.position.y, m2.room.toilet.TANK_WATER_Y),
 			"再プレイで立った初期位置・初期設備に戻る")

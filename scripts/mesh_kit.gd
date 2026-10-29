@@ -102,6 +102,30 @@ static func cylinder(parent: Node, radius: float, height: float, center: Vector3
 	return _instance(parent, mesh, center, material, node_name)
 
 
+## 十円玉のふた（排水口にはめる円盤）。縁が少し盛り上がり、中央に飾りの円がある。原点が円盤の中心。
+static func coin10_disc(parent: Node, radius: float, thickness := 0.0016) -> Node3D:
+	var n := Node3D.new()
+	n.name = "Coin"
+	parent.add_child(n)
+	var body := mat("coin10", Color(0.62, 0.36, 0.2), 0.4, 0.7)
+	var light := mat("coin10_rim", Color(0.74, 0.46, 0.27), 0.3, 0.8)
+	cylinder(n, radius, thickness, Vector3.ZERO, body, "Disc", -1.0, 32)
+	var rim := TorusMesh.new()
+	rim.inner_radius = radius * 0.86
+	rim.outer_radius = radius * 0.995
+	rim.rings = 32
+	rim.ring_segments = 6
+	var rim_mi := MeshInstance3D.new()
+	rim_mi.name = "Rim"
+	rim_mi.mesh = rim
+	rim_mi.material_override = light
+	rim_mi.position = Vector3(0, thickness * 0.5, 0)
+	rim_mi.scale = Vector3(1, 0.12, 1)
+	n.add_child(rim_mi)
+	cylinder(n, radius * 0.42, 0.0003, Vector3(0, thickness * 0.5 + 0.00005, 0), light, "Emblem", -1.0, 24)
+	return n
+
+
 ## 点列を細い円柱でつないだ管（排水管・トラップ・タオル掛けなど）。継ぎ目は小さな球で埋める。
 static func pipe(parent: Node, points: Array, radius: float, material: Material) -> void:
 	for i in points.size() - 1:
@@ -188,8 +212,84 @@ static func mat(key: String, color: Color, roughness := 0.85, metallic := 0.0) -
 	m.albedo_color = color
 	m.roughness = roughness
 	m.metallic = metallic
+	_add_surface_detail(m, key, color)
 	_mat_cache[key] = m
 	return m
+
+
+# ---------------------------------------------------------------- 面の細かな表情（ただの単色にしない）
+
+## 単色の物にも、木目・しわ・汚れの薄い模様を重ねる（トリプラナー。色は元の色のまま、明るさだけがゆらぐ）。
+## 光る物・透ける物・発光する物は、そのままにする。
+const _NO_DETAIL := ["glass", "water", "glow", "lamp", "lit", "emiss", "screen", "sky", "flame", "star", "light", "bulb", "led", "shadow", "dot", "crack", "mist", "smoke", "beam"]
+static var _detail_tex := {}
+
+
+static func _add_surface_detail(m: StandardMaterial3D, key: String, color: Color) -> void:
+	if color.a < 0.99:
+		return
+	for w in _NO_DETAIL:
+		if key.contains(w):
+			return
+	var kind := "grime"
+	var tile := 0.8
+	for w in ["wood", "desk", "shelf", "closet", "table", "chair", "rail", "door", "floor", "plank", "frame", "stand", "cabinet", "butsudan", "lacquer", "board"]:
+		if key.contains(w):
+			kind = "grain"
+			tile = 0.5
+			break
+	if kind == "grime":
+		for w in ["futon", "fab", "cloth", "cushion", "zabuton", "blanket", "towel", "curtain", "sheet", "rug", "mat_", "pillow", "tatami", "paper", "cover", "bag", "teddy"]:
+			if key.contains(w):
+				kind = "wrinkle"
+				tile = 0.4
+				break
+	if kind == "grime" and m.metallic > 0.3:
+		kind = "scratch"
+		tile = 0.3
+	m.albedo_texture = _detail_texture(kind)
+	m.uv1_triplanar = true
+	m.uv1_scale = Vector3.ONE / tile
+	m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
+	m.albedo_color = Color(minf(color.r * 1.07, 1.0), minf(color.g * 1.07, 1.0), minf(color.b * 1.07, 1.0), color.a)
+
+
+static func _detail_texture(kind: String) -> ImageTexture:
+	if _detail_tex.has(kind):
+		return _detail_tex[kind]
+	var n := 128
+	var img := Image.create(n, n, false, Image.FORMAT_RGB8)
+	var noise := FastNoiseLite.new()
+	noise.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
+	noise.seed = 11 + kind.length()
+	noise.frequency = 0.03
+	noise.fractal_octaves = 3
+	var base := noise.get_seamless_image(n, n)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 90 + kind.length()
+	for y in n:
+		for x in n:
+			var v := base.get_pixel(x, y).r   # 0〜1
+			var g := 0.9 + 0.1 * v
+			match kind:
+				"grain":
+					# 木目：縦に細長い筋（x が細かく、y がゆるく変わる）
+					var u := sin(float(x) * 0.55 + v * 7.0) * 0.5 + 0.5
+					g = 0.84 + 0.09 * v + 0.07 * u
+				"wrinkle":
+					# しわ：やわらかい斜めの谷
+					var r := absf(sin((float(x) + float(y) * 0.6) * 0.17 + v * 6.0))
+					g = 0.88 + 0.08 * r + 0.04 * v
+				"scratch":
+					g = 0.9 + 0.08 * v - (0.1 if rng.randf() < 0.012 else 0.0)
+				_:
+					# 汚れ：ぼんやりした濃淡と、点々としたよごれ
+					g = 0.94 + 0.06 * v   # 汚れではなく、ごくうすい濃淡だけ（清潔に）
+			img.set_pixel(x, y, Color(g, g, g * 0.985))
+	img.generate_mipmaps()
+	var t := ImageTexture.create_from_image(img)
+	_detail_tex[kind] = t
+	return t
 
 
 ## 画像を貼るマテリアル。照明の陰影は通常どおり受けるが、画像側に陰影は焼き込まない。
@@ -262,6 +362,36 @@ static func faded_texture(tex: Texture2D, strength: float) -> Texture2D:
 
 ## ステッカー（assets/textures/stickers/sticker_NN.png）を、面の法線 normal の向きに、面から 1.5mm 浮かせて貼る。
 ## h：高さ（m、幅は画像の比率から）、roll：面の中での傾き（度）。透過部分は alpha scissor で抜く。見た目だけ。
+## assets/textures/props/ の絵（ユーザー作成・生成 AI 使用。透過 PNG）。
+static func prop_tex(n: String) -> Texture2D:
+	return load("res://assets/textures/props/%s.png" % n)
+
+
+## 絵を貼った板（面の向き normal、大きさ size）。透過は切り抜き。double で裏からも見える。
+static func image_quad(parent: Node3D, tex: Texture2D, size: Vector2, pos: Vector3, normal: Vector3, node_name := "Image", double := false, rough := 0.8) -> MeshInstance3D:
+	var m := StandardMaterial3D.new()
+	m.albedo_texture = tex
+	m.roughness = rough
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR
+	m.alpha_scissor_threshold = 0.5
+	m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
+	if double:
+		m.cull_mode = BaseMaterial3D.CULL_DISABLED
+	var q := QuadMesh.new()
+	q.size = size
+	var mi := MeshInstance3D.new()
+	mi.name = node_name
+	mi.mesh = q
+	mi.material_override = m
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var nn := normal.normalized()
+	var up := Vector3.UP if absf(nn.dot(Vector3.UP)) < 0.95 else Vector3.FORWARD
+	mi.basis = Basis.looking_at(-nn, up)
+	mi.position = pos
+	parent.add_child(mi)
+	return mi
+
+
 static func sticker(parent: Node3D, n: int, h: float, pos: Vector3, normal: Vector3, roll := 0.0) -> MeshInstance3D:
 	var tex: Texture2D = load("res://assets/textures/stickers/sticker_%02d.png" % n)
 	var key := "sticker_%02d" % n

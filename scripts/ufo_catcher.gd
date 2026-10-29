@@ -12,6 +12,7 @@ extends Node3D
 ## 遊んでいる間は調べられない。一時停止中は止まる（Room の子）。再プレイで初期状態に戻る。
 
 const MeshKit := preload("res://scripts/mesh_kit.gd")
+const Sfx := preload("res://scripts/sfx.gd")
 
 const W := 0.5
 const D := 0.5
@@ -23,12 +24,14 @@ const HOME := Vector2(0.14, 0.14)   # アームの待機位置（右手前。x �
 const OUTLET := Vector2(-0.14, 0.14)   # 取り出し口の上（左手前）
 const CLAW_TOP_Y := 1.42
 const CLAW_DOWN_Y := 0.88
-const SUCCESS_EVERY := [false, false, true, false, true, false, false, true]
+const SUCCESS_EVERY := [true]   # コインは貴重なので、1 枚で必ず景品が出る（景品は固定順。main.gd が中身を決める）
 
 var busy := false
+var coin_check := Callable()   # 遊ぶ前に呼ぶ。コインを1枚使えたら true（main.gd が設定。なければ無料＝テスト用）
 var plays := 0
 var prizes: Array = []        # [{node, spot: Vector2, taken}]
 var taken := 0
+signal prize_won(index: int)   # 景品が取り出し口に落ちた（0 から数えた何個目か）
 var claw: Node3D
 var _cable: MeshInstance3D
 var _prongs: Array = []
@@ -121,8 +124,8 @@ func _build_glass() -> void:
 
 ## 景品：絵6つ（平らな絵の立て札）。透過付きの novelty を画像の比率のまま、床に立てて少しずつ傾ける。
 func _build_prizes() -> void:
-	var spots := [Vector2(-0.12, -0.12), Vector2(0.02, -0.14), Vector2(0.14, -0.08), Vector2(-0.14, 0.0), Vector2(0.0, -0.02), Vector2(0.12, 0.04)]
-	var files := [2, 3, 5, 9, 11, 12]
+	var spots := [Vector2(-0.12, -0.12), Vector2(0.02, -0.14), Vector2(0.14, -0.08), Vector2(-0.14, 0.0), Vector2(0.0, -0.02), Vector2(0.12, 0.04), Vector2(-0.06, 0.12), Vector2(0.1, -0.18)]
+	var files := [2, 3, 5, 9, 11, 12, 1, 4]
 	for i in files.size():
 		var tex: Texture2D = load("res://assets/textures/room/novelty_%02d.png" % files[i])
 		var h := 0.12
@@ -194,7 +197,10 @@ func interact(_id: String) -> String:
 		return ""
 	if taken >= prizes.size():
 		return "ufo_empty"
+	if coin_check.is_valid() and not coin_check.call():
+		return "ufo_no_coin"
 	busy = true
+	Sfx.play("beep")
 	var win: bool = SUCCESS_EVERY[plays % SUCCESS_EVERY.size()]
 	plays += 1
 	var target := _next_prize()
@@ -216,10 +222,12 @@ func _play(index: int, win: bool) -> void:
 	aim = Vector2(clampf(aim.x, -0.19, 0.19), clampf(aim.y, -0.19, 0.19))
 	var top := Vector3(aim.x, CLAW_TOP_Y, aim.y)
 	var tw := create_tween()
+	tw.set_speed_scale(1.0 if plays <= 1 else (2.2 if plays <= 4 else 4.5))   # 2 回目から速く、5 回目からはさらに速く
 	tw.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 	tw.tween_property(claw, "position", top, 1.1)
 	tw.tween_method(_set_cable, 0.06, CLAW_TOP_Y - CLAW_DOWN_Y, 0.8)
 	tw.tween_method(_close_prongs, 0.0, 1.0, 0.4)
+	tw.tween_callback(func() -> void: Sfx.play("clunk"))
 	if win:
 		tw.tween_callback(func() -> void: _grab(p))
 	tw.tween_method(_set_cable, CLAW_TOP_Y - CLAW_DOWN_Y, 0.06, 0.8)
@@ -227,7 +235,10 @@ func _play(index: int, win: bool) -> void:
 	tw.tween_method(_close_prongs, 1.0, 0.0, 0.3)
 	if win:
 		tw.tween_callback(func() -> void: _drop(p))
+		tw.tween_callback(func() -> void: Sfx.play("chime"))
 		tw.tween_interval(0.6)
+	else:
+		tw.tween_callback(func() -> void: Sfx.play("buzz"))
 	tw.tween_property(claw, "position", Vector3(HOME.x, CLAW_TOP_Y, HOME.y), 1.0)
 	tw.tween_callback(func() -> void: busy = false)
 
@@ -257,6 +268,7 @@ func _drop(p: Dictionary) -> void:
 	node.global_transform = keep
 	p.taken = true
 	taken += 1
+	prize_won.emit(taken - 1)
 	var slot := Vector3(OUTLET.x + (_outlet_stack % 3 - 1) * 0.055, 0.125, D * 0.5 + 0.035)   # 取り出し口の暗い穴の前（フタの下）に並ぶ
 	_outlet_stack += 1
 	var tw := create_tween()

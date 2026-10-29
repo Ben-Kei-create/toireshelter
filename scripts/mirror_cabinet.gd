@@ -17,6 +17,8 @@ extends Node3D
 ## 留め具には小さな照準の判定（mirror_lock）があり、扉の判定より手前にある。
 
 const MeshKit := preload("res://scripts/mesh_kit.gd")
+const CharacterScript := preload("res://scripts/character.gd")
+const Stage4Items := preload("res://scripts/stage4_items.gd")
 
 const WALL_X := 0.9                         # 壁面（部屋側）
 const BACK_X := 1.0                         # 壁の外側
@@ -39,6 +41,14 @@ var locked := true
 var unlocking := false   # 留め具を回している間（この間の F は無視して、メッセージを重ねない）
 var busy := false
 var door_pivot: Node3D
+var reflection: MeshInstance3D   # 鏡に映る主人公の顔（見る角度で向きが変わる）
+var reflection_view := ""
+var hand_mirror: Node3D          # 上の棚の手かがみ（拾える）。宝石の謎で使う
+var lever: Node3D                # 点検レバーの台
+var lever_arm: Node3D            # 引くと倒れる腕
+var lever_pulled := false
+var _door_w := 0.0
+var _door_h := 0.0
 
 
 func _ready() -> void:
@@ -78,7 +88,7 @@ func _build_box() -> void:
 	var box := Node3D.new()
 	box.name = "Box"
 	add_child(box)
-	var white := MeshKit.mat("cabinet", Color(0.95, 0.95, 0.94), 0.5)
+	var white := MeshKit.mat("palace_gold_body", Color(0.74, 0.55, 0.2), 0.28, 0.8)
 	var h := Y_RANGE.y - Y_RANGE.x
 	var w := Z_RANGE.y - Z_RANGE.x
 	var cy := (Y_RANGE.x + Y_RANGE.y) * 0.5
@@ -108,7 +118,7 @@ func _build_trim() -> void:
 	var trim := Node3D.new()
 	trim.name = "Trim"
 	add_child(trim)
-	var white := MeshKit.mat("cabinet", Color(0.95, 0.95, 0.94), 0.5)
+	var white := MeshKit.mat("palace_gold_body", Color(0.74, 0.55, 0.2), 0.28, 0.8)
 	var x := WALL_X - TRIM_T * 0.5
 	var h := Y_RANGE.y - Y_RANGE.x + TRIM_W * 2.0
 	var cz := (Z_RANGE.x + Z_RANGE.y) * 0.5
@@ -158,6 +168,32 @@ func _build_items() -> void:
 		MeshKit.cylinder(swabs, 0.0025, 0.075, off + Vector3(0, 0.04, 0), stick, "", -1.0, 6)
 		MeshKit.sphere(swabs, 0.005, off + Vector3(0, 0.0785, 0), stick)
 	_label(swabs, "bath_label_03", 0.0305, 0.0305, 0.05, 0.03)
+	# 中の段の奥：点検レバー（赤い握り）。引くと、浴室ごと上がる（main.gd → room.rise_unit）。上がったあとは固まって動かない
+	lever = _item(items, "InspectLever", "inspect_lever", Vector3(x, SHELF_YS[0], -0.04), Vector3(0.07, 0.11, 0.07))
+	MeshKit.box(lever, Vector3(0.05, 0.012, 0.05), Vector3(0, 0.006, 0), MeshKit.mat("lever_plate", Color(0.32, 0.32, 0.34), 0.5, 0.5), "Plate")
+	lever_arm = Node3D.new()
+	lever_arm.name = "Arm"
+	lever_arm.position = Vector3(0, 0.014, 0)
+	lever.add_child(lever_arm)
+	MeshKit.cylinder(lever_arm, 0.004, 0.06, Vector3(0, 0.03, 0), MeshKit.mat("lever_rod", Color(0.7, 0.7, 0.72), 0.3, 0.8), "Rod")
+	MeshKit.sphere(lever_arm, 0.014, Vector3(0, 0.066, 0), MeshKit.mat("lever_knob", Color(0.85, 0.1, 0.08), 0.35))
+
+
+	# 上の棚：手かがみ（丸い鏡と柄。寝かせて置いてある）
+	hand_mirror = _item(items, "HandMirror", "hand_mirror", Vector3(x, SHELF_YS[1], 0.12), Vector3(0.09, 0.12, 0.14))
+	var hm := Stage4Items.hand_mirror_model()
+	hm.rotation = Vector3(0, 0, deg_to_rad(90.0))
+	hm.position = Vector3(0, 0.012, 0)
+	hand_mirror.add_child(hm)
+
+
+## 手かがみを拾った（見た目と判定を消す）。
+func take_hand_mirror() -> void:
+	if hand_mirror and is_instance_valid(hand_mirror):
+		hand_mirror.visible = false
+		var a := hand_mirror.get_node_or_null("HandMirrorArea") as Area3D
+		if a:
+			a.collision_layer = 0
 
 
 ## 円筒の容器の正面（-x）に、画像の比率のまま巻くラベル。r0/r1：下端・上端の半径、h：高さ、cy：中心の高さ。
@@ -198,13 +234,26 @@ func _build_door() -> void:
 	var h := y1 - y0
 	var w := z1 - z0
 	MeshKit.box(door_pivot, Vector3(DOOR_T, h, w), Vector3(DOOR_T * 0.5, h * 0.5, w * 0.5),
-			MeshKit.mat("cabinet", Color(0.95, 0.95, 0.94), 0.5), "Frame")   # 扉の本体と裏は白
+			MeshKit.mat("palace_gold_body", Color(0.74, 0.55, 0.2), 0.28, 0.8), "Frame")   # 扉の本体と裏は白
+	# 鏡のまわりの、金の飾り枠（縁取りと、四隅・上の飾り）。部屋側（-x）に出る
+	var orn := MeshKit.mat("palace_gold_metal", Color(0.92, 0.74, 0.32), 0.2, 0.9)
+	var bw := 0.03
+	MeshKit.box(door_pivot, Vector3(0.012, bw, w), Vector3(-0.004, bw * 0.5, w * 0.5), orn, "OrnBottom")
+	MeshKit.box(door_pivot, Vector3(0.012, bw, w), Vector3(-0.004, h - bw * 0.5, w * 0.5), orn, "OrnTop")
+	MeshKit.box(door_pivot, Vector3(0.012, h, bw), Vector3(-0.004, h * 0.5, bw * 0.5), orn, "OrnLeft")
+	MeshKit.box(door_pivot, Vector3(0.012, h, bw), Vector3(-0.004, h * 0.5, w - bw * 0.5), orn, "OrnRight")
+	for cy in [0.03, h - 0.03]:
+		for cz in [0.03, w - 0.03]:
+			MeshKit.sphere(door_pivot, 0.028, Vector3(-0.012, cy, cz), orn)
+	MeshKit.sphere(door_pivot, 0.035, Vector3(-0.014, h - 0.02, w * 0.5), orn)
+	MeshKit.box(door_pivot, Vector3(0.012, 0.05, 0.12), Vector3(-0.01, h - 0.045, w * 0.5), orn, "OrnCrest")
 	# 鏡面（仮の材質）。壁面から 1mm 手前、縁を 1.5cm 残す
 	MeshKit.box(door_pivot, Vector3(0.002, h - 0.03, w - 0.03), Vector3(-0.001, h * 0.5, w * 0.5),
 			MeshKit.mat("mirror", Color(0.72, 0.78, 0.82), 0.08, 0.6), "Mirror")
+	_build_reflection(h, w)
 	# 取っ手代わりの小さなつまみ（蝶番と反対側の縁）
 	MeshKit.box(door_pivot, Vector3(0.01, 0.05, 0.012), Vector3(-0.005, h * 0.5, w - 0.02),
-			MeshKit.mat("metal", Color(0.75, 0.75, 0.78), 0.25, 0.8), "Knob")
+			MeshKit.mat("palace_gold_metal", Color(0.92, 0.74, 0.32), 0.2, 0.9), "Knob")
 	# 鍵：扉の右端（取っ手の下）の小さな金具とつまみ（施錠中は横向き）
 	var lock := Node3D.new()
 	lock.name = "Lock"
@@ -221,7 +270,65 @@ func _build_door() -> void:
 	MeshKit.shape_box(area, Vector3(DOOR_T + 0.012, h, w), Vector3(DOOR_T * 0.5 - 0.006, h * 0.5, w * 0.5))
 
 
+## 鏡に映る顔。鏡面の 2.5mm 手前に顔のアップを貼り、見る人の位置で向きと横の位置を変える（見る人が鏡の横に外れると薄れて消える）。
+func _build_reflection(h: float, w: float) -> void:
+	_door_w = w
+	_door_h = h
+	reflection = CharacterScript.quad("head_front", 0.34)
+	reflection.name = "Reflection"
+	reflection.rotation.y = -PI * 0.5   # 鏡面の向き（-x）
+	reflection.position = Vector3(-0.0025, h * 0.5 - 0.02, w * 0.5)
+	var m := reflection.material_override as StandardMaterial3D
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	m.albedo_color = Color(0.82, 0.9, 0.95, 0.9)   # 鏡の色を少し乗せる
+	door_pivot.add_child(reflection)
+
+
+func _process(_delta: float) -> void:
+	if reflection == null:
+		return
+	var cam := get_viewport().get_camera_3d()
+	if cam == null:
+		return
+	var normal: Vector3 = door_pivot.global_transform.basis * Vector3(-1, 0, 0)
+	var to_cam: Vector3 = cam.global_position - reflection.global_position
+	var flat := Vector2(to_cam.x, to_cam.z)
+	var n2 := Vector2(normal.x, normal.z).normalized()
+	var angle := rad_to_deg(atan2(n2.cross(flat), n2.dot(flat)))
+	var view: Array = CharacterScript.head_view(angle)
+	var name: String = view[0]
+	if reflection_view != name:
+		reflection_view = name
+		var t := CharacterScript.tex(name)
+		var q := reflection.mesh as QuadMesh
+		q.size = Vector2(0.34 * float(t.get_width()) / float(t.get_height()), 0.34)
+		(reflection.material_override as StandardMaterial3D).albedo_texture = t
+	var mat := reflection.material_override as StandardMaterial3D
+	# 鏡に映ると左右が反転する。向きの反転は、見る側（angle の符号）と鏡の反転の両方
+	var flip: bool = not bool(view[1])
+	mat.uv1_scale = Vector3(-1.0 if flip else 1.0, 1.0, 1.0)
+	mat.uv1_offset = Vector3(1.0 if flip else 0.0, 0.0, 0.0)
+	# 見る人の位置（扉の幅の中）に顔を寄せ、外れたら消える
+	var local: Vector3 = door_pivot.to_local(cam.global_position)
+	reflection.position.z = clampf(local.z, 0.13, _door_w - 0.13)
+	var outside := maxf(0.0, maxf(-local.z, local.z - _door_w))
+	var facing := normal.dot(to_cam.normalized())
+	mat.albedo_color.a = 0.9 * clampf(1.0 - outside / 0.5, 0.0, 1.0) * clampf(facing * 4.0, 0.0, 1.0)
+
+
 # ---------------------------------------------------------------- main.gd から呼ばれる
+
+## 点検レバーを引いた見た目（腕が手前へ倒れる）。
+func pull_lever_visual(instant := false) -> void:
+	lever_pulled = true
+	var target := deg_to_rad(55.0)
+	if instant:
+		lever_arm.rotation.z = target
+		return
+	var tw := create_tween()
+	tw.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw.tween_property(lever_arm, "rotation:z", target, 0.4)
+
 
 func get_prompt(_id: String) -> String:
 	if busy:
@@ -233,6 +340,6 @@ func get_prompt(_id: String) -> String:
 
 func interact(_id: String) -> String:
 	if locked:
-		return "cabinet_locked"
+		return "cabinet_locked_mirror" if hand_mirror and hand_mirror.visible else "cabinet_locked"
 	toggle()
 	return ""

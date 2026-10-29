@@ -17,8 +17,8 @@ extends Node3D
 const MeshKit := preload("res://scripts/mesh_kit.gd")
 const FaucetScript := preload("res://scripts/faucet.gd")
 
-const FILL_TIME := 40.0    # 空→満水（秒）
-const DRAIN_TIME := 25.0   # 満水→空（秒）。給水より速い
+const FILL_TIME := 20.0    # 空→満水（秒）。待つだけの時間は短く（謎に必要な水位まで）
+const DRAIN_TIME := 14.0   # 満水→空（秒）。給水より速い
 const AUTO_LEVEL := 0.8    # ふろ自動の設定水位
 const MIN_POWDER_LEVEL := 0.1
 const REHEAT_MIN_LEVEL := 0.3
@@ -41,8 +41,26 @@ const NOTE_POS := Vector3(-0.25, 0.524, HALF.z - WALL)   # 手前の縁の裏（
 const PLUG_RADIUS := 0.024
 const PLUG_HEIGHT := 0.016
 
+const COIN_CAP := 0.08       # 十円玉だけのふた：浮いてしまうので、この水位より上がらない
+const BALL_DISSOLVE := 5.0   # お湯の中で玉が溶けきるまで（秒）
+const BALL_POS := Vector3(-0.35, BOTTOM_Y, 0.05)
+const COIN_RADIUS := 0.0118
+const DRAIN_HOLE_RADIUS := 0.0105   # 十円玉のほうが少し大きい：ふたをしたとき、穴をふさいで輪にのる
+
+signal ball_dissolved
+signal ball_sunk
+
 var level := 0.0
-var plug_in := true
+## 栓は初めからない。lid："none"（排水口がむき出し）／"coin"（十円玉だけ。浮く）／"full"（十円玉＋鉛のおもり）
+var lid := "none"
+var plug_in := false      # 排水口が塞がれているか（lid が none のときは常に false）
+## 入浴剤の玉：""（なし）／"sunk"（底に沈んでいる。水だと溶けない）／"gone"（お湯で溶けた＝ドライバーが現れた）
+var ball := ""
+var ball_melt := 0.0
+var ball_landed := false   # 粉の演出が終わって、玉が底に着いた（演出中に保存しても玉が消えないよう、玉の状態は演出の開始時に決める）
+var driver_taken := false
+var lint_taken := false
+var lint_present := false
 var was_filled := false   # 一度でも水が入ったか（「濡れている」表示用）
 var auto_filling := false
 var auto_done := false    # ふろ自動が設定水位で止まった（表示用）
@@ -60,7 +78,14 @@ var faucet: FaucetScript
 var shower: FaucetScript   # 壁のフックに掛けたシャワー。給水は蛇口と同じ1本分（同時でも二重に数えない）
 var _water: MeshInstance3D
 var _plug: Node3D
-var _chain: Node3D
+var _drain_cross: Array = []   # 排水口の十字の格子。ふたをしている間は、十円玉の上に突き出さないよう隠す
+var _lid_sinker: Node3D
+var _ball: Node3D
+var _ball_mat: StandardMaterial3D
+var _driver_prop: Node3D
+var _lint: Node3D
+var _driver_area: Area3D
+var _lint_area: Area3D
 
 
 func _ready() -> void:
@@ -90,6 +115,98 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	advance(delta)
+	if shower_held:
+		_update_held_shower(delta)
+	_step_hose(delta)
+
+
+# ---------------------------------------------------------------- 手に持ったシャワー
+
+const SPRAY_SPEED := 3.2     # 水の初速（m/s）。重力で曲がって落ちる
+const SPRAY_STEP := 0.05     # 水の粒の時間間隔（秒）
+const SPRAY_COUNT := 18
+
+var shower_held := false
+var shower_cam: Camera3D
+var curtain: Node3D          # 閉じたカーテンに当たったか調べる相手（shower_curtain.gd）
+var _shower_home := Transform3D.IDENTITY
+var _spray: Array[MeshInstance3D] = []
+
+
+## シャワーを手に取る。向けた先（視点の向き）へ水が飛び、重力で弧を描く。
+func hold_shower(cam: Camera3D) -> void:
+	if shower_held:
+		return
+	shower_held = true
+	shower_cam = cam
+	_shower_home = shower.transform
+	shower.held = true
+	(shower.get_node("ShowerArea") as Area3D).collision_layer = 0   # 持っている間は照準をさえぎらない
+	shower.set_on(true)
+	if _spray.is_empty():
+		for i in SPRAY_COUNT:
+			var d := MeshKit.sphere(self, 0.012, Vector3.ZERO, shower._stream_mat)
+			d.top_level = true
+			d.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			d.visible = false
+			_spray.append(d)
+
+
+func release_shower() -> void:
+	if not shower_held:
+		return
+	shower_held = false
+	shower.held = false
+	(shower.get_node("ShowerArea") as Area3D).collision_layer = MeshKit.LAYER_INTERACT
+	shower.transform = _shower_home
+	shower.set_on(false)
+	for d in _spray:
+		d.visible = false
+
+
+func _update_held_shower(delta: float) -> void:
+	if shower_cam == null or not is_instance_valid(shower_cam):
+		release_shower()
+		return
+	var cb := shower_cam.global_basis
+	var origin := shower_cam.global_position + cb * Vector3(0.12, -0.15, -0.12)
+	shower.global_transform = Transform3D(cb * Basis(Vector3.RIGHT, PI * 0.5), origin)
+	var fwd := -cb.z
+	var v := fwd * SPRAY_SPEED
+	var prev := origin
+	var ended := false
+	var hit_curtain := false
+	var floor_y := to_global(Vector3(0.0, water_y() if level > 0.0005 else BOTTOM_Y, 0.0)).y
+	for i in SPRAY_COUNT:
+		var t := (i + 1) * SPRAY_STEP
+		var p := origin + v * t + Vector3(0.0, -0.5 * 9.8 * t * t, 0.0)
+		if not ended:
+			if curtain != null and curtain.closed:
+				var a: Vector3 = curtain.to_local(prev)
+				var b: Vector3 = curtain.to_local(p)
+				var cz: float = curtain.Z
+				if (a.z - cz) * (b.z - cz) <= 0.0 and a.z != b.z:
+					var k := (cz - a.z) / (b.z - a.z)
+					var h := a.lerp(b, k)
+					if h.x >= curtain.X_RANGE.x and h.x <= curtain.X_RANGE.y and h.y >= curtain.BOTTOM_Y and h.y <= curtain.RAIL_Y:
+						hit_curtain = true
+						ended = true
+						p = curtain.to_global(h)
+			if not ended and p.y <= floor_y:
+				ended = true
+				p.y = floor_y
+		_spray[i].visible = true
+		_spray[i].global_position = p
+		_spray[i].scale = Vector3.ONE * (0.8 if ended else 1.0)
+		if ended and i > 0 and _spray[i - 1].global_position.is_equal_approx(p):
+			_spray[i].visible = false
+		prev = p
+		if ended:
+			for j in range(i + 1, SPRAY_COUNT):
+				_spray[j].visible = false
+			break
+	if hit_curtain and curtain.has_method("wet_hit"):
+		curtain.wet_hit(delta)
 
 
 ## 給水しているか（手の蛇口とふろ自動のどちらか）。
@@ -110,6 +227,13 @@ func advance(delta: float) -> void:
 	var inflow := delta / FILL_TIME if is_filling() else 0.0
 	var outflow := delta / DRAIN_TIME if not plug_in else 0.0
 	level = clampf(level + inflow - outflow, 0.0, 1.0)
+	if lid == "coin" and plug_in:
+		level = minf(level, COIN_CAP)   # 十円玉が浮いて、水が逃げる
+	if ball == "sunk" and ball_landed and level >= MIN_POWDER_LEVEL and (auto_filling or reheating):
+		ball_melt = minf(BALL_DISSOLVE, ball_melt + delta)   # お湯が回っている間だけ溶ける
+		_update_ball()
+		if ball_melt >= BALL_DISSOLVE:
+			_ball_gone()
 	# ふろ自動は設定水位で止まる（手の蛇口が出ていれば、そちらはそのまま）
 	if auto_filling and level >= AUTO_LEVEL and before <= AUTO_LEVEL + 0.0001:
 		if not faucet.is_on:
@@ -162,7 +286,7 @@ func start_reheat() -> String:
 
 func _build_shower() -> void:
 	# 奥の壁（ローカル z = -HALF.z）の縦のスライドバーに、シャワーヘッドを下向きに掛ける。ホースは蛇口の本体から
-	var metal := MeshKit.mat("metal", Color(0.75, 0.75, 0.78), 0.25, 0.8)
+	var metal := MeshKit.mat("palace_gold_metal", Color(0.92, 0.74, 0.32), 0.2, 0.9)
 	var wz := -HALF.z
 	var bar_x := 0.2
 	MeshKit.pipe(self, [Vector3(bar_x, 1.05, wz + 0.035), Vector3(bar_x, 1.85, wz + 0.035)], 0.011, metal)
@@ -184,14 +308,110 @@ func _build_shower() -> void:
 	# 水は少し太めの流れ（散水の代わり）
 	shower.setup(Vector3(0, -0.09, 0.145), BOTTOM_Y, null, 0.022)
 	var area := MeshKit.interact_area(shower, "ShowerArea", "bath_shower", shower)
+	area.set_meta("interact_range", 2.4)   # 浴槽の中からも、手が届く（シャワーは壁の高い所）
 	MeshKit.shape_box(area, Vector3(0.1, 0.16, 0.2), Vector3(0, -0.04, 0.1))
 	add_child(shower)
 	# シャワーの水は、蛇口の水流より白く薄く（細かい水の束に見えるように）
 	shower._stream_mat.albedo_color = Color(0.92, 0.97, 1.0, 0.32)
-	# ホース：蛇口の本体の左端から下へ垂れて、シャワーの柄の下へ
-	var hose := MeshKit.mat("hose", Color(0.8, 0.8, 0.82), 0.3, 0.6)
-	MeshKit.pipe(self, [Vector3(0.47, 0.68, wz + 0.04), Vector3(0.4, 0.6, wz + 0.07), Vector3(0.28, 0.62, wz + 0.08),
-			Vector3(0.21, 0.9, wz + 0.09), Vector3(0.2, 1.3, wz + 0.1), Vector3(0.2, 1.63, wz + 0.11)], 0.008, hose)
+	# ホース：蛇口の本体の左端から、シャワーの柄の下まで。動くホース（_step_hose）で、持ち歩くと、あとから追いついてくる
+	_build_hose(wz)
+
+
+# ---------------------------------------------------------------- シャワーのホース（ひも状のものの物理：ベルレ法）
+
+const HOSE_N := 16                    # 点の数
+const HOSE_LEN := 1.7                 # ホースの長さ（m）。これより遠くへは、ヘッドを持っていけない
+var _hose_pts := PackedVector3Array()
+var _hose_prev := PackedVector3Array()
+var _hose_segs: Array = []
+var _hose_anchor := Vector3.ZERO      # 蛇口の側（ローカル）
+var _hose_rest := Vector3.ZERO        # シャワーを掛けたときの、柄の下（ローカル）
+
+
+func _build_hose(wz: float) -> void:
+	_hose_anchor = Vector3(0.47, 0.68, wz + 0.04)
+	_hose_rest = Vector3(0.2, 1.63, wz + 0.11)
+	var hose := MeshKit.mat("palace_gold_hose", Color(0.8, 0.62, 0.24), 0.3, 0.8)
+	var root := Node3D.new()
+	root.name = "Hose"
+	add_child(root)
+	for i in HOSE_N - 1:
+		var mi := MeshInstance3D.new()
+		var cm := CylinderMesh.new()
+		cm.top_radius = 0.008
+		cm.bottom_radius = 0.008
+		cm.height = 1.0
+		cm.radial_segments = 8
+		mi.mesh = cm
+		mi.material_override = hose
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		root.add_child(mi)
+		_hose_segs.append(mi)
+	# はじめは、掛けたシャワーへ向かって、少したるんだ形から
+	for i in HOSE_N:
+		var t := float(i) / float(HOSE_N - 1)
+		var p := _hose_anchor.lerp(_hose_rest, t) + Vector3(0.0, -0.25 * sin(PI * t), 0.0)
+		_hose_pts.append(p)
+		_hose_prev.append(p)
+	for k in 30:
+		_step_hose(0.016)
+
+
+## ホースを delta 秒ぶん進める：両端を固定（蛇口の側と、ヘッド）、あいだは重力で垂れ、長さを保つ。
+func _step_hose(delta: float) -> void:
+	if _hose_pts.is_empty():
+		return
+	var dt := minf(delta, 0.033)
+	var end := _hose_rest
+	if shower_held and shower != null:
+		end = to_local(shower.global_position)
+	# ヘッドが、ホースの長さより遠くへ行こうとしたら、ホースがぴんと張って、そこで止まる
+	var to_end := end - _hose_anchor
+	if to_end.length() > HOSE_LEN * 0.98:
+		end = _hose_anchor + to_end.normalized() * HOSE_LEN * 0.98
+		if shower_held:
+			shower.global_position = to_global(end)
+	# 積分（重力、空気の抵抗）
+	for i in range(1, HOSE_N - 1):
+		var p := _hose_pts[i]
+		var vel := (p - _hose_prev[i]) * 0.985
+		_hose_prev[i] = p
+		_hose_pts[i] = p + vel + Vector3(0.0, -9.8, 0.0) * dt * dt
+	_hose_pts[0] = _hose_anchor
+	_hose_pts[HOSE_N - 1] = end
+	var seg_len := HOSE_LEN / float(HOSE_N - 1)
+	for it in 10:
+		for i in HOSE_N - 1:
+			var a := _hose_pts[i]
+			var b := _hose_pts[i + 1]
+			var d := b - a
+			var dist := d.length()
+			if dist < 0.0001:
+				continue
+			var corr := d * ((dist - seg_len) / dist)
+			if i == 0:
+				_hose_pts[i + 1] = b - corr
+			elif i == HOSE_N - 2:
+				_hose_pts[i] = a + corr
+			else:
+				_hose_pts[i] = a + corr * 0.5
+				_hose_pts[i + 1] = b - corr * 0.5
+		_hose_pts[0] = _hose_anchor
+		_hose_pts[HOSE_N - 1] = end
+		for i in range(1, HOSE_N - 1):   # 浴槽の底より下へは、行かない
+			if _hose_pts[i].y < BOTTOM_Y + 0.012:
+				_hose_pts[i].y = BOTTOM_Y + 0.012
+	for i in HOSE_N - 1:
+		var a2 := _hose_pts[i]
+		var b2 := _hose_pts[i + 1]
+		var seg: MeshInstance3D = _hose_segs[i]
+		var dir := b2 - a2
+		var l := dir.length()
+		seg.position = (a2 + b2) * 0.5
+		if l > 0.0001:
+			var dn := dir / l
+			seg.basis = Basis(Quaternion(Vector3.UP, dn)) if absf(dn.dot(Vector3.UP)) < 0.9999 else Basis.IDENTITY
+			seg.scale = Vector3(1.0, l, 1.0)
 
 
 func _build_bottles() -> void:
@@ -239,6 +459,7 @@ func add_powder(from: Vector3) -> String:
 	if level < MIN_POWDER_LEVEL:
 		return "low"
 	powder_busy = true
+	reserve_ball()
 	# 粉を入れる簡単な演出：小さな粒が水面へ落ちる（容器は投げ込まない）
 	var target_y := water_y()
 	var grains := Node3D.new()
@@ -256,6 +477,7 @@ func add_powder(from: Vector3) -> String:
 	tween.chain().tween_callback(func() -> void:
 		grains.queue_free()
 		powder += level   # 濃さ 1.0 ぶん
+		sink_ball()
 		reveal = 0.0
 		powder_busy = false)
 	return "ok"
@@ -265,18 +487,123 @@ func water_y() -> float:
 	return lerpf(WATER_MIN_Y, WATER_MAX_Y, level)
 
 
+## 十円玉・おもりでふたをする。結果："coin"（十円玉を置いた）／"full"（おもりを載せた）／"already"。
+func put_lid(with_sinker: bool) -> String:
+	if with_sinker and lid == "coin":
+		lid = "full"
+		_refresh_lid()
+		return "full"
+	if lid == "none":
+		lid = "full" if with_sinker else "coin"
+		plug_in = true
+		_refresh_lid()
+		return lid
+	return "already"
+
+
+func take_coin_lid() -> void:
+	if lid == "coin":
+		lid = "none"
+		plug_in = false
+		_refresh_lid()
+
+
+func _refresh_lid() -> void:
+	_plug.visible = lid != "none"
+	_lid_sinker.visible = lid == "full"
+	set_plug(plug_in)
+
+
+func _update_ball() -> void:
+	if _ball == null:
+		return
+	_ball.visible = ball == "sunk" and ball_landed
+	var k := 1.0 - ball_melt / BALL_DISSOLVE * 0.8
+	_ball.scale = Vector3.ONE * k
+	_ball_mat.albedo_color = Color(0.9, 0.7, 0.3).lerp(Color(0.75, 0.45, 0.3), clampf(ball_melt / BALL_DISSOLVE, 0.0, 1.0)) if powder > 0.0 else Color(0.9, 0.7, 0.3)
+
+
+func _ball_gone() -> void:
+	ball = "gone"
+	_ball.visible = false
+	_driver_prop.visible = not driver_taken
+	_set_area(_driver_area, not driver_taken)
+	ball_dissolved.emit()
+
+
+func take_driver() -> void:
+	driver_taken = true
+	_driver_prop.visible = false
+	_set_area(_driver_area, false)
+
+
+## 入浴剤を入れた瞬間に、玉の状態を決める（まだ見えない）。
+func reserve_ball() -> void:
+	if ball == "":
+		ball = "sunk"
+		ball_melt = 0.0
+		ball_landed = false
+
+
+## 粉が水面に着いたあと、玉が底に見えるようになる。
+func sink_ball() -> void:
+	if ball == "sunk" and not ball_landed:
+		ball_landed = true
+		_update_ball()
+		ball_sunk.emit()
+
+
+func _set_area(a: Area3D, on: bool) -> void:
+	if a:
+		a.collision_layer = MeshKit.LAYER_INTERACT if on else 0
+
+
+## 毛だまりが取れて排水口の近くに残る。
+func drop_lint() -> void:
+	lint_present = not lint_taken
+	_lint.visible = lint_present
+	_set_area(_lint_area, lint_present)
+
+
+func take_lint() -> void:
+	lint_taken = true
+	lint_present = false
+	_lint.visible = false
+	_set_area(_lint_area, false)
+
+
+## セーブから戻す。
+func restore(p_lid: String, p_plug_in: bool, p_ball: String, p_melt: float, p_driver_taken: bool, p_lint_present: bool, p_lint_taken: bool) -> void:
+	lid = p_lid
+	plug_in = p_plug_in and p_lid != "none"
+	ball = p_ball
+	ball_melt = p_melt
+	driver_taken = p_driver_taken
+	lint_taken = p_lint_taken
+	lint_present = p_lint_present
+	_refresh_lid()
+	_update_ball()
+	ball_landed = ball == "sunk" or ball == "gone"
+	_update_ball()
+	_driver_prop.visible = ball == "gone" and not driver_taken
+	_set_area(_driver_area, _driver_prop.visible)
+	_lint.visible = lint_present
+	_set_area(_lint_area, lint_present)
+
+
 func set_plug(inserted: bool) -> void:
+	if lid == "none":
+		inserted = false
 	plug_in = inserted
 	if not inserted:
 		auto_filling = false   # 栓を抜いたらふろ自動は止まる
 	if inserted:
-		_plug.position = DRAIN_POS
-		_plug.rotation = Vector3.ZERO
+		_plug.position = DRAIN_POS + Vector3(0, 0.0042, 0)   # 十円玉の中心が、穴の黒い円盤の上面（0.004）のすぐ上にくる
 	else:
-		# 抜いた栓は排水口の横に転がしておく
-		_plug.position = PLUG_OUT_POS + Vector3(0.0, PLUG_RADIUS, 0.0)   # 横倒しで底に接する
-		_plug.rotation = Vector3(0.0, 0.0, deg_to_rad(90.0))
-	_layout_chain()
+		_plug.position = PLUG_OUT_POS   # 外したふたは排水口の横に置いておく
+	_plug.rotation = Vector3.ZERO
+	for c in _drain_cross:
+		(c as Node3D).visible = not inserted
 
 
 func _update_water() -> void:
@@ -299,8 +626,8 @@ func _update_water() -> void:
 # ---------------------------------------------------------------- 組み立て
 
 func _build_shell(visual: Node3D) -> void:
-	var porcelain := MeshKit.mat("porcelain", Color(0.92, 0.92, 0.92), 0.3)
-	var inner := MeshKit.mat("tub_inner", Color(0.7, 0.8, 0.86), 0.3)
+	var porcelain := MeshKit.mat("palace_gold_body", Color(0.78, 0.58, 0.2), 0.22, 0.85)
+	var inner := MeshKit.mat("tub_inner_dark", Color(0.07, 0.02, 0.03), 0.18, 0.2)   # 金の浴槽の底は、黒い漆（十円玉などが見える）
 	var h := HALF.y
 	var wall_h := h - BOTTOM_Y
 	var wy := BOTTOM_Y + wall_h * 0.5
@@ -324,7 +651,7 @@ func _build_shell(visual: Node3D) -> void:
 		MeshKit.box(visual, p[0], p[1], p[2])
 		MeshKit.shape_box(body, p[0], p[1])
 	# くぼみの底面だけ水色（底の箱の上面から 1mm 上。側面は壁に隠れる）
-	MeshKit.box(visual, Vector3(inner_x * 2.0, 0.002, (HALF.z - WALL) * 2.0), Vector3(0.0, BOTTOM_Y - 0.0005, 0.0), inner, "InnerBottom")
+	MeshKit.box(visual, Vector3(inner_x * 2.0, 0.002, (HALF.z - WALL) * 2.0), Vector3(0.0, BOTTOM_Y + 0.0012, 0.0), inner, "InnerBottom")
 
 
 func _build_note() -> void:
@@ -347,7 +674,7 @@ func _build_note() -> void:
 
 func _build_port() -> void:
 	# 循環口：奥の内壁の丸い金具。ふろ自動・追い焚きのときは前の水面に渦が出る
-	var metal := MeshKit.mat("metal", Color(0.75, 0.75, 0.78), 0.25, 0.8)
+	var metal := MeshKit.mat("palace_gold_metal", Color(0.92, 0.74, 0.32), 0.2, 0.9)
 	var port := MeshKit.cylinder(self, 0.035, 0.012, PORT_POS + Vector3(0, 0, 0.006), metal, "CirculationPort")
 	port.rotation.x = deg_to_rad(90.0)
 	MeshKit.cylinder(port, 0.018, 0.014, Vector3.ZERO, MeshKit.mat("drain_hole", Color(0.05, 0.05, 0.06), 1.0))
@@ -358,51 +685,78 @@ func _build_port() -> void:
 
 func _build_drain(visual: Node3D) -> void:
 	# 金属の輪・暗い穴・十字の格子。栓をすると栓で隠れる
-	var metal := MeshKit.mat("metal", Color(0.75, 0.75, 0.78), 0.25, 0.8)
+	var metal := MeshKit.mat("palace_gold_metal", Color(0.92, 0.74, 0.32), 0.2, 0.9)
 	var dark := MeshKit.mat("drain_hole", Color(0.05, 0.05, 0.06), 1.0)
 	MeshKit.cylinder(visual, 0.028, 0.003, DRAIN_POS + Vector3(0, 0.0015, 0), metal, "DrainRing")
-	MeshKit.cylinder(visual, 0.02, 0.001, DRAIN_POS + Vector3(0, 0.0035, 0), dark, "DrainHole")
-	MeshKit.box(visual, Vector3(0.04, 0.002, 0.004), DRAIN_POS + Vector3(0, 0.005, 0), metal)
-	MeshKit.box(visual, Vector3(0.004, 0.002, 0.04), DRAIN_POS + Vector3(0, 0.005, 0), metal)
+	MeshKit.cylinder(visual, DRAIN_HOLE_RADIUS, 0.001, DRAIN_POS + Vector3(0, 0.0035, 0), dark, "DrainHole")
+	_drain_cross.append(MeshKit.box(visual, Vector3(0.04, 0.002, 0.004), DRAIN_POS + Vector3(0, 0.005, 0), metal))
+	_drain_cross.append(MeshKit.box(visual, Vector3(0.004, 0.002, 0.04), DRAIN_POS + Vector3(0, 0.005, 0), metal))
 	# あふれ口のプレート（チェーンの留め具）
 	var plate := MeshKit.cylinder(visual, 0.03, 0.006, CHAIN_ANCHOR + Vector3(0, 0, -0.001), metal, "Overflow")
 	plate.rotation.x = deg_to_rad(90.0)
 
 
 func _build_plug() -> void:
+	# 十円玉のふた（＋載せた鉛のおもり）。チェーンも栓もない
 	_plug = Node3D.new()
 	_plug.name = "Plug"
 	add_child(_plug)
-	var rubber := MeshKit.mat("rubber", Color(0.12, 0.12, 0.13), 0.9)
-	MeshKit.cylinder(_plug, PLUG_RADIUS, PLUG_HEIGHT, Vector3(0, PLUG_HEIGHT * 0.5, 0), rubber, "Rubber", PLUG_RADIUS * 0.85)
-	MeshKit.box(_plug, Vector3(0.012, 0.008, 0.003), Vector3(0, PLUG_HEIGHT + 0.004, 0),
-			MeshKit.mat("metal", Color(0.75, 0.75, 0.78), 0.25, 0.8), "Eye")
-	_chain = Node3D.new()
-	_chain.name = "Chain"
-	add_child(_chain)
+	var coin := MeshKit.coin10_disc(_plug, COIN_RADIUS)
+	coin.position = Vector3(0, 0.0008, 0)
+	_lid_sinker = Node3D.new()
+	_lid_sinker.name = "LidSinker"
+	_plug.add_child(_lid_sinker)
+	MeshKit.sphere(_lid_sinker, 0.011, Vector3(0, 0.011, 0), MeshKit.mat("lead", Color(0.35, 0.36, 0.4), 0.35, 0.8))
 
-	# 照準用の判定：栓をした位置と抜いた位置の両方を覆う
+	# 照準用の判定：ふたをした位置と外した位置の両方を覆う
 	var area := MeshKit.interact_area(self, "PlugArea", "bath_plug", self)
 	var lo := Vector3(minf(DRAIN_POS.x, PLUG_OUT_POS.x) - 0.04, BOTTOM_Y, minf(DRAIN_POS.z, PLUG_OUT_POS.z) - 0.04)
 	var hi := Vector3(maxf(DRAIN_POS.x, PLUG_OUT_POS.x) + 0.04, BOTTOM_Y + 0.06, maxf(DRAIN_POS.z, PLUG_OUT_POS.z) + 0.04)
 	MeshKit.shape_box(area, hi - lo, (hi + lo) * 0.5)
-	set_plug(true)
+	_build_props()
+	_refresh_lid()
 
 
-## あふれ口から内壁を下り、底を這って栓の上の輪まで、細かい玉を並べる。
-func _layout_chain() -> void:
-	for c in _chain.get_children():
-		c.queue_free()
-	var eye := _plug.position + (_plug.basis * Vector3(0, PLUG_HEIGHT + 0.006, 0))
-	var corner := Vector3(eye.x, BOTTOM_Y + 0.003, CHAIN_ANCHOR.z + 0.002)
-	var path := [CHAIN_ANCHOR + Vector3(0, -0.03, 0.003), corner, eye]
-	var link_mat := MeshKit.mat("chain", Color(0.7, 0.7, 0.72), 0.3, 0.9)
-	for i in path.size() - 1:
-		var a: Vector3 = path[i]
-		var b: Vector3 = path[i + 1]
-		var count := maxi(1, int(a.distance_to(b) / 0.009))
-		for k in count:
-			MeshKit.sphere(_chain, 0.0025, a.lerp(b, float(k) / count), link_mat)
+## 底に沈む玉・玉が溶けて現れるドライバー・取れた毛だまり。
+func _build_props() -> void:
+	_ball = Node3D.new()
+	_ball.name = "Ball"
+	_ball.position = BALL_POS + Vector3(0, 0.035, 0)
+	_ball.visible = false
+	add_child(_ball)
+	_ball_mat = MeshKit.mat("bath_ball", Color(0.9, 0.7, 0.3), 0.4)
+	MeshKit.sphere(_ball, 0.035, Vector3.ZERO, _ball_mat)
+	_driver_prop = Node3D.new()
+	_driver_prop.name = "TubDriver"
+	_driver_prop.position = BALL_POS + Vector3(0, 0.016, 0)
+	_driver_prop.rotation.y = deg_to_rad(25.0)
+	_driver_prop.visible = false
+	add_child(_driver_prop)
+	var vis := Node3D.new()
+	vis.name = "Visual"
+	_driver_prop.add_child(vis)
+	var hm := MeshKit.mat("handle", Color(0.92, 0.22, 0.05), 0.5)
+	hm.emission_enabled = true
+	hm.emission = Color(0.92, 0.22, 0.05)
+	hm.emission_energy_multiplier = 0.25
+	var h := MeshKit.cylinder(vis, 0.016, 0.1, Vector3(-0.05, 0, 0), hm)
+	h.rotation.z = deg_to_rad(90.0)
+	var sh := MeshKit.cylinder(vis, 0.003, 0.11, Vector3(0.055, 0, 0), MeshKit.mat("palace_gold_metal", Color(0.92, 0.74, 0.32), 0.2, 0.9))
+	sh.rotation.z = deg_to_rad(90.0)
+	_driver_area = MeshKit.interact_area(_driver_prop, "Pickup", "tub_driver")
+	MeshKit.shape_box(_driver_area, Vector3(0.28, 0.1, 0.14), Vector3(0, 0.02, 0))
+	_set_area(_driver_area, false)
+	_lint = Node3D.new()
+	_lint.name = "Lint"
+	_lint.position = DRAIN_POS + Vector3(-0.1, 0.012, 0.12)
+	_lint.visible = false
+	add_child(_lint)
+	var lm := MeshKit.mat("lint", Color(0.55, 0.52, 0.5), 0.95)
+	for off in [Vector3.ZERO, Vector3(0.015, -0.003, 0.01), Vector3(-0.012, -0.004, 0.012)]:
+		MeshKit.sphere(_lint, 0.014, off, lm)
+	_lint_area = MeshKit.interact_area(_lint, "Pickup", "tub_lint")
+	MeshKit.shape_box(_lint_area, Vector3(0.1, 0.06, 0.1), Vector3.ZERO)
+	_set_area(_lint_area, false)
 
 
 func _build_faucet() -> void:
@@ -410,7 +764,7 @@ func _build_faucet() -> void:
 	faucet = FaucetScript.new()
 	faucet.name = "Faucet"
 	faucet.position = Vector3(0.55, 0.70, -HALF.z)
-	var metal := MeshKit.mat("metal", Color(0.75, 0.75, 0.78), 0.25, 0.8)
+	var metal := MeshKit.mat("palace_gold_metal", Color(0.92, 0.74, 0.32), 0.2, 0.9)
 	MeshKit.box(faucet, Vector3(0.16, 0.05, 0.05), Vector3(0, 0, 0.025), metal, "Body")
 	MeshKit.box(faucet, Vector3(0.03, 0.025, 0.15), Vector3(0, -0.03, 0.09), metal, "Spout")
 	var lever := Node3D.new()
@@ -428,13 +782,19 @@ func _build_faucet() -> void:
 
 func get_prompt(id: String) -> String:
 	if id == "bath_plug":
-		return "plug_pull" if plug_in else "plug_insert"
+		if lid == "none":
+			return "examine"
+		return "lid_remove" if plug_in else "lid_set"
 	return "examine"
 
 
 func interact(id: String) -> String:
 	match id:
 		"bath_plug":
+			if lid == "none":
+				return "tub_no_plug"
+			if lid == "coin":
+				return "tub_take_coin"   # 十円玉だけのふたは、取り戻せる（洗面台で使う前に置いてしまっても詰まない）
 			set_plug(not plug_in)
 			return ""
 		_:

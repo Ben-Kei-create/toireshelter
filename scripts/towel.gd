@@ -24,6 +24,8 @@ const SLID_SCALE := 0.55       # ずらしたときの幅の縮み
 const SLIDE_TIME := 0.4
 
 var slid := false
+var has_coin := true      # 傷のくぼみに十円玉が挟まっている
+var coin_node: Node3D
 var busy := false
 var cloth: Node3D
 var _towel_area: Area3D
@@ -34,6 +36,7 @@ func _ready() -> void:
 	_build_bar()
 	_build_cloth()
 	_build_scratches()
+	_build_coin()
 
 
 func toggle() -> void:
@@ -71,8 +74,8 @@ func _build_cloth() -> void:
 	cloth.name = "Cloth"
 	add_child(cloth)
 	# 布地は画像を 0.2m 四方で繰り返す（トリプラナー投影なので、箱・円柱のどの面でも同じ細かさ）。縁取りは同じ布地を暗くしたもの
-	var fabric := MeshKit.tiled_mat("towel", TOWEL_TEX, 0.2)
-	var hem := MeshKit.tiled_mat("towel_hem", TOWEL_TEX, 0.2, Color(0.78, 0.8, 0.84))
+	var fabric := MeshKit.tiled_mat("towel_red", TOWEL_TEX, 0.2, Color(0.75, 0.2, 0.25))
+	var hem := MeshKit.tiled_mat("towel_hem_red", TOWEL_TEX, 0.2, Color(0.55, 0.12, 0.17))
 	var t := 0.009
 	var fold := MeshKit.cylinder(cloth, FOLD_R, WIDTH, Vector3(OUT, 0, 0), fabric, "Fold", -1.0, 16)
 	fold.rotation.x = deg_to_rad(90.0)
@@ -94,11 +97,15 @@ func _build_scratches() -> void:
 	# 傷の画像（透過付き）を、壁面の 1.5mm 手前の薄い板に貼る。GL Compatibility でも描けるよう、デカールではなく QuadMesh。
 	# 細い線が縮小で消えないよう、ミップマップ付きの線形フィルタ＋半透明の合成。影は落とさない
 	var q := QuadMesh.new()
-	var h := 0.17
+	var h := 0.24
 	q.size = Vector2(h * SCRATCH_TEX.get_width() / SCRATCH_TEX.get_height(), h)
 	var m := StandardMaterial3D.new()
 	m.albedo_texture = SCRATCH_TEX
-	m.albedo_color = Color(0.55, 0.5, 0.45)   # 画像の線は淡いので、少し暗くして遠くからも線が残るようにする
+	m.albedo_color = Color(1.0, 0.9, 0.62)   # 黒い腰壁の上でも見えるよう、明るい金色の線にして、ほんのり光らせる
+	m.emission_enabled = true
+	m.emission_texture = SCRATCH_TEX
+	m.emission = Color(1.0, 0.82, 0.45)
+	m.emission_energy_multiplier = 1.4
 	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
 	m.roughness = 0.9
@@ -112,6 +119,42 @@ func _build_scratches() -> void:
 	root.add_child(mi)
 	var area := MeshKit.interact_area(self, "ScratchArea", "towel_scratch")
 	MeshKit.shape_box(area, Vector3(0.004, 0.2, 0.12), Vector3(0.002, -0.27, -0.09))
+
+
+## 傷のくぼみに挟まった古い十円玉（壁に立てて挟まっている。タオルをずらすと見える）。
+func _build_coin() -> void:
+	coin_node = Node3D.new()
+	coin_node.name = "Coin"
+	coin_node.position = Vector3(0.004, -0.27, -0.09)
+	add_child(coin_node)
+	var disc := MeshKit.cylinder(coin_node, 0.0118, 0.0016, Vector3.ZERO, _bright_coin_mat(), "Disc")
+	disc.rotation.z = deg_to_rad(90.0)   # 円盤の面を部屋側（+x）へ
+
+
+func take_coin() -> void:
+	has_coin = false
+	if coin_node and is_instance_valid(coin_node):
+		coin_node.visible = false
+
+
+## 十円玉の持ち物の拡大モデル（洗面台・浴槽に置く見た目にも使う）。
+## 十円玉の色：金と赤の部屋でも埋もれないよう、明るい銅色に、ほんのり自分で光らせる。
+static func _bright_coin_mat() -> StandardMaterial3D:
+	var m := MeshKit.mat("coin10", Color(0.98, 0.8, 0.32), 0.12, 0.95)   # メダルのような、つやのある金色
+	m.emission_enabled = true
+	m.emission = Color(1.0, 0.78, 0.28)
+	m.emission_energy_multiplier = 0.5
+	return m
+
+
+static func coin_model() -> Node3D:
+	var n := Node3D.new()
+	MeshKit.cylinder(n, 0.0235, 0.004, Vector3.ZERO, _bright_coin_mat(), "Disc", -1.0, 32)
+	# 縁のふちどり（メダルのように、少し盛り上がる）と、真ん中の浮き彫り
+	var rim := MeshKit.cylinder(n, 0.0238, 0.0052, Vector3.ZERO, MeshKit.mat("coin10_rim", Color(1.0, 0.86, 0.4), 0.1, 1.0), "Rim", -1.0, 32)
+	rim.scale = Vector3(1.0, 1.0, 1.0)
+	MeshKit.cylinder(n, 0.019, 0.0058, Vector3.ZERO, _bright_coin_mat(), "Face", -1.0, 32)
+	return n
 
 
 # ---------------------------------------------------------------- main.gd から呼ばれる

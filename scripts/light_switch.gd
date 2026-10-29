@@ -5,6 +5,7 @@ extends Node3D
 ## 判定は小さな箱1つ。座標は部屋と同じ（この節点は原点に置く）。
 
 const MeshKit := preload("res://scripts/mesh_kit.gd")
+const Sfx := preload("res://scripts/sfx.gd")
 
 const POS := Vector3(1.006, 1.25, 1.3)
 
@@ -42,6 +43,7 @@ func get_prompt(_id: String) -> String:
 
 
 func interact(_id: String) -> String:
+	Sfx.play("click")
 	var key: String = room.set_bath_light(not room.bath_light_on)
 	_refresh()
 	return key

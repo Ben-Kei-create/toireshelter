@@ -118,8 +118,9 @@ func _run() -> void:
 	main.hud._message_label.text = ""
 	_aim(player, scratch)
 	player.try_interact()
-	_check(not towel.busy and main.hud._message_label.text == main.MESSAGES["towel_scratch"], "ずらすと裏の傷を調べられる")
+	_check(not towel.busy and main.hud._message_label.text == main.MESSAGES["coin10_pickup"] and main.inventory.has("ten_yen"), "ずらすと裏の傷から十円玉が出てくる")
 	_check(not main.inventory.has("towel"), "タオルは所持品にならない")
+	main.remove_item("ten_yen")   # 以降の持ち物の検証のため、十円玉を戻しておく
 	_aim(player, towel.to_global(Vector3(0.08, -0.2, 0.12)))
 	_check(main._prompt_for(player.get_focused(true)) == main.PROMPTS["towel_back"], "ずらしたタオルを狙うと「戻す」")
 	player.try_interact()
@@ -129,16 +130,14 @@ func _run() -> void:
 
 	# ================================================================ 持ち物：拾う・選ぶ
 	_check(main.inventory.is_empty() and main.selected == -1, "初期状態：所持品なし")
-	player.global_position = Vector3(0.0, 0.0, 0.3)
-	_aim(player, room.driver_node.global_position + Vector3(0, 0.02, 0))
-	player.try_interact()
+	main._on_interact_requested(room.bathtub.get_node("TubDriver/Pickup"))   # ドライバーは入浴剤の玉の中。拾う操作だけを直接呼ぶ
 	player.global_position = Vector3(-0.4, 0.0, 0.6)
 	var roll_node: Node3D = sup.get_node("SupplyShelf/SpareRoll")
 	var roll_area: Area3D = roll_node.get_node("SpareRollArea")
 	_aim(player, roll_node.global_position + Vector3(0, 0.06, 0))
 	_check(main._prompt_for(player.get_focused(true)) == main.PROMPT_PICKUP, "棚の予備ロールに「拾う」")
 	player.try_interact()
-	_check(main.inventory == ["driver", "spare_roll"] and main.selected == 1, "ドライバーと予備ロールを拾う（最後に拾った物が選択される）")
+	_check(main.inventory == ["driver", "spare_roll"] and main.selected == -1, "ドライバーと予備ロールを拾う（拾っただけでは手に持たない）")
 	main._on_interact_requested(roll_area)
 	_check(main.inventory.size() == 2 and _id(player.get_focused(true)) != "spare_roll", "同じ物は重複して取れず、棚の予備ロールは照準から消える")
 	await _key(KEY_1)
@@ -168,7 +167,7 @@ func _run() -> void:
 	var holder_target: Vector3 = sup.get_node("PaperHolder").global_position + Vector3(0.08, -0.02, 0.0)
 	_aim(player, holder_target)
 	await _key(KEY_2)
-	_check(main._use_prompt(player.get_focused(true)) == "F：予備ロールを使う", "予備ロールを選んでホルダーを狙うと「F：予備ロールを使う」")
+	_check(main._use_prompt(player.get_focused(true)) == "F：使う", "予備ロールを選んでホルダーを狙うと「F：予備ロールを使う」")
 	await _key(KEY_F)
 	_check(main.hud._message_label.text == main.MESSAGES["cover_closed"] and main.inventory.has("spare_roll") and not sup.has_paper,
 			"カバーが閉じていると「先にカバーを開けよう。」。予備ロールは消費しない")

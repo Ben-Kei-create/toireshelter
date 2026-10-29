@@ -32,7 +32,21 @@ func _ready() -> void:
 	_build_washcloth()
 	_build_photo()
 	# 浴室用のスリッパ（右の壁ぎわ、入口の手前。洗面台・風呂桶・用具の台から離れている）
-	MeshKit.slipper_pair(self, Vector3(0.68, 0.0, 0.98), -6.0, Color(0.55, 0.78, 0.82), Color(0.9, 0.9, 0.88), "BathSlippers")
+	var bs := MeshKit.slipper_pair(self, Vector3(0.68, 0.0, 0.98), -6.0, Color(0.55, 0.78, 0.82), Color(0.9, 0.9, 0.88), "BathSlippers")
+	# トイレ用のスリッパ：つま先に「WC」の文字。調べられる（toilet_slippers）
+	for side in [-1.0, 1.0]:
+		var lab := Label3D.new()
+		lab.text = "WC"
+		lab.font_size = 36
+		lab.pixel_size = 0.0014
+		lab.modulate = Color(0.1, 0.35, 0.45)
+		lab.outline_size = 0
+		lab.shaded = false
+		lab.position = Vector3(side * 0.055, 0.0455, 0.062)
+		lab.rotation.x = -PI * 0.5
+		bs.add_child(lab)
+	var bsa := MeshKit.interact_area(bs, "SlippersArea", "toilet_slippers")
+	MeshKit.shape_box(bsa, Vector3(0.24, 0.07, 0.3), Vector3(0, 0.035, 0))
 	_build_contact_shadows()
 
 

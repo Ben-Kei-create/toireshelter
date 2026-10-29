@@ -22,6 +22,7 @@ func _run() -> void:
 	var main := current_scene
 	var player = main.player
 	var room = main.room
+	room.front_door.locked = false   # 玄関ドアは、はじめ施錠（家の鍵で開く）。ここでは、開けた先の検証なので、開けておく（鍵は stage5_test）
 	room.open_door()
 	room.front_door.interact("front_door")
 	await create_timer(1.6).timeout

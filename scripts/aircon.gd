@@ -4,6 +4,7 @@ extends Node3D
 ## 原点は天井の面（y 2.4）の真下、この節点を置いた位置。座標は部屋と同じ。
 
 const MeshKit := preload("res://scripts/mesh_kit.gd")
+const Sfx := preload("res://scripts/sfx.gd")
 
 var is_on := false
 var _flaps: Array = []
@@ -77,5 +78,6 @@ func get_prompt(_id: String) -> String:
 
 func interact(_id: String) -> String:
 	is_on = not is_on
+	Sfx.play("beep")
 	_led_mat.emission_energy_multiplier = 2.0 if is_on else 0.0
 	return "aircon_on" if is_on else "aircon_off"
